@@ -203,6 +203,8 @@ export class SidecarSupervisor {
       state: "ready",
       ompVersion: result.ompVersion,
       sidecarVersion: result.sidecarVersion,
+      mode: result.mode,
+      ...(result.schema ? { schema: result.schema } : {}),
     });
   }
 
