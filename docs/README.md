@@ -15,6 +15,7 @@
 | `spike.md` | Plano para validar o ADR 0001 |
 | `adr/0001-integracao-acp-sdk-patches.md` | Estratégia de integração |
 | `adr/0002-collab-fora-de-escopo.md` | Collab fora |
+| `adr/0003-arquitetura-e-stack.md` | Arquitetura do app, stack da v1 e ordem de trabalho (spec na issue #3) |
 | `agents/` | Config das skills de engenharia (tracker, labels, domínio) |
 
 Base dos números e linhas: omp 18.12.6, commit `0b5c27ab24`. Legenda `[V]`/`[S]`/`[I]` em `CONTEXT.md`.

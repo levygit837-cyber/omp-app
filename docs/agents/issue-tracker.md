@@ -39,5 +39,5 @@ Usado por `/wayfinder`. O **mapa** é uma issue única com **filhos** como ticke
 ## Templates
 
 - Issues: formulários em `.github/ISSUE_TEMPLATE/` (`bug.yml`, `feature.yml`, `task.yml`). Issues em branco ficam desabilitadas em `config.yml`.
-- PRs: `.github/pull_request_template.md` (Resumo, Evidência, Risco de merge).
+- PRs: `.github/pull_request_template.md` (Summary, Evidence, Merge Danger).
 - Ao criar issue via `gh issue create`, siga os campos do formulário correspondente; `gh` não aplica os forms sozinho.

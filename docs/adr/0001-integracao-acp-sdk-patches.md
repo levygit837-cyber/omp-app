@@ -34,7 +34,7 @@ Status: aceita com ressalvas. Spike de 2026-10-24 confirmou o desenho (`docs/spi
 
 ## Consequências
 
-- O app embarca ou localiza um Bun. A forma de distribuição fica aberta.
+- O app embarca ou localiza um Bun. ~~A forma de distribuição fica aberta.~~ Resolvido no ADR 0003: sidecar compilado com `bun build --compile` e embutido no app.
 - O desktop acompanha a versão do omp: o sidecar importa código-fonte, não uma API estável.
 
 ## Resultado do spike
