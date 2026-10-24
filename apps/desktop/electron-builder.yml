@@ -1,0 +1,11 @@
+appId: dev.omp-app.desktop
+productName: omp-app
+directories:
+  output: dist
+files:
+  - out/**
+  - package.json
+mac:
+  target:
+    - dir
+  identity: null
