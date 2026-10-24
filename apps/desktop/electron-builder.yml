@@ -5,6 +5,10 @@ directories:
 files:
   - out/**
   - package.json
+# The compiled sidecar lands in Contents/Resources/, next to the app's own resources.
+extraResources:
+  - from: ../../packages/sidecar/dist/omp-app-sidecar
+    to: omp-app-sidecar
 mac:
   target:
     - dir

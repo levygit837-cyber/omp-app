@@ -13,7 +13,14 @@ const devStyleCsp: Plugin = {
 };
 
 export default defineConfig({
-  main: { build: { rollupOptions: { input: resolve("src/main/index.ts") } } },
+  main: {
+    build: {
+      // Workspace packages ship TypeScript sources, which Node cannot load from the asar at
+      // runtime: bundle them into main instead of leaving them as external imports.
+      externalizeDeps: { exclude: ["@omp-app/protocol"] },
+      rollupOptions: { input: resolve("src/main/index.ts") },
+    },
+  },
   preload: {
     build: {
       rollupOptions: {

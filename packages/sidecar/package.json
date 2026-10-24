@@ -3,13 +3,15 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "exports": {
-    ".": "./src/index.ts"
-  },
   "scripts": {
+    "build": "bun run scripts/build.ts",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@oh-my-pi/pi-coding-agent": "18.12.6",
+    "@oh-my-pi/pi-natives": "18.12.6",
+    "@oh-my-pi/pi-tui": "18.12.6",
+    "@oh-my-pi/pi-utils": "18.12.6",
     "@omp-app/protocol": "workspace:*"
   },
   "devDependencies": {
