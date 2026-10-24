@@ -28,10 +28,18 @@ export async function loadFixture(name: string): Promise<Fixture> {
   return { header, events };
 }
 
-/** Compares against `<name>.golden.json`; `UPDATE_GOLDEN=1` rewrites it for review in the diff. */
-export async function goldenFile(name: string, actual: Golden): Promise<Golden> {
-  const file = Bun.file(join(fixturesDir, `${name}.golden.json`));
-  if (process.env.UPDATE_GOLDEN === "1")
-    await Bun.write(file, `${JSON.stringify(actual, null, 2)}\n`);
-  return await file.json();
+/** Reads `<name>.golden.json`. Never writes: only `writeGolden` does, and only on request. */
+export async function readGolden(name: string): Promise<Golden> {
+  return await Bun.file(join(fixturesDir, `${name}.golden.json`)).json();
+}
+
+/** True when the run was asked to regenerate goldens (`UPDATE_GOLDEN=1`). */
+export const updatingGoldens = process.env.UPDATE_GOLDEN === "1";
+
+/**
+ * Rewrites `<name>.golden.json` from a replay, so the change shows up in the diff for review.
+ * Only `replay.test.ts` calls this: it owns the goldens; other tests only compare against them.
+ */
+export async function writeGolden(name: string, golden: Golden): Promise<void> {
+  await Bun.write(join(fixturesDir, `${name}.golden.json`), `${JSON.stringify(golden, null, 2)}\n`);
 }

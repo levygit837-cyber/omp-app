@@ -19,7 +19,7 @@ import { emptyViewModel } from "../src/reducer";
 import { type Handlers, type Server, startServer } from "../src/server";
 import { sessionHandlers } from "../src/session-handlers";
 import { SessionStore } from "../src/session-store";
-import { goldenFile, loadFixture } from "./replay";
+import { loadFixture, readGolden } from "./replay";
 
 interface Client {
   request<M extends MethodName>(m: M, p?: Methods[M]["params"]): Promise<Methods[M]["result"]>;
@@ -118,7 +118,7 @@ describe("session.* over the socket", () => {
     await client.request("session.prompt", { sessionId, text: "hi" });
     await Bun.sleep(150);
 
-    const golden = await goldenFile("basic", { ops: client.events, final: sub });
+    const golden = await readGolden("basic");
     expect(client.events).toEqual(golden.ops as SessionOpEvent[]);
     client.close();
   });

@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { applyOp, type SessionOpEvent } from "@omp-app/protocol";
 import { emptyViewModel } from "../src/reducer";
 import { SessionStore } from "../src/session-store";
-import { type Fixture, goldenFile, loadFixture } from "./replay";
+import { type Fixture, loadFixture, readGolden, updatingGoldens, writeGolden } from "./replay";
 
 const SCENARIOS = ["basic", "cancel"] as const;
 
@@ -29,7 +29,8 @@ describe("reducer replay of events recorded from the pinned omp", () => {
 
       for (const event of fixture.events) store.dispatch(id, event);
 
-      const golden = await goldenFile(name, { ops, final: store.snapshot(id) });
+      if (updatingGoldens) await writeGolden(name, { ops, final: store.snapshot(id) });
+      const golden = await readGolden(name);
       expect(ops).toEqual(golden.ops as SessionOpEvent[]);
       expect(store.snapshot(id)).toEqual(golden.final);
       expect(ops.map((o) => o.seq)).toEqual(ops.map((_, i) => i + 1));
