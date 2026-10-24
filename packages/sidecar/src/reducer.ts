@@ -54,6 +54,14 @@ class Step {
 const modelName = (m: AssistantMessage): string => `${m.provider}/${m.model}`;
 
 /**
+ * `finalError` of the `auto_retry_end` omp emits when a stop (`abort`) interrupts a retry's
+ * credential wait or backoff sleep (`turn-recovery.ts`, `#endCancelledRetry`). It is the only
+ * signal that tells a user stop from a retry that ran out of attempts, so it is matched
+ * exactly; the replay tests pin it to the installed omp.
+ */
+export const RETRY_CANCELLED = "Retry cancelled";
+
+/**
  * Pure: no I/O, no clock, no randomness. Maps one `AgentSessionEvent` to the ops that keep the
  * view model in step. Events the view model has no place for yet (tool calls, thinking,
  * compaction, ...) produce no ops. A later ticket adds a case here and an op in the protocol.
@@ -142,7 +150,15 @@ export function reduceEvent(viewModel: SessionViewModel, event: AgentSessionEven
       step.setStatus("streaming");
       break;
     case "auto_retry_end":
-      if (!event.success) step.setStatus("failed", event.finalError ?? "retries exhausted");
+      if (event.success) break;
+      if (event.finalError === RETRY_CANCELLED) {
+        // The user stopped the session while it waited to retry: that is a stop, not a failure.
+        const open = openAssistant(step.viewModel);
+        if (open) step.push({ type: "item.done", itemId: open.id });
+        step.setStatus("idle");
+      } else {
+        step.setStatus("failed", event.finalError ?? "retries exhausted");
+      }
       break;
 
     default:
