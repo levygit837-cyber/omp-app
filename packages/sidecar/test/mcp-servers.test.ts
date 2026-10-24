@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, setDefaultTimeout, test } from "bun:test";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
@@ -91,6 +91,18 @@ test("a project server exists only in sessions of that project", async () => {
   const without = await open(project("without-p"));
   expect(withIt.tools).toContain(MCP("onlyhere", "onlyhere"));
   expect(without.tools).not.toContain(MCP("onlyhere", "onlyhere"));
+});
+
+test("a stdio server starts in the session's project dir, like the CLI", async () => {
+  const dir = project("relative", {
+    rel: { command: process.execPath, args: ["./tools/echo-mcp.mjs", "rel"] },
+    sub: { command: process.execPath, args: ["./echo-mcp.mjs", "sub"], cwd: "tools" },
+  });
+  mkdirSync(join(dir, "tools"), { recursive: true });
+  copyFileSync(echo, join(dir, "tools", "echo-mcp.mjs"));
+  const { tools } = await open(dir);
+  expect(tools).toContain(MCP("rel", "rel"));
+  expect(tools).toContain(MCP("sub", "sub"));
 });
 
 test("a project definition overrides the user one with the same name", async () => {
