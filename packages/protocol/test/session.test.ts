@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   applyOp,
   isSessionSnapshot,
+  isSessionViewModel,
   methodWrites,
   type SessionOp,
   type SessionViewModel,
@@ -13,6 +14,7 @@ const empty: SessionViewModel = {
   status: "idle",
   model: null,
   timeline: [],
+  warnings: [],
 };
 
 const fold = (ops: readonly SessionOp[], from = empty) => ops.reduce(applyOp, from);
@@ -57,6 +59,19 @@ describe("applyOp", () => {
     const again = applyOp(failed, { type: "status.set", status: "streaming" });
     expect(again.status).toBe("streaming");
     expect("error" in again).toBe(false);
+  });
+
+  test("warning.add appends in order and leaves the timeline alone", () => {
+    const a = { source: "mcp", server: "a", message: "boom" } as const;
+    const b = { source: "mcp", server: "b", message: "bang" } as const;
+    const vm = fold([
+      { type: "warning.add", warning: a },
+      { type: "warning.add", warning: b },
+    ]);
+    expect(vm.warnings).toEqual([a, b]);
+    expect(vm.timeline).toBe(empty.timeline);
+    expect(isSessionViewModel(vm)).toBe(true);
+    expect(isSessionViewModel({ ...vm, warnings: [{ source: "mcp", server: 1 }] })).toBe(false);
   });
 
   test("ops for unknown items and ops of a newer protocol are no-ops", () => {

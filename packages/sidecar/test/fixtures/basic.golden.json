@@ -68,7 +68,8 @@
           "text": "pong",
           "done": true
         }
-      ]
+      ],
+      "warnings": []
     },
     "seq": 5
   }

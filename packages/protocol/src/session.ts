@@ -28,6 +28,17 @@ export interface AssistantItem {
 /** One entry of the timeline. Discriminated by `kind`. */
 export type Item = UserItem | AssistantItem;
 
+/**
+ * A non-blocking problem the session carries on despite. `source` says who raised it, so a
+ * later ticket can add kinds (e.g. tool calls) without reinterpreting this one.
+ */
+export interface SessionWarning {
+  readonly source: "mcp";
+  /** Name of the MCP server, as written in `mcp.json`. */
+  readonly server: string;
+  readonly message: string;
+}
+
 export interface SessionViewModel {
   readonly id: string;
   readonly cwd: string;
@@ -37,6 +48,8 @@ export interface SessionViewModel {
   /** `provider/id` of the active model, or null when the session has none. */
   readonly model: string | null;
   readonly timeline: readonly Item[];
+  /** Append-only, in the order they were raised. */
+  readonly warnings: readonly SessionWarning[];
 }
 
 /** A change to the view model. Discriminated by `type`. */
@@ -49,7 +62,8 @@ export type SessionOp =
       readonly status: SessionStatus;
       readonly error?: string;
     }
-  | { readonly type: "model.set"; readonly model: string | null };
+  | { readonly type: "model.set"; readonly model: string | null }
+  | { readonly type: "warning.add"; readonly warning: SessionWarning };
 
 /** Full state of a session at `seq`: the number of ops applied since it was created. */
 export interface SessionSnapshot {
@@ -106,9 +120,20 @@ export function applyOp(vm: SessionViewModel, op: SessionOp): SessionViewModel {
     }
     case "model.set":
       return vm.model === op.model ? vm : { ...vm, model: op.model };
+    case "warning.add":
+      return { ...vm, warnings: [...vm.warnings, op.warning] };
     default:
       return vm;
   }
+}
+
+function isWarning(v: unknown): v is SessionWarning {
+  return (
+    isRecord(v) &&
+    v.source === "mcp" &&
+    typeof v.server === "string" &&
+    typeof v.message === "string"
+  );
 }
 
 function isItem(v: unknown): v is Item {
@@ -127,7 +152,9 @@ export function isSessionViewModel(v: unknown): v is SessionViewModel {
     (v.error === undefined || typeof v.error === "string") &&
     (v.model === null || typeof v.model === "string") &&
     Array.isArray(v.timeline) &&
-    v.timeline.every(isItem)
+    v.timeline.every(isItem) &&
+    Array.isArray(v.warnings) &&
+    v.warnings.every(isWarning)
   );
 }
 
