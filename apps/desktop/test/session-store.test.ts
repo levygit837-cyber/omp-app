@@ -5,7 +5,11 @@ import type {
   SessionSnapshot,
   SessionViewModel,
 } from "@omp-app/protocol";
-import { createSessionReplicas, type SessionApi } from "../src/renderer/session-store";
+import {
+  createSessionReplicas,
+  type SessionApi,
+  SessionLostError,
+} from "../src/renderer/session-store";
 
 const emptyVm = (id = "s1", patch: Partial<SessionViewModel> = {}): SessionViewModel => ({
   id,
@@ -239,6 +243,70 @@ describe("snapshot replaces state", () => {
     t.replicas.receive(op(1, { type: "status.set", status: "streaming" }));
     expect(t.vm()).toBeUndefined();
     expect(t.calls).toEqual(["subscribe:s1", "unsubscribe:s1"]);
+  });
+});
+
+describe("session lost after a sidecar restart", () => {
+  // Electron wraps a rejected IPC call; only the message text reaches the renderer.
+  const unknownSession = (id: string) =>
+    new Error(`Error invoking remote method 'session:subscribe': Error: unknown session: ${id}`);
+
+  /** The first subscribe works; later ones fail the way a restarted sidecar answers. */
+  function restartedSidecar() {
+    const frames = manualFrames();
+    let subscribes = 0;
+    const api: SessionApi = {
+      async subscribe(sessionId) {
+        if (++subscribes > 1) throw unknownSession(sessionId);
+        return { snapshot: emptyVm(sessionId, { timeline: [assistant("i0", "hi")] }), seq: 0 };
+      },
+      async unsubscribe() {},
+    };
+    return { replicas: createSessionReplicas(api, frames.schedule), frames };
+  }
+
+  test("opening a session the sidecar forgot rejects with SessionLostError and drops the replica", async () => {
+    const { replicas } = restartedSidecar();
+    await replicas.open("s1");
+    expect(replicas.store.getState().sessions.s1).toBeDefined();
+
+    await expect(replicas.open("s1")).rejects.toBeInstanceOf(SessionLostError);
+    expect(replicas.store.getState().sessions.s1).toBeUndefined();
+    expect(replicas.store.getState().error).toBeNull(); // a lost session is not a sync error
+  });
+
+  test("a lost session stops tracking: later events are ignored and nothing is buffered", async () => {
+    const { replicas, frames } = restartedSidecar();
+    await replicas.open("s1");
+    replicas.receive(op(1, { type: "item.appendText", itemId: "i0", text: "!" })); // buffered
+    await replicas.open("s1").catch(() => undefined);
+
+    replicas.receive(op(2, { type: "status.set", status: "streaming" }));
+    frames.run();
+    expect(replicas.store.getState().sessions.s1).toBeUndefined();
+  });
+
+  test("a gap that resubscribes into an unknown session drops it quietly", async () => {
+    const { replicas } = restartedSidecar();
+    await replicas.open("s1");
+    replicas.receive(op(5, { type: "status.set", status: "streaming" })); // gap -> resubscribe
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    expect(replicas.store.getState().sessions.s1).toBeUndefined();
+    expect(replicas.store.getState().error).toBeNull();
+  });
+
+  test("any other subscribe failure keeps its own message and is not 'lost'", async () => {
+    const api: SessionApi = {
+      async subscribe() {
+        throw new Error("sidecar is not running");
+      },
+      async unsubscribe() {},
+    };
+    const replicas = createSessionReplicas(api, () => {});
+    const failure = await replicas.open("s1").catch((e: unknown) => e);
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure).not.toBeInstanceOf(SessionLostError);
+    expect((failure as Error).message).toBe("sidecar is not running");
   });
 });
 

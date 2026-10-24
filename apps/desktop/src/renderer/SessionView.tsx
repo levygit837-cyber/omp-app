@@ -2,12 +2,14 @@ import { type FormEvent, memo, useCallback, useEffect, useState } from "react";
 import type { SidecarStatus } from "../shared/bridge";
 import {
   replicas,
+  useCwd,
   useItem,
   useItemCount,
   useSessionError,
   useStatus,
   useSyncError,
 } from "./session-hooks";
+import { SessionLostError } from "./session-store";
 
 /** Survives a window reload (same tab), so a reload re-attaches to the running session. */
 const STORAGE_KEY = "omp-app.sessionId";
@@ -133,23 +135,45 @@ function Composer({ sessionId }: { sessionId: string }) {
   );
 }
 
+/** The session's directory, read from the replica so it survives a reload. */
+function SessionCwd({ sessionId }: { sessionId: string }) {
+  const cwd = useCwd(sessionId);
+  if (!cwd) return null;
+  return (
+    <code data-testid="session-cwd" className="truncate text-xs">
+      {cwd}
+    </code>
+  );
+}
+
 /** Pick a directory, start a session in it, prompt, watch the answer stream in. */
 export function SessionView({ sidecar }: { sidecar: SidecarStatus }) {
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [cwd, setCwd] = useState<string | null>(null);
+  // True once the sidecar stopped knowing the session (it restarted): sessions do not survive
+  // that. The replica is already gone then, so there is no timeline and no composer to show.
+  const [lost, setLost] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const syncError = useSyncError();
   const ready = sidecar.state === "ready";
   const readOnly = sidecar.state === "ready" && sidecar.mode === "read_only";
 
-  // After a reload: re-attach to the session this tab was using; the snapshot restores it.
+  // After a reload, or when the sidecar comes back after a restart: subscribe again to the
+  // session in use. The snapshot restores it; "unknown session" means it is gone for good.
   useEffect(() => {
     if (!ready) return;
-    const stored = sessionStorage.getItem(STORAGE_KEY);
-    if (!stored) return;
-    replicas.open(stored).then(
-      () => setSessionId(stored),
-      () => sessionStorage.removeItem(STORAGE_KEY), // the sidecar no longer knows it
+    const id = sessionStorage.getItem(STORAGE_KEY);
+    if (!id) return;
+    replicas.open(id).then(
+      () => {
+        setSessionId(id);
+        setLost(false);
+      },
+      (e: unknown) => {
+        if (!(e instanceof SessionLostError)) return setError(message(e));
+        sessionStorage.removeItem(STORAGE_KEY);
+        setSessionId(null);
+        setLost(true);
+      },
     );
   }, [ready]);
 
@@ -160,9 +184,11 @@ export function SessionView({ sidecar }: { sidecar: SidecarStatus }) {
       if (!dir) return;
       const id = await window.omp.session.create(dir);
       await replicas.open(id);
+      const previous = sessionId;
       sessionStorage.setItem(STORAGE_KEY, id);
-      setCwd(dir);
       setSessionId(id);
+      setLost(false);
+      if (previous) await replicas.close(previous).catch(() => undefined);
     } catch (e) {
       setError(message(e));
     }
@@ -183,12 +209,13 @@ export function SessionView({ sidecar }: { sidecar: SidecarStatus }) {
         >
           {sessionId ? "New session…" : "Pick a directory…"}
         </button>
-        {cwd && (
-          <code data-testid="session-cwd" className="truncate text-xs">
-            {cwd}
-          </code>
-        )}
+        {sessionId && <SessionCwd sessionId={sessionId} />}
       </div>
+      {lost && (
+        <p role="alert" data-testid="session-lost" className="text-sm font-medium">
+          Session lost — start a new one. The sidecar restarted and no longer has this session.
+        </p>
+      )}
       {(error ?? syncError) && (
         <p role="alert" className="text-sm font-medium">
           {error ?? syncError}

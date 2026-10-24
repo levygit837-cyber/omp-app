@@ -24,6 +24,8 @@ export interface SessionReplicas {
   /**
    * Subscribes to a session and replaces any local state with its snapshot. Safe to call again
    * (window reload, reconnect): the snapshot wins. Resolves once the replica is in the store.
+   * Rejects with {@link SessionLostError} when the sidecar does not know the session (it was
+   * restarted since); the replica is then gone from the store.
    */
   open(sessionId: string): Promise<void>;
   /** Drops the replica and stops the op stream for the session. */
@@ -41,6 +43,25 @@ interface Tracking {
   /** Non-null while a (re)subscribe is in flight: events are held until the snapshot lands. */
   held: SessionOpEvent[] | null;
   inflight: Promise<void> | null;
+}
+
+/** The sidecar does not know this session: it was restarted, and sessions do not survive that. */
+export class SessionLostError extends Error {
+  readonly sessionId: string;
+  constructor(sessionId: string) {
+    super(`session lost: ${sessionId}`);
+    this.name = "SessionLostError";
+    this.sessionId = sessionId;
+  }
+}
+
+/**
+ * The sidecar answers `unknown session: <id>`. Electron wraps a rejected IPC call as
+ * "Error invoking remote method '<channel>': Error: <message>", and only the text survives, so
+ * the message is matched rather than an error code.
+ */
+function isUnknownSession(error: unknown): boolean {
+  return error instanceof Error && error.message.includes("unknown session");
 }
 
 /**
@@ -61,6 +82,16 @@ export function createSessionReplicas(api: SessionApi, schedule: FrameScheduler)
 
   const setSession = (sessionId: string, vm: SessionViewModel) =>
     store.setState((state) => ({ sessions: { ...state.sessions, [sessionId]: vm } }));
+
+  /** Forgets a session locally: its replica, buffered text and sequence tracking. */
+  function drop(sessionId: string): void {
+    tracking.delete(sessionId);
+    dirty.delete(sessionId);
+    store.setState((state) => {
+      const { [sessionId]: _dropped, ...rest } = state.sessions;
+      return { sessions: rest };
+    });
+  }
 
   function apply(sessionId: string, ops: readonly SessionOp[]): void {
     const current = store.getState().sessions[sessionId];
@@ -117,8 +148,15 @@ export function createSessionReplicas(api: SessionApi, schedule: FrameScheduler)
         for (const event of heldEvents.sort((a, b) => a.seq - b.seq)) receive(event);
       },
       (error: unknown) => {
+        if (tracking.get(sessionId) !== t) throw error; // closed meanwhile: not ours to clean up
         t.inflight = null;
         t.held = null;
+        if (isUnknownSession(error)) {
+          drop(sessionId);
+          throw new SessionLostError(sessionId);
+        }
+        // A session that never got a snapshot has nothing to keep tracking.
+        if (!store.getState().sessions[sessionId]) tracking.delete(sessionId);
         throw error;
       },
     );
@@ -135,9 +173,10 @@ export function createSessionReplicas(api: SessionApi, schedule: FrameScheduler)
     }
     if (event.seq <= t.seq) return;
     if (event.seq !== t.seq + 1) {
-      resync(event.sessionId, t, [event]).catch((error: unknown) =>
-        store.setState({ error: error instanceof Error ? error.message : String(error) }),
-      );
+      resync(event.sessionId, t, [event]).catch((error: unknown) => {
+        if (error instanceof SessionLostError) return; // the replica is gone; the window shows it
+        store.setState({ error: error instanceof Error ? error.message : String(error) });
+      });
       return;
     }
     t.seq = event.seq;
@@ -149,23 +188,20 @@ export function createSessionReplicas(api: SessionApi, schedule: FrameScheduler)
     apply(event.sessionId, [event.op]);
   }
 
+  function open(sessionId: string): Promise<void> {
+    let t = tracking.get(sessionId);
+    if (!t) {
+      t = { seq: 0, pending: [], held: null, inflight: null };
+      tracking.set(sessionId, t);
+    }
+    return resync(sessionId, t, t.held ?? []);
+  }
+
   return {
     store,
-    open(sessionId) {
-      let t = tracking.get(sessionId);
-      if (!t) {
-        t = { seq: 0, pending: [], held: null, inflight: null };
-        tracking.set(sessionId, t);
-      }
-      return resync(sessionId, t, t.held ?? []);
-    },
+    open,
     async close(sessionId) {
-      tracking.delete(sessionId);
-      dirty.delete(sessionId);
-      store.setState((state) => {
-        const { [sessionId]: _dropped, ...rest } = state.sessions;
-        return { sessions: rest };
-      });
+      drop(sessionId);
       await api.unsubscribe(sessionId);
     },
     receive,

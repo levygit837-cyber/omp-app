@@ -20,8 +20,8 @@ export const useItemCount = (sessionId: string): number =>
   select((s) => s.sessions[sessionId]?.timeline.length ?? 0);
 export const useItem = (sessionId: string, index: number): Item | undefined =>
   select((s) => s.sessions[sessionId]?.timeline[index]);
-export const useModel = (sessionId: string): string | null | undefined =>
-  select((s) => s.sessions[sessionId]?.model);
+export const useCwd = (sessionId: string): string | undefined =>
+  select((s) => s.sessions[sessionId]?.cwd);
 export const useSessionError = (sessionId: string): string | undefined =>
   select((s) => s.sessions[sessionId]?.error);
 export const useSyncError = (): string | null => select((s) => s.error);
