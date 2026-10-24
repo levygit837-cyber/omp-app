@@ -16,6 +16,7 @@ const handshake = {
   sidecarVersion: "1.2.3",
   ompVersion: "4.5.6",
   capabilities: ["handshake"],
+  mode: "normal" as const,
 };
 
 /** Encodes then decodes, i.e. what actually survives the wire. */
@@ -76,6 +77,13 @@ describe("handshake result", () => {
     const { protocolVersion: _, ...withoutVersion } = handshake;
     expect(isHandshakeResult(withoutVersion)).toBe(false);
     expect(isHandshakeResult({ ...handshake, protocolVersion: "1" })).toBe(false);
+  });
+
+  test("read_only requires both schema versions", () => {
+    const schema = { onDisk: 7, expected: 6 };
+    expect(isHandshakeResult({ ...handshake, mode: "read_only", schema })).toBe(true);
+    expect(isHandshakeResult({ ...handshake, mode: "read_only" })).toBe(false);
+    expect(isHandshakeResult({ ...handshake, mode: "other" })).toBe(false);
   });
 });
 

@@ -7,6 +7,7 @@ import {
   isRequestEnvelope,
   type MethodName,
   type Methods,
+  methodWrites,
   okResponse,
   type RequestEnvelope,
   type ResponseEnvelope,
@@ -28,11 +29,21 @@ export interface Server {
 /** Every method the protocol defines. Derived, so a new method can never answer `unknown_method`. */
 const METHOD_NAMES: readonly string[] = Object.keys(resultGuards);
 
-async function dispatch(handlers: Handlers, req: RequestEnvelope): Promise<ResponseEnvelope> {
+async function dispatch(
+  handlers: Handlers,
+  req: RequestEnvelope,
+  readOnly: boolean,
+): Promise<ResponseEnvelope> {
   if (!METHOD_NAMES.includes(req.method)) {
     return errorResponse(req.id, {
       code: "unknown_method",
       message: `unknown method: ${req.method}`,
+    });
+  }
+  if (readOnly && methodWrites[req.method as MethodName]) {
+    return errorResponse(req.id, {
+      code: "read_only",
+      message: `${req.method} writes and the shared omp database is newer than this app supports`,
     });
   }
   const handler = handlers[req.method as MethodName] as
@@ -59,7 +70,7 @@ interface Connection {
 }
 
 /** Listens on a Unix socket (mode 0600) and serves newline-delimited protocol frames. */
-export function startServer(socketPath: string, handlers: Handlers): Server {
+export function startServer(socketPath: string, handlers: Handlers, readOnly = false): Server {
   rmSync(socketPath, { force: true });
   let connected = 0;
   let sawClient = false;
@@ -95,7 +106,7 @@ export function startServer(socketPath: string, handlers: Handlers): Server {
             console.error(`[sidecar] dropped malformed frame: ${line.slice(0, 200)}`);
             continue;
           }
-          void dispatch(handlers, decoded.envelope).then((response) =>
+          void dispatch(handlers, decoded.envelope, readOnly).then((response) =>
             send(socket, encodeFrame(response)),
           );
         }

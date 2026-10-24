@@ -7,7 +7,12 @@
 export const PROTOCOL_VERSION = 1;
 
 /** Machine-readable failure reasons. Extend as methods are added. */
-export type ErrorCode = "invalid_request" | "unknown_method" | "disabled" | "internal";
+export type ErrorCode =
+  | "invalid_request"
+  | "unknown_method"
+  | "disabled"
+  | "read_only"
+  | "internal";
 
 export interface ProtocolError {
   readonly code: ErrorCode;
@@ -41,6 +46,14 @@ export interface EventEnvelope<N extends string = string, D = unknown> {
 
 export type Envelope = RequestEnvelope | ResponseEnvelope | EventEnvelope;
 
+/** Shared agent database schema versions, reported when the app must not write to it. */
+export interface SchemaMismatch {
+  /** Schema version found on disk, newer than the pinned omp supports. */
+  readonly onDisk: number;
+  /** Schema version the pinned omp expects. */
+  readonly expected: number;
+}
+
 /** First request on every connection. */
 export interface HandshakeResult {
   /** `PROTOCOL_VERSION` the sidecar speaks; main refuses a sidecar that differs from its own. */
@@ -51,6 +64,10 @@ export interface HandshakeResult {
   readonly ompVersion: string;
   /** Feature names the sidecar serves. */
   readonly capabilities: readonly string[];
+  /** `read_only` when the shared agent database is newer than the pinned omp: writes are refused. */
+  readonly mode: "normal" | "read_only";
+  /** Present only in `read_only` mode. */
+  readonly schema?: SchemaMismatch;
 }
 
 /** Result of the debug-only `debug.logStdout` request. */
@@ -59,13 +76,20 @@ export interface DebugLogStdoutResult {
   readonly writes: number;
 }
 
+/** Result of the debug-only `debug.write` request. */
+export interface DebugWriteResult {
+  readonly wrote: true;
+}
+
 /**
  * Methods of the app protocol, by name.
- * `debug.logStdout` is served only when the sidecar runs with `OMP_APP_SIDECAR_DEBUG=1`.
+ * `debug.logStdout` and `debug.write` are served only when the sidecar runs with `OMP_APP_SIDECAR_DEBUG=1`.
  */
 export interface Methods {
   handshake: { params: undefined; result: HandshakeResult };
   "debug.logStdout": { params: { readonly marker: string }; result: DebugLogStdoutResult };
+  /** Stands in for a write-capable method, so the read-only gate is testable before real ones exist. */
+  "debug.write": { params: undefined; result: DebugWriteResult };
 }
 export type MethodName = keyof Methods;
 
@@ -117,6 +141,10 @@ export function isEnvelope(v: unknown): v is Envelope {
   return isRequestEnvelope(v) || isResponseEnvelope(v) || isEventEnvelope(v);
 }
 
+export function isSchemaMismatch(v: unknown): v is SchemaMismatch {
+  return isRecord(v) && typeof v.onDisk === "number" && typeof v.expected === "number";
+}
+
 export function isHandshakeResult(v: unknown): v is HandshakeResult {
   return (
     isRecord(v) &&
@@ -124,7 +152,8 @@ export function isHandshakeResult(v: unknown): v is HandshakeResult {
     typeof v.sidecarVersion === "string" &&
     typeof v.ompVersion === "string" &&
     Array.isArray(v.capabilities) &&
-    v.capabilities.every((c) => typeof c === "string")
+    v.capabilities.every((c) => typeof c === "string") &&
+    (v.mode === "normal" || (v.mode === "read_only" && isSchemaMismatch(v.schema)))
   );
 }
 
@@ -132,10 +161,26 @@ export function isDebugLogStdoutResult(v: unknown): v is DebugLogStdoutResult {
   return isRecord(v) && typeof v.writes === "number";
 }
 
+/**
+ * Whether each method can write to the shared omp state (database, settings, credentials).
+ * The sidecar answers `read_only` to a `true` method when the schema guard tripped. Typed over
+ * every method so a new one cannot be added without deciding.
+ */
+export const methodWrites: { [M in MethodName]: boolean } = {
+  handshake: false,
+  "debug.logStdout": false,
+  "debug.write": true,
+};
+
+export function isDebugWriteResult(v: unknown): v is DebugWriteResult {
+  return isRecord(v) && v.wrote === true;
+}
+
 /** Runtime check for each method's result, so callers get typed results without casts. */
 export const resultGuards: { [M in MethodName]: (v: unknown) => v is Methods[M]["result"] } = {
   handshake: isHandshakeResult,
   "debug.logStdout": isDebugLogStdoutResult,
+  "debug.write": isDebugWriteResult,
 };
 
 /** A request that failed: the sidecar answered with an error, or the reply was malformed. */

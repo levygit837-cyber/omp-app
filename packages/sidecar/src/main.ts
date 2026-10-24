@@ -2,6 +2,7 @@ import "./stdio";
 import { writeSync } from "node:fs";
 import { type HandshakeResult, PROTOCOL_VERSION } from "@omp-app/protocol";
 import { startOmpHost } from "./omp-host";
+import { checkSchema } from "./schema-guard";
 import { type Handlers, startServer } from "./server";
 import { SIDECAR_VERSION } from "./version";
 
@@ -19,14 +20,18 @@ async function main(): Promise<void> {
   const socketPath = parseSocketPath(process.argv);
   const parentPid = process.ppid;
 
+  // Before omp opens the agent database: omp only warns about a newer schema, then writes.
+  const guard = checkSchema();
   const host = await startOmpHost();
-  const capabilities = ["handshake", ...(DEBUG ? ["debug.logStdout"] : [])];
+  const capabilities = ["handshake", ...(DEBUG ? ["debug.logStdout", "debug.write"] : [])];
   const handlers: Handlers = {
     handshake: async (): Promise<HandshakeResult> => ({
       protocolVersion: PROTOCOL_VERSION,
       sidecarVersion: SIDECAR_VERSION,
       ompVersion: host.ompVersion,
       capabilities,
+      mode: guard.mode,
+      ...(guard.mode === "read_only" ? { schema: guard.schema } : {}),
     }),
   };
   if (DEBUG) {
@@ -36,11 +41,12 @@ async function main(): Promise<void> {
       writeSync(1, `${marker} fd1\n`);
       return { writes: 3 };
     };
+    handlers["debug.write"] = async () => ({ wrote: true });
   }
 
-  const server = startServer(socketPath, handlers);
+  const server = startServer(socketPath, handlers, guard.mode === "read_only");
   console.error(
-    `[sidecar] ready: sidecar ${SIDECAR_VERSION}, omp ${host.ompVersion}, socket ${socketPath}`,
+    `[sidecar] ready: sidecar ${SIDECAR_VERSION}, omp ${host.ompVersion}, mode ${guard.mode}, socket ${socketPath}`,
   );
 
   const shutdown = async (reason: string): Promise<never> => {
