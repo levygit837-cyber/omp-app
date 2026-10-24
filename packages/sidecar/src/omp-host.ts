@@ -31,7 +31,11 @@ export interface OmpHost {
   createSession(cwd: string): Promise<string>;
   /** Resolves when the turn ends (answered, cancelled or failed) with ACP's stop reason. */
   prompt(sessionId: string, text: string): Promise<string>;
-  /** Stops the session's running turn; resolves once it has unwound. */
+  /**
+   * Asks the session to stop its running turn. ACP's `session/cancel` is a notification: this
+   * resolves once it is sent, not once the turn has unwound. The stop shows up as ops
+   * (`item.done`, `status.set` idle), and the pending `prompt` settles with `cancelled`.
+   */
   cancel(sessionId: string): Promise<void>;
   /** Closes the in-memory transport; the AcpAgent disposes itself when it sees the close. */
   close(): Promise<void>;
