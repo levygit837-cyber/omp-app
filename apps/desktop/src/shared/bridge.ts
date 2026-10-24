@@ -1,3 +1,5 @@
+import type { SessionOpEvent, SessionSnapshot } from "@omp-app/protocol";
+
 /** Where the sidecar is in its lifecycle, as the window sees it. */
 export type SidecarStatus =
   | { readonly state: "starting" }
@@ -25,5 +27,19 @@ export type OmpBridge = {
     onStatus(listener: (status: SidecarStatus) => void): () => void;
     /** Stops the sidecar if running and starts a fresh one. Resolves once the new one is launching. */
     restart(): Promise<void>;
+  };
+  readonly session: {
+    /** Native directory picker. Resolves with the chosen absolute path, or null if cancelled. */
+    pickDirectory(): Promise<string | null>;
+    /** Creates a session in `cwd` and resolves with its id. Rejects in read-only mode. */
+    create(cwd: string): Promise<string>;
+    /** Idempotent. Resolves with the current state; `session.op` events for it keep flowing. */
+    subscribe(sessionId: string): Promise<SessionSnapshot>;
+    unsubscribe(sessionId: string): Promise<void>;
+    /** Resolves once the prompt is accepted; the answer arrives as ops. */
+    prompt(sessionId: string, text: string): Promise<void>;
+    cancel(sessionId: string): Promise<void>;
+    /** Calls `listener` for every op of every subscribed session. Returns the unsubscribe function. */
+    onOp(listener: (event: SessionOpEvent) => void): () => void;
   };
 };
