@@ -49,6 +49,7 @@ let deltas = 0;
 let cancelled: Promise<void> | undefined;
 
 const host = await startOmpHost({
+  onMcpFailure: () => {},
   onSessionCreated: (created) => {
     session = created;
     created.subscribe((event) => {

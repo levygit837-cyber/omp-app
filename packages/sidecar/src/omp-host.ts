@@ -15,6 +15,7 @@ import {
   PROTOCOL_VERSION,
   type Stream,
 } from "@oh-my-pi/pi-utils/acp";
+import { parseMcpFailure, resolveMcpServers } from "./mcp-config";
 
 export interface OmpHostOptions {
   /**
@@ -22,6 +23,8 @@ export interface OmpHostOptions {
    * run, so a subscriber never misses the first event.
    */
   readonly onSessionCreated: (session: AgentSession) => void;
+  /** An MCP server failed to connect for this session. The session carries on without it. */
+  readonly onMcpFailure: (sessionId: string, server: string, message: string) => void;
 }
 
 export interface OmpHost {
@@ -124,8 +127,15 @@ export async function startOmpHost(options: OmpHostOptions): Promise<OmpHost> {
         console.error(`[sidecar] elicitation cancelled: ${params.message}`);
         return { action: "cancel" };
       },
-      // The timeline comes from AgentSession.subscribe, not from ACP updates.
-      sessionUpdate: () => {},
+      // The timeline comes from AgentSession.subscribe, not from ACP updates. The one exception
+      // is omp's notice that an MCP server did not connect: it exists nowhere else.
+      sessionUpdate: (params) => {
+        const update = params.update;
+        if (update.sessionUpdate !== "agent_message_chunk" || update.content.type !== "text")
+          return;
+        const failure = parseMcpFailure(update.content.text);
+        if (failure) options.onMcpFailure(params.sessionId, failure.server, failure.message);
+      },
     }),
     transport.client,
   );
@@ -140,7 +150,10 @@ export async function startOmpHost(options: OmpHostOptions): Promise<OmpHost> {
   return {
     ompVersion,
     async createSession(cwd) {
-      const created = await client.newSession({ cwd, mcpServers: [] });
+      // omp ignores MCP config on disk in ACP sessions; the servers travel in the request.
+      const { settings } = await openContext();
+      const mcpServers = await resolveMcpServers(cwd, await settings.cloneForCwd(cwd));
+      const created = await client.newSession({ cwd, mcpServers });
       return created.sessionId;
     },
     async prompt(sessionId, text) {
