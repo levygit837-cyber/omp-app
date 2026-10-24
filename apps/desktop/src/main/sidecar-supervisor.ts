@@ -4,8 +4,12 @@ import { connect, type Socket } from "node:net";
 import { join } from "node:path";
 import {
   decodeFrame,
+  type EventEnvelope,
   FrameDecoder,
+  isEventEnvelope,
   isResponseEnvelope,
+  type MethodName,
+  type Methods,
   PROTOCOL_VERSION,
   RequestCorrelator,
 } from "@omp-app/protocol";
@@ -40,6 +44,9 @@ export class SidecarSupervisor {
     Pick<SupervisorOptions, "env" | "args">;
   readonly #tail: LogTail;
   readonly #listeners = new Set<(status: SidecarStatus) => void>();
+  readonly #eventListeners = new Set<(event: EventEnvelope) => void>();
+  /** Correlator of the live connection; null until the socket is up and after it is torn down. */
+  #correlator: RequestCorrelator | null = null;
   #status: SidecarStatus = { state: "starting" };
   /** Bumped on every launch and stop; callbacks from an older run compare and bail. */
   #run = 0;
@@ -66,6 +73,27 @@ export class SidecarSupervisor {
   onStatus(listener: (status: SidecarStatus) => void): () => void {
     this.#listeners.add(listener);
     return () => this.#listeners.delete(listener);
+  }
+
+  /** Calls `listener` for every event the sidecar pushes. Returns the unsubscribe function. */
+  onEvent(listener: (event: EventEnvelope) => void): () => void {
+    this.#eventListeners.add(listener);
+    return () => this.#eventListeners.delete(listener);
+  }
+
+  /** Sends a request over the live connection. Rejects unless the sidecar is `ready`. */
+  request<M extends MethodName>(
+    method: M,
+    params?: Methods[M]["params"],
+  ): Promise<Methods[M]["result"]> {
+    const socket = this.#socket;
+    const correlator = this.#correlator;
+    if (this.#status.state !== "ready" || !socket || !correlator) {
+      return Promise.reject(new Error("the sidecar is not ready"));
+    }
+    const { frame, response } = correlator.create(method, params);
+    socket.write(frame);
+    return response;
   }
 
   /**
@@ -171,12 +199,17 @@ export class SidecarSupervisor {
     this.#socket = socket;
 
     const correlator = new RequestCorrelator();
+    this.#correlator = correlator;
     const decoder = new FrameDecoder();
     socket.setEncoding("utf8");
     socket.on("data", (chunk: string) => {
       for (const line of decoder.push(chunk)) {
         const frame = decodeFrame(line);
-        if (frame.ok && isResponseEnvelope(frame.envelope)) correlator.receive(frame.envelope);
+        if (!frame.ok) continue;
+        if (isResponseEnvelope(frame.envelope)) correlator.receive(frame.envelope);
+        else if (isEventEnvelope(frame.envelope) && run === this.#run) {
+          for (const listener of this.#eventListeners) listener(frame.envelope);
+        }
       }
     });
     socket.on("close", () => {
@@ -223,6 +256,8 @@ export class SidecarSupervisor {
     this.#child = null;
     this.#socket?.destroy();
     this.#socket = null;
+    this.#correlator?.rejectAll(new Error("the sidecar was stopped"));
+    this.#correlator = null;
     // `pid` is undefined when spawn failed: there is no process and `close` will never fire.
     if (child && child.pid !== undefined && child.exitCode === null && child.signalCode === null) {
       const closed = new Promise<void>((resolve) => child.once("close", () => resolve()));

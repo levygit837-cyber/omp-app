@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { SidecarStatus } from "../shared/bridge";
+import { SessionView } from "./SessionView";
 
 function useSidecarStatus(): SidecarStatus {
   const [status, setStatus] = useState<SidecarStatus>({ state: "starting" });
@@ -64,12 +65,13 @@ export function App() {
   const { electron, chrome } = window.omp.versions;
   const status = useSidecarStatus();
   return (
-    <main className="flex h-screen flex-col items-center justify-center gap-3 bg-surface font-sans text-text">
+    <main className="flex h-screen flex-col items-center gap-3 bg-surface p-4 font-sans text-text">
       <h1 className="text-2xl text-text-muted">omp-app</h1>
       <p data-testid="bridge-versions" className="text-sm text-text-muted">
         electron {electron} · chrome {chrome}
       </p>
       <SidecarPanel status={status} />
+      <SessionView sidecar={status} />
     </main>
   );
 }

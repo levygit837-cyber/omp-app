@@ -3,6 +3,11 @@
  * Pure types and codecs: no runtime dependencies, safe to import from any package.
  */
 
+import { isRecord } from "./guards";
+import { isSessionSnapshot, type SessionOpEvent, type SessionSnapshot } from "./session";
+
+export * from "./session";
+
 /** Bumped on every incompatible change to the envelopes or to a method's params/result. */
 export const PROTOCOL_VERSION = 1;
 
@@ -90,7 +95,26 @@ export interface Methods {
   "debug.logStdout": { params: { readonly marker: string }; result: DebugLogStdoutResult };
   /** Stands in for a write-capable method, so the read-only gate is testable before real ones exist. */
   "debug.write": { params: undefined; result: DebugWriteResult };
+  "session.create": { params: { readonly cwd: string }; result: SessionCreateResult };
+  "session.prompt": {
+    params: { readonly sessionId: string; readonly text: string };
+    result: null;
+  };
+  "session.cancel": { params: { readonly sessionId: string }; result: null };
+  /** Idempotent. Starts `session.op` events for this connection and returns the current state. */
+  "session.subscribe": { params: { readonly sessionId: string }; result: SessionSnapshot };
+  "session.unsubscribe": { params: { readonly sessionId: string }; result: null };
 }
+
+export interface SessionCreateResult {
+  readonly sessionId: string;
+}
+
+/** Events the sidecar pushes, by name. */
+export interface Events {
+  "session.op": SessionOpEvent;
+}
+export type EventName = keyof Events;
 export type MethodName = keyof Methods;
 
 export function request<M extends MethodName>(
@@ -114,9 +138,6 @@ export function okResponse<R>(id: string, result: R): ResponseEnvelope<WireResul
 export function errorResponse(id: string, error: ProtocolError): ResponseEnvelope<never> {
   return { kind: "response", id, ok: false, error };
 }
-
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  typeof v === "object" && v !== null && !Array.isArray(v);
 
 export function isProtocolError(v: unknown): v is ProtocolError {
   return isRecord(v) && typeof v.code === "string" && typeof v.message === "string";
@@ -170,17 +191,33 @@ export const methodWrites: { [M in MethodName]: boolean } = {
   handshake: false,
   "debug.logStdout": false,
   "debug.write": true,
+  "session.create": true,
+  "session.prompt": true,
+  "session.cancel": true,
+  "session.subscribe": false,
+  "session.unsubscribe": false,
 };
 
 export function isDebugWriteResult(v: unknown): v is DebugWriteResult {
   return isRecord(v) && v.wrote === true;
 }
 
+export function isSessionCreateResult(v: unknown): v is SessionCreateResult {
+  return isRecord(v) && typeof v.sessionId === "string";
+}
+
+/** Void results travel as `null` (JSON has no `undefined`). */
+const isNull = (v: unknown): v is null => v === null;
 /** Runtime check for each method's result, so callers get typed results without casts. */
 export const resultGuards: { [M in MethodName]: (v: unknown) => v is Methods[M]["result"] } = {
   handshake: isHandshakeResult,
   "debug.logStdout": isDebugLogStdoutResult,
   "debug.write": isDebugWriteResult,
+  "session.create": isSessionCreateResult,
+  "session.prompt": isNull,
+  "session.cancel": isNull,
+  "session.subscribe": isSessionSnapshot,
+  "session.unsubscribe": isNull,
 };
 
 /** A request that failed: the sidecar answered with an error, or the reply was malformed. */

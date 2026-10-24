@@ -1,6 +1,18 @@
 import { join } from "node:path";
-import { app, BrowserWindow, ipcMain } from "electron";
-import { SIDECAR_GET_STATUS, SIDECAR_RESTART, SIDECAR_STATUS } from "../shared/channels";
+import { isSessionOpEvent } from "@omp-app/protocol";
+import { app, BrowserWindow, dialog, ipcMain } from "electron";
+import {
+  SESSION_CANCEL,
+  SESSION_CREATE,
+  SESSION_OP,
+  SESSION_PICK_DIRECTORY,
+  SESSION_PROMPT,
+  SESSION_SUBSCRIBE,
+  SESSION_UNSUBSCRIBE,
+  SIDECAR_GET_STATUS,
+  SIDECAR_RESTART,
+  SIDECAR_STATUS,
+} from "../shared/channels";
 import { platform } from "./platform";
 import { SidecarSupervisor } from "./sidecar-supervisor";
 
@@ -29,6 +41,47 @@ function sidecarCommand(): string {
 }
 
 let supervisor: SidecarSupervisor | undefined;
+
+/** IPC arguments come from the renderer: check their shape before they reach the sidecar. */
+function text(value: unknown, name: string): string {
+  if (typeof value !== "string" || value.length === 0) throw new Error(`${name} must be a string`);
+  return value;
+}
+
+/** Main is the single sidecar client; it relays explicit session calls and forwards the ops. */
+function registerSessionRelay(sidecar: SidecarSupervisor): void {
+  sidecar.onEvent((event) => {
+    if (event.name !== "session.op" || !isSessionOpEvent(event.data)) return;
+    for (const win of BrowserWindow.getAllWindows()) win.webContents.send(SESSION_OP, event.data);
+  });
+  ipcMain.handle(SESSION_PICK_DIRECTORY, async (event) => {
+    const owner = BrowserWindow.fromWebContents(event.sender);
+    const options = { properties: ["openDirectory" as const, "createDirectory" as const] };
+    const result = owner
+      ? await dialog.showOpenDialog(owner, options)
+      : await dialog.showOpenDialog(options);
+    return result.canceled ? null : (result.filePaths[0] ?? null);
+  });
+  ipcMain.handle(SESSION_CREATE, async (_event, cwd: unknown) => {
+    const created = await sidecar.request("session.create", { cwd: text(cwd, "cwd") });
+    return created.sessionId;
+  });
+  ipcMain.handle(SESSION_SUBSCRIBE, (_event, sessionId: unknown) =>
+    sidecar.request("session.subscribe", { sessionId: text(sessionId, "sessionId") }),
+  );
+  ipcMain.handle(SESSION_UNSUBSCRIBE, async (_event, sessionId: unknown) => {
+    await sidecar.request("session.unsubscribe", { sessionId: text(sessionId, "sessionId") });
+  });
+  ipcMain.handle(SESSION_PROMPT, async (_event, sessionId: unknown, prompt: unknown) => {
+    await sidecar.request("session.prompt", {
+      sessionId: text(sessionId, "sessionId"),
+      text: text(prompt, "text"),
+    });
+  });
+  ipcMain.handle(SESSION_CANCEL, async (_event, sessionId: unknown) => {
+    await sidecar.request("session.cancel", { sessionId: text(sessionId, "sessionId") });
+  });
+}
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -62,6 +115,7 @@ app.whenReady().then(() => {
   });
   ipcMain.handle(SIDECAR_GET_STATUS, () => sidecar.status);
   ipcMain.handle(SIDECAR_RESTART, () => sidecar.restart());
+  registerSessionRelay(sidecar);
   void sidecar.start();
 
   createWindow();

@@ -4,6 +4,9 @@ import { type HandshakeResult, PROTOCOL_VERSION } from "@omp-app/protocol";
 import { startOmpHost } from "./omp-host";
 import { AgentDbUnreadableError, checkSchema } from "./schema-guard";
 import { type Handlers, startServer } from "./server";
+import { attachSession } from "./session-bridge";
+import { SESSION_CAPABILITIES, sessionHandlers } from "./session-handlers";
+import { SessionStore } from "./session-store";
 import { SIDECAR_VERSION } from "./version";
 
 /** Debug-only requests exist so tests can prove stray output cannot reach the protocol. */
@@ -22,8 +25,13 @@ async function main(): Promise<void> {
 
   // Before omp opens the agent database: omp only warns about a newer schema, then writes.
   const guard = checkSchema();
-  const host = await startOmpHost();
-  const capabilities = ["handshake", ...(DEBUG ? ["debug.logStdout", "debug.write"] : [])];
+  const store = new SessionStore();
+  const host = await startOmpHost({ onSessionCreated: (session) => attachSession(store, session) });
+  const capabilities = [
+    "handshake",
+    ...SESSION_CAPABILITIES,
+    ...(DEBUG ? ["debug.logStdout", "debug.write"] : []),
+  ];
   const handlers: Handlers = {
     handshake: async (): Promise<HandshakeResult> => ({
       protocolVersion: PROTOCOL_VERSION,
@@ -33,6 +41,7 @@ async function main(): Promise<void> {
       mode: guard.mode,
       ...(guard.mode === "read_only" ? { schema: guard.schema } : {}),
     }),
+    ...sessionHandlers(host, store),
   };
   if (DEBUG) {
     handlers["debug.logStdout"] = async ({ marker }) => {
@@ -44,7 +53,9 @@ async function main(): Promise<void> {
     handlers["debug.write"] = async () => ({ wrote: true });
   }
 
-  const server = startServer(socketPath, handlers, guard.mode === "read_only");
+  const server = startServer(socketPath, handlers, guard.mode === "read_only", {
+    onClientClosed: (client) => store.unsubscribeAll(client),
+  });
   console.error(
     `[sidecar] ready: sidecar ${SIDECAR_VERSION}, omp ${host.ompVersion}, mode ${guard.mode}, socket ${socketPath}`,
   );
