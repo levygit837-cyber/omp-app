@@ -18,6 +18,7 @@ import {
   rmSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
+import { smokeTestBinary } from "./smoke";
 
 const platform = process.platform;
 const arch = process.arch;
@@ -132,4 +133,6 @@ const sign = Bun.spawnSync(
   { stdout: "inherit", stderr: "inherit" },
 );
 if (sign.exitCode !== 0) throw new Error(`codesign failed with exit code ${sign.exitCode}`);
-console.log(`built ${outfile} (omp natives ${natives.version}, ${platformTag})`);
+const ompVersion = packageRoot("@oh-my-pi/pi-coding-agent", join(root, "package.json")).version;
+await smokeTestBinary(outfile, ompVersion);
+console.log(`built ${outfile} (smoke test passed; omp natives ${natives.version}, ${platformTag})`);
