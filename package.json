@@ -9,8 +9,9 @@
     "electron"
   ],
   "scripts": {
-    "dev": "bun run --cwd apps/desktop dev",
-    "package": "bun run --cwd apps/desktop package",
+    "build:sidecar": "bun run --cwd packages/sidecar build",
+    "dev": "bun run build:sidecar && bun run --cwd apps/desktop dev",
+    "package": "bun run build:sidecar && bun run --cwd apps/desktop package",
     "typecheck": "bun run --filter '*' typecheck",
     "lint": "biome check . && depcruise apps packages --config .dependency-cruiser.cjs",
     "format": "biome check --write .",

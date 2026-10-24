@@ -6,3 +6,6 @@ node_modules/
 # build output
 out/
 dist/
+
+# bun --compile temp files
+.*.bun-build
