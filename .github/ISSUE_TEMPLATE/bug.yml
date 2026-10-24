@@ -1,0 +1,56 @@
+name: Bug
+description: Something behaves differently than expected.
+title: "bug: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+      description: What happens, as facts. Include the literal error message, if any.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should happen, and where that is specified (doc, ADR, sidecar contract).
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Commands or actions, in order, starting from a clean state.
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - App (Electron)
+        - Sidecar
+        - ACP surface
+        - SDK surface
+        - Patch to omp
+        - Docs
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: omp, Bun, Electron, and macOS, as relevant.
+      placeholder: "omp 18.12.6, Bun x.y.z, macOS 15"
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs and evidence
+      description: Logs, screenshots, or `file:line` excerpts. Remove secrets and tokens.
+      render: shell
