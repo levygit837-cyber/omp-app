@@ -1,16 +1,17 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { rmSync } from "node:fs";
 import { connect, type Socket } from "node:net";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   decodeFrame,
   FrameDecoder,
   isResponseEnvelope,
+  PROTOCOL_VERSION,
   RequestCorrelator,
 } from "@omp-app/protocol";
 import type { SidecarStatus } from "../shared/bridge";
 import { LogTail } from "./log-tail";
+import { createRuntimeDir, sweepStaleRuntimeDirs } from "./runtime-dirs";
 
 export interface SupervisorOptions {
   /** Executable to run. It receives `--socket=<path>` as its last argument. */
@@ -67,9 +68,21 @@ export class SidecarSupervisor {
     return () => this.#listeners.delete(listener);
   }
 
-  /** Starts the sidecar. Resolves once it is launching; watch `onStatus` for the outcome. */
+  /**
+   * Starts the sidecar and sweeps runtime dirs that dead app instances left behind.
+   * Idempotent: while a sidecar is running (or failed, awaiting `restart`) it does nothing,
+   * so a second call can never orphan the first child. Watch `onStatus` for the outcome.
+   */
   start(): Promise<void> {
-    return this.#enqueue(() => this.#launch());
+    return this.#enqueue(() => {
+      if (this.#child) return;
+      try {
+        sweepStaleRuntimeDirs();
+      } catch {
+        // Best effort: an unreadable temp dir must not stop the sidecar from starting.
+      }
+      this.#launch();
+    });
   }
 
   /** Stops the current sidecar (if any) and launches a new one. */
@@ -106,7 +119,7 @@ export class SidecarSupervisor {
     this.#tail.clear();
     this.#setStatus({ state: "starting" });
 
-    const dir = mkdtempSync(join(tmpdir(), "omp-app-"));
+    const dir = createRuntimeDir();
     const socketPath = join(dir, "s.sock");
     this.#dir = dir;
 
@@ -181,6 +194,11 @@ export class SidecarSupervisor {
     });
     const result = await Promise.race([response, timeout]);
     if (run !== this.#run) return;
+    if (result.protocolVersion !== PROTOCOL_VERSION) {
+      throw new Error(
+        `sidecar speaks protocol ${result.protocolVersion}, this app speaks ${PROTOCOL_VERSION}`,
+      );
+    }
     this.#setStatus({
       state: "ready",
       ompVersion: result.ompVersion,

@@ -14,12 +14,12 @@
       "name": "@omp-app/desktop",
       "version": "0.0.0",
       "dependencies": {
-        "@omp-app/protocol": "workspace:*",
         "@omp-app/ui": "workspace:*",
         "react": "19.3.1",
         "react-dom": "19.3.1",
       },
       "devDependencies": {
+        "@omp-app/protocol": "workspace:*",
         "@tailwindcss/vite": "4.3.3",
         "@types/react": "19.3.0",
         "@types/react-dom": "19.3.0",
