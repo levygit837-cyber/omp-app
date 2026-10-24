@@ -9,7 +9,7 @@ Cada patch só entra se o host em processo (SDK) não resolver sozinho. Antes de
 | P1 | Extrair o estado do loop mode do `InteractiveMode` para um módulo reutilizável | `loopModeEnabled`, `loopPrompt`, `loopLimit`, `pauseLoop` vivem só no TUI; não há `setLoop` no `AgentSession` | `modes/interactive-mode.ts:1330,3253,3302`; já existe `modes/loop-limit.ts` | médio `[S]` |
 | P2 | Extrair a orquestração do vibe (`VibeSessionRegistry`) para fora do `InteractiveMode` | só os métodos de baixo nível são públicos | `modes/interactive-mode.ts:~6170` | a medir |
 | P3 | Extrair ligar e desligar do goal e do guided-goal | `getGoalModeState` só lê; o RPC tem versão em `modes/rpc/rpc-goal.ts` | `modes/interactive-mode.ts:~6405,~6449` | a medir |
-| P4 | ~~Dar `handle` a `clear`, `pause` e `delete`~~ Descartado: os três são classe SDK em `research/05-tui-only-gaps.md:25,26,30`, e o sidecar os chama direto (`resetSessionContext`, `agentPauseGate`, apagar arquivo + `newSession`). Pela regra acima, não justificam patch | — | — | — |
+| P4 | ~~Dar `handle` a `clear`, `pause` e `delete`~~ Descartado: os três são classe SDK em `research/05-tui-only-gaps.md:25,26,30` (`pause` e `clear` `[V]`, `delete` `[S]`), e o sidecar os chama direto (`resetSessionContext`, `agentPauseGate`, apagar arquivo + `newSession`). Pela regra acima, não justificam patch. Consequência: a paleta (#17) trata os três como ações do sidecar, não como `prompt "/cmd"` | — | — | — |
 | P5 | Repassar no ACP os eventos hoje descartados | só necessário se o desktop usar o ACP puro, sem host em processo | `modes/acp/acp-event-mapper.ts:268-269` | médio |
 
 ## Dependências entre patches

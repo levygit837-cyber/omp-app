@@ -6,8 +6,8 @@ Status: aceita, decisões do usuário em sessão de grilling (2026-10-24). Spec 
 
 - ADR 0001 fixou SDK + ACP + patches, com o omp hospedado num sidecar Bun. Esta ADR confirma essa base e decide o resto: dados, protocolo, estado, shell, UI, repo, build, plataforma e ordem de trabalho.
 - O omp publicou 140 tags nos últimos 90 dias (contado no checkout de referência). O sidecar importa `src/*` do omp, não uma API estável.
-- O `agent.db` tem `SCHEMA_VERSION = 6` (`session/agent-storage.ts:166`) e, se o banco estiver numa versão diferente, só emite `logger.warn` e segue (`agent-storage.ts:353-364`) `[V]`.
-- No spike, o ACP e o canal lateral entregavam o mesmo conteúdo em dois streams, sem ordem garantida entre eles (`docs/sidecar.md`, seção Canais).
+- O `agent.db` tem `SCHEMA_VERSION = 6` (`session/agent-storage.ts:166`). Se o banco estiver mais novo que o omp, só emite `logger.warn` e segue; se estiver mais velho, migra e regrava a versão (`agent-storage.ts:353-364`) `[V]`.
+- No spike, o ACP e o canal lateral entregavam eventos da mesma sessão por dois streams separados (`docs/sidecar.md:21-41`); o renderer teria que deduplicar e ordenar entre eles `[I]`.
 
 ## Decisões
 
@@ -49,10 +49,10 @@ Status: aceita, decisões do usuário em sessão de grilling (2026-10-24). Spec 
 |---|---|---|
 | Shell | Electron | Electrobun: jovem e usa WebKit por padrão no macOS. Tauri: webview varia por SO e adiciona Rust |
 | Renderer | React 19 + TypeScript | SolidJS e Svelte: ecossistema menor e suporte fraco do Pencil e dos agentes |
-| Componentes | shadcn/ui sobre Base UI, código dentro do repo | Radix deixou de ser o padrão do shadcn em jul/2026 |
+| Componentes | shadcn/ui sobre Base UI, código dentro do repo | Radix deixou de ser o padrão do shadcn em jul/2026 ([changelog](https://ui.shadcn.com/docs/changelog/2026-07-base-ui-default)) |
 | Styling | Tailwind CSS v4, tokens via `@theme` | CSS Modules: menos fluência de agentes e Pencil |
-| Package manager | Bun workspaces, um lockfile | pnpm: dois gerenciadores, porque o sidecar exige Bun de qualquer forma |
-| Build | electron-vite + electron-builder | Plugin Vite do Forge é experimental desde a v7.5.0 |
+| Package manager | Bun workspaces, um lockfile; `electron` em `trustedDependencies` | pnpm: dois gerenciadores, porque o sidecar exige Bun de qualquer forma |
+| Build | electron-vite + electron-builder | Plugin Vite do Forge é experimental desde a v7.5.0 ([doc do Forge](https://www.electronforge.io/config/plugins/vite)) |
 | Plataforma da v1 | macOS arm64 | Polimento concentrado num alvo. Código de macOS só no `main`, atrás da interface `platform` |
 
 ### Repo
@@ -103,7 +103,8 @@ Regras de dependência aplicadas por lint:
   - Assinatura, notarização e auto-update. Exigem Apple Developer ID.
   - Linux e Windows.
   - Goal, loop e vibe.
-  - `/btw`, árvore e branch, voz, OAuth e `/pause`.
+  - `/btw`, árvore e branch, voz, OAuth, `/pause` e `record`.
+  - Collab segue fora (ADR 0002).
 - Riscos ainda abertos:
   - O `electron-builder` com `node_modules` instalado pelo Bun (validado em #4).
   - Entitlements de JIT do binário do sidecar ao assinar `[I]`.
