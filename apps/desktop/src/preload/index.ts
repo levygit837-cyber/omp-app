@@ -1,8 +1,11 @@
 import { contextBridge } from "electron";
+import type { OmpBridge } from "../shared/bridge";
 
-/** Surface exposed to the renderer as `window.omp`. Empty until the protocol lands. */
-export type OmpBridge = Record<string, never>;
-
-const bridge: OmpBridge = {};
+const bridge: OmpBridge = {
+  versions: {
+    electron: process.versions.electron ?? "unknown",
+    chrome: process.versions.chrome ?? "unknown",
+  },
+};
 
 contextBridge.exposeInMainWorld("omp", bridge);
