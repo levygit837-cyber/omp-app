@@ -5,6 +5,7 @@ import { createAcpConnection } from "@oh-my-pi/pi-coding-agent/modes/acp";
 import type { AcpSessionFactory } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-mode";
 import { createAgentSession, discoverAuthStorage } from "@oh-my-pi/pi-coding-agent/sdk";
 import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import type { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
 import { ensureTheme } from "@oh-my-pi/pi-tui/theme";
@@ -54,17 +55,36 @@ function createMemoryTransport(): { agent: Stream; client: Stream } {
  *
  * Settings, credentials and the model registry are shared with the CLI (`~/.omp`), and
  * sessions use the default `SessionManager`, so they land where the CLI writes its own.
+ *
+ * Opening them touches `agent.db`, so it waits for the first session: a sidecar in `read_only`
+ * mode refuses `session.create` before it gets here and never writes to a newer database.
  */
 export async function startOmpHost(options: OmpHostOptions): Promise<OmpHost> {
   await ensureTheme();
 
-  // Global settings only; each session clones them for its own cwd.
-  const settings = await Settings.init({ cwd: homedir() });
-  const authStorage = await discoverAuthStorage(undefined, { settings });
-  const modelRegistry = new ModelRegistry(authStorage, undefined, { settings });
-  await modelRegistry.refresh("offline");
+  interface OmpContext {
+    readonly settings: Settings;
+    readonly authStorage: AuthStorage;
+    readonly modelRegistry: ModelRegistry;
+  }
+  let context: Promise<OmpContext> | undefined;
+  const openContext = (): Promise<OmpContext> => {
+    context ??= (async () => {
+      // Global settings only; each session clones them for its own cwd.
+      const settings = await Settings.init({ cwd: homedir() });
+      const authStorage = await discoverAuthStorage(undefined, { settings });
+      const modelRegistry = new ModelRegistry(authStorage, undefined, { settings });
+      await modelRegistry.refresh("offline");
+      return { settings, authStorage, modelRegistry };
+    })().catch((error: unknown) => {
+      context = undefined; // let the next session retry
+      throw error;
+    });
+    return context;
+  };
 
   const factory: AcpSessionFactory = async (cwd, factoryOptions) => {
+    const { settings, authStorage, modelRegistry } = await openContext();
     const sessionSettings = await settings.cloneForCwd(cwd);
     const sessionManager = SessionManager.create(cwd);
     const { session, setToolUIContext } = await createAgentSession({
