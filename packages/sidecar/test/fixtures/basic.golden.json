@@ -1,0 +1,75 @@
+{
+  "ops": [
+    {
+      "sessionId": "01a17009-54dc-749c-b1ea-d59006bd92d2",
+      "seq": 1,
+      "op": {
+        "type": "status.set",
+        "status": "streaming"
+      }
+    },
+    {
+      "sessionId": "01a17009-54dc-749c-b1ea-d59006bd92d2",
+      "seq": 2,
+      "op": {
+        "type": "item.add",
+        "item": {
+          "kind": "user",
+          "id": "i0",
+          "text": "Reply with exactly one word: pong. No tools."
+        }
+      }
+    },
+    {
+      "sessionId": "01a17009-54dc-749c-b1ea-d59006bd92d2",
+      "seq": 3,
+      "op": {
+        "type": "item.add",
+        "item": {
+          "kind": "assistant",
+          "id": "i1",
+          "text": "pong",
+          "done": false
+        }
+      }
+    },
+    {
+      "sessionId": "01a17009-54dc-749c-b1ea-d59006bd92d2",
+      "seq": 4,
+      "op": {
+        "type": "item.done",
+        "itemId": "i1"
+      }
+    },
+    {
+      "sessionId": "01a17009-54dc-749c-b1ea-d59006bd92d2",
+      "seq": 5,
+      "op": {
+        "type": "status.set",
+        "status": "idle"
+      }
+    }
+  ],
+  "final": {
+    "snapshot": {
+      "id": "01a17009-54dc-749c-b1ea-d59006bd92d2",
+      "cwd": "/work/project",
+      "status": "idle",
+      "model": "kiro/claude-sonnet-5.5",
+      "timeline": [
+        {
+          "kind": "user",
+          "id": "i0",
+          "text": "Reply with exactly one word: pong. No tools."
+        },
+        {
+          "kind": "assistant",
+          "id": "i1",
+          "text": "pong",
+          "done": true
+        }
+      ]
+    },
+    "seq": 5
+  }
+}
