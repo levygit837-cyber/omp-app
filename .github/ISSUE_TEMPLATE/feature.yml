@@ -1,0 +1,44 @@
+name: Feature or improvement
+description: Proposal for a new capability or a behavior change.
+title: "feat: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Which user need this serves, and what happens today without it.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: The desired behavior, seen from outside. Use the terms from `CONTEXT.md` (session, tab, sidecar, gap).
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Verifiable list. Each item must be confirmable by running something or looking at the UI.
+      placeholder: |
+        - [ ]
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What else was weighed and why it was left out. Flag any ADR conflict.
+  - type: textarea
+    id: scope
+    attributes:
+      label: Out of scope
+      description: What this issue deliberately does not cover.
+  - type: textarea
+    id: refs
+    attributes:
+      label: References
+      description: ADRs, related issues, and `file:line` in omp.
