@@ -1,6 +1,6 @@
 import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, expect, setDefaultTimeout, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SCHEMA_VERSION } from "@oh-my-pi/pi-coding-agent/session/agent-storage";
@@ -25,9 +25,18 @@ afterEach(async () => {
   rmSync(home, { recursive: true, force: true });
 });
 
-test("a newer shared schema refuses session.create and session.prompt, and creates no session file", async () => {
+const agentDir = () => join(home, "agent");
+
+async function sha256(path: string): Promise<string> {
+  const hasher = new Bun.CryptoHasher("sha256");
+  hasher.update(await Bun.file(path).bytes());
+  return hasher.digest("hex");
+}
+
+test("a newer shared schema refuses session.create and session.prompt, and writes nothing", async () => {
+  const dbBefore = await sha256(join(agentDir(), "agent.db"));
   sidecar = await startSidecar({
-    PI_CODING_AGENT_DIR: join(home, "agent"),
+    PI_CODING_AGENT_DIR: agentDir(),
     HOME: home,
     XDG_DATA_HOME: "",
     XDG_STATE_HOME: "",
@@ -44,5 +53,17 @@ test("a newer shared schema refuses session.create and session.prompt, and creat
   expect(await code(client.request("session.prompt", { sessionId: "x", text: "hi" }))).toBe(
     "read_only",
   );
-  expect(await Bun.file(join(home, "agent", "sessions")).exists()).toBe(false);
+  expect(await code(client.request("session.cancel", { sessionId: "x" }))).toBe("read_only");
+
+  client.close();
+  await sidecar.proc.exited;
+  // `existsSync`, not `Bun.file(dir).exists()`: the latter is false for a directory.
+  expect(existsSync(join(agentDir(), "sessions"))).toBe(false);
+  expect(await sha256(join(agentDir(), "agent.db"))).toBe(dbBefore);
+});
+
+test("existsSync sees a directory where Bun.file().exists() does not (guards the assertion above)", async () => {
+  mkdirSync(join(agentDir(), "sessions"));
+  expect(existsSync(join(agentDir(), "sessions"))).toBe(true);
+  expect(await Bun.file(join(agentDir(), "sessions")).exists()).toBe(false);
 });
