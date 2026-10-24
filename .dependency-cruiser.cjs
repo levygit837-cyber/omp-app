@@ -1,9 +1,38 @@
 /** Dependency boundaries from ADR 0003. */
-const NODE_BUILTINS =
-  "^(node:|(assert|buffer|child_process|cluster|crypto|dgram|dns|events|fs|http|http2|https|net|os|path|perf_hooks|process|readline|stream|tls|url|util|v8|vm|worker_threads|zlib)(/|$))";
-
 module.exports = {
   forbidden: [
+    {
+      name: "not-to-unresolvable",
+      comment:
+        "an import that cannot be resolved (e.g. an undeclared workspace package) bypasses the path rules",
+      severity: "error",
+      from: {},
+      to: { couldNotResolve: true },
+    },
+    {
+      name: "protocol-no-internal-specifier",
+      severity: "error",
+      from: { path: "^packages/protocol/src" },
+      to: { path: "^@omp-app/" },
+    },
+    {
+      name: "sidecar-no-ui-desktop-specifier",
+      severity: "error",
+      from: { path: "^packages/sidecar/src" },
+      to: { path: "^@omp-app/(ui|desktop)" },
+    },
+    {
+      name: "ui-no-app-specifier",
+      severity: "error",
+      from: { path: "^packages/ui/src" },
+      to: { path: "^@omp-app/" },
+    },
+    {
+      name: "desktop-no-sidecar-specifier",
+      severity: "error",
+      from: { path: "^apps/desktop/src" },
+      to: { path: "^@omp-app/sidecar" },
+    },
     {
       name: "protocol-imports-nothing",
       comment: "protocol has no dependencies",
@@ -48,12 +77,6 @@ module.exports = {
     },
     {
       name: "renderer-no-node",
-      severity: "error",
-      from: { path: "^apps/desktop/src/renderer" },
-      to: { path: NODE_BUILTINS },
-    },
-    {
-      name: "renderer-no-node-core",
       severity: "error",
       from: { path: "^apps/desktop/src/renderer" },
       to: { dependencyTypes: ["core"] },
