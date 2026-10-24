@@ -3,7 +3,9 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
   decodeFrame,
+  type EventEnvelope,
   FrameDecoder,
+  isEventEnvelope,
   isResponseEnvelope,
   type MethodName,
   type Methods,
@@ -22,6 +24,8 @@ export async function installedOmpVersion(): Promise<string> {
 export interface RawClient {
   /** Every byte received on the socket, verbatim. */
   readonly received: () => string;
+  /** Every event the sidecar pushed, in order. */
+  readonly events: () => readonly EventEnvelope[];
   request<M extends MethodName>(
     method: M,
     params?: Methods[M]["params"],
@@ -81,6 +85,7 @@ export async function startSidecar(extraEnv: Record<string, string> = {}): Promi
       const decoder = new FrameDecoder();
       const text = new TextDecoder();
       const received = { text: "" };
+      const events: EventEnvelope[] = [];
       const socket = await Bun.connect({
         unix: socketPath,
         socket: {
@@ -91,6 +96,7 @@ export async function startSidecar(extraEnv: Record<string, string> = {}): Promi
               const frame = decodeFrame(line);
               if (!frame.ok) throw new Error(`protocol channel carried a non-frame: ${line}`);
               if (isResponseEnvelope(frame.envelope)) correlator.receive(frame.envelope);
+              else if (isEventEnvelope(frame.envelope)) events.push(frame.envelope);
             }
           },
           close() {
@@ -100,6 +106,7 @@ export async function startSidecar(extraEnv: Record<string, string> = {}): Promi
       });
       return {
         received: () => received.text,
+        events: () => events,
         request(method, params) {
           const { frame, response } = correlator.create(method, params);
           socket.write(frame);
