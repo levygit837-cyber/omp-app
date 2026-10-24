@@ -10,7 +10,9 @@ import {
   okResponse,
   type RequestEnvelope,
   type ResponseEnvelope,
+  resultGuards,
 } from "@omp-app/protocol";
+import { removeRuntimeDir } from "./runtime-dir";
 
 /** One handler per method. A method with no handler answers `disabled`. */
 export type Handlers = {
@@ -23,10 +25,8 @@ export interface Server {
   stop(): void;
 }
 
-const METHOD_NAMES: readonly string[] = [
-  "handshake",
-  "debug.logStdout",
-] satisfies readonly MethodName[];
+/** Every method the protocol defines. Derived, so a new method can never answer `unknown_method`. */
+const METHOD_NAMES: readonly string[] = Object.keys(resultGuards);
 
 async function dispatch(handlers: Handlers, req: RequestEnvelope): Promise<ResponseEnvelope> {
   if (!METHOD_NAMES.includes(req.method)) {
@@ -121,7 +121,7 @@ export function startServer(socketPath: string, handlers: Handlers): Server {
     idle,
     stop() {
       listener.stop(true);
-      rmSync(socketPath, { force: true });
+      removeRuntimeDir(socketPath);
     },
   };
 }

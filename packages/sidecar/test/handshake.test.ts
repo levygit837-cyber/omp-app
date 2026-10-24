@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test";
-import { statSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
+import { PROTOCOL_VERSION } from "@omp-app/protocol";
 import pkg from "../package.json" with { type: "json" };
 import { installedOmpVersion, type RunningSidecar, startSidecar } from "./harness";
 
@@ -52,6 +53,35 @@ describe("handshake", () => {
     expect(await Promise.race([sidecar.proc.exited, Bun.sleep(10_000).then(() => "timeout")])).toBe(
       0,
     );
+  });
+
+  test("removes its per-launch dir on exit, so a dead app leaves nothing in the temp dir", async () => {
+    sidecar = await startSidecar();
+    const client = await sidecar.connect();
+    await client.request("handshake");
+    expect(existsSync(sidecar.dir)).toBe(true);
+
+    client.close();
+    await sidecar.proc.exited;
+
+    expect(existsSync(sidecar.dir)).toBe(false);
+  });
+
+  test("removes its per-launch dir on SIGTERM too", async () => {
+    sidecar = await startSidecar();
+    expect(existsSync(sidecar.dir)).toBe(true);
+
+    sidecar.proc.kill("SIGTERM");
+    await sidecar.proc.exited;
+
+    expect(existsSync(sidecar.dir)).toBe(false);
+  });
+
+  test("reports the protocol version it speaks", async () => {
+    sidecar = await startSidecar();
+    const client = await sidecar.connect();
+
+    expect((await client.request("handshake")).protocolVersion).toBe(PROTOCOL_VERSION);
   });
 });
 

@@ -34,6 +34,8 @@ export interface RawClient {
 export interface RunningSidecar {
   readonly proc: Bun.Subprocess<"ignore", "pipe", "pipe">;
   readonly socketPath: string;
+  /** The per-launch dir holding the socket, named the way main names it. */
+  readonly dir: string;
   readonly stdout: () => string;
   readonly stderr: () => string;
   connect(): Promise<RawClient>;
@@ -47,7 +49,7 @@ async function collect(stream: ReadableStream<Uint8Array>, into: { text: string 
 
 /** Spawns the sidecar from source, in debug mode, and waits for it to be listening. */
 export async function startSidecar(extraEnv: Record<string, string> = {}): Promise<RunningSidecar> {
-  const dir = mkdtempSync(join(tmpdir(), "omp-app-test-"));
+  const dir = mkdtempSync(join(tmpdir(), `omp-app-${process.pid}-`));
   const socketPath = join(dir, "s.sock");
   const proc = Bun.spawn([process.execPath, entry, `--socket=${socketPath}`], {
     stdin: "ignore",
@@ -71,6 +73,7 @@ export async function startSidecar(extraEnv: Record<string, string> = {}): Promi
   return {
     proc,
     socketPath,
+    dir,
     stdout: () => out.text,
     stderr: () => err.text,
     async connect() {
