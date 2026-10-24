@@ -1,4 +1,12 @@
+import { homedir } from "node:os";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { createAcpConnection } from "@oh-my-pi/pi-coding-agent/modes/acp";
+import type { AcpSessionFactory } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-mode";
+import { createAgentSession, discoverAuthStorage } from "@oh-my-pi/pi-coding-agent/sdk";
+import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
 import { ensureTheme } from "@oh-my-pi/pi-tui/theme";
 import {
   type AnyMessage,
@@ -7,9 +15,23 @@ import {
   type Stream,
 } from "@oh-my-pi/pi-utils/acp";
 
+export interface OmpHostOptions {
+  /**
+   * Called inside session creation, before `createSession` resolves and before any prompt can
+   * run, so a subscriber never misses the first event.
+   */
+  readonly onSessionCreated: (session: AgentSession) => void;
+}
+
 export interface OmpHost {
   /** Version reported by the hosted omp in its ACP `initialize` response. */
   readonly ompVersion: string;
+  /** Creates a file-backed session in the shared omp session directory; returns its id. */
+  createSession(cwd: string): Promise<string>;
+  /** Resolves when the turn ends (answered, cancelled or failed) with ACP's stop reason. */
+  prompt(sessionId: string, text: string): Promise<string>;
+  /** Stops the session's running turn; resolves once it has unwound. */
+  cancel(sessionId: string): Promise<void>;
   /** Closes the in-memory transport; the AcpAgent disposes itself when it sees the close. */
   close(): Promise<void>;
 }
@@ -25,20 +47,60 @@ function createMemoryTransport(): { agent: Stream; client: Stream } {
 }
 
 /**
- * Starts the omp control engine in this process: the `ask` tool reads the theme, so it is
- * initialised first; then an `AcpAgent` is served over an in-memory transport and initialised
- * once through a client connection. Sessions are out of scope: creating one is refused.
+ * Starts the omp control engine in this process. Sessions are created by a factory handed to
+ * the in-process `AcpAgent`, which keeps ACP's prompt queue, steering and cancel machinery
+ * between the app and the `AgentSession`. The timeline never comes from ACP: it comes from
+ * `AgentSession.subscribe`, wired by `onSessionCreated`.
+ *
+ * Settings, credentials and the model registry are shared with the CLI (`~/.omp`), and
+ * sessions use the default `SessionManager`, so they land where the CLI writes its own.
  */
-export async function startOmpHost(): Promise<OmpHost> {
+export async function startOmpHost(options: OmpHostOptions): Promise<OmpHost> {
   await ensureTheme();
 
+  // Global settings only; each session clones them for its own cwd.
+  const settings = await Settings.init({ cwd: homedir() });
+  const authStorage = await discoverAuthStorage(undefined, { settings });
+  const modelRegistry = new ModelRegistry(authStorage, undefined, { settings });
+  await modelRegistry.refresh("offline");
+
+  const factory: AcpSessionFactory = async (cwd, factoryOptions) => {
+    const sessionSettings = await settings.cloneForCwd(cwd);
+    const sessionManager = SessionManager.create(cwd);
+    const { session, setToolUIContext } = await createAgentSession({
+      cwd,
+      sessionManager,
+      settings: sessionSettings,
+      authStorage,
+      modelRegistry,
+      agentId: `acp:${sessionManager.getSessionId()}`,
+      interactivePrompts: factoryOptions?.interactivePrompts,
+      deferUsageReserveConfirmation: true,
+      enableMCP: false,
+      eventBus: new EventBus(),
+      subagentEventBus: new EventBus(),
+    });
+    options.onSessionCreated(session);
+    return { session, setToolUIContext };
+  };
+
   const transport = createMemoryTransport();
-  createAcpConnection(transport.agent, async () => {
-    throw new Error("sessions are not available in this sidecar build");
-  });
+  createAcpConnection(transport.agent, factory);
   const client = new ClientSideConnection(
     () => ({
-      requestPermission: () => ({ outcome: { outcome: "cancelled" } }),
+      // Real permission and elicitation handling is a later ticket. Until then the safe answer
+      // is "no", and it is logged so a silent refusal never looks like a hang.
+      requestPermission: (params) => {
+        console.error(
+          `[sidecar] permission request cancelled: ${params.toolCall.title ?? params.toolCall.toolCallId}`,
+        );
+        return { outcome: { outcome: "cancelled" } };
+      },
+      unstable_createElicitation: (params) => {
+        console.error(`[sidecar] elicitation cancelled: ${params.message}`);
+        return { action: "cancel" };
+      },
+      // The timeline comes from AgentSession.subscribe, not from ACP updates.
       sessionUpdate: () => {},
     }),
     transport.client,
@@ -53,6 +115,15 @@ export async function startOmpHost(): Promise<OmpHost> {
 
   return {
     ompVersion,
+    async createSession(cwd) {
+      const created = await client.newSession({ cwd, mcpServers: [] });
+      return created.sessionId;
+    },
+    async prompt(sessionId, text) {
+      const result = await client.prompt({ sessionId, prompt: [{ type: "text", text }] });
+      return result.stopReason;
+    },
+    cancel: (sessionId) => client.cancel({ sessionId }),
     close: async () => {
       await transport.client.writable.close().catch(() => {});
     },

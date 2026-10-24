@@ -1,6 +1,9 @@
 import { chmodSync, rmSync } from "node:fs";
 import {
   decodeFrame,
+  type EventEnvelope,
+  type EventName,
+  type Events,
   encodeFrame,
   errorResponse,
   FrameDecoder,
@@ -15,10 +18,24 @@ import {
 } from "@omp-app/protocol";
 import { removeRuntimeDir } from "./runtime-dir";
 
+/** One connected client, as handlers see it. The object identity is stable for the connection. */
+export interface ClientHandle {
+  /** Pushes an unsolicited event to this client. */
+  emit<N extends EventName>(name: N, data: Events[N]): void;
+}
+
 /** One handler per method. A method with no handler answers `disabled`. */
 export type Handlers = {
-  [M in MethodName]?: (params: Methods[M]["params"]) => Promise<Methods[M]["result"]>;
+  [M in MethodName]?: (
+    params: Methods[M]["params"],
+    client: ClientHandle,
+  ) => Promise<Methods[M]["result"]>;
 };
+
+export interface ServerHooks {
+  /** Called once when a client's connection closes, so per-client state can be dropped. */
+  readonly onClientClosed?: (client: ClientHandle) => void;
+}
 
 export interface Server {
   /** Fires when the last client disconnects after at least one had connected. */
@@ -33,6 +50,7 @@ async function dispatch(
   handlers: Handlers,
   req: RequestEnvelope,
   readOnly: boolean,
+  client: ClientHandle,
 ): Promise<ResponseEnvelope> {
   if (!METHOD_NAMES.includes(req.method)) {
     return errorResponse(req.id, {
@@ -47,13 +65,13 @@ async function dispatch(
     });
   }
   const handler = handlers[req.method as MethodName] as
-    | ((params: unknown) => Promise<unknown>)
+    | ((params: unknown, client: ClientHandle) => Promise<unknown>)
     | undefined;
   if (!handler) {
     return errorResponse(req.id, { code: "disabled", message: `${req.method} is disabled` });
   }
   try {
-    return okResponse(req.id, await handler(req.params));
+    return okResponse(req.id, await handler(req.params, client));
   } catch (error) {
     return errorResponse(req.id, {
       code: "internal",
@@ -67,10 +85,17 @@ interface Connection {
   text: TextDecoder;
   /** Bytes the kernel has not accepted yet; flushed on `drain`. */
   pending: Uint8Array | null;
+  closed: boolean;
+  client: ClientHandle;
 }
 
 /** Listens on a Unix socket (mode 0600) and serves newline-delimited protocol frames. */
-export function startServer(socketPath: string, handlers: Handlers, readOnly = false): Server {
+export function startServer(
+  socketPath: string,
+  handlers: Handlers,
+  readOnly = false,
+  hooks: ServerHooks = {},
+): Server {
   rmSync(socketPath, { force: true });
   let connected = 0;
   let sawClient = false;
@@ -96,7 +121,20 @@ export function startServer(socketPath: string, handlers: Handlers, readOnly = f
       open(socket) {
         connected++;
         sawClient = true;
-        socket.data = { decoder: new FrameDecoder(), text: new TextDecoder(), pending: null };
+        const client: ClientHandle = {
+          emit: (name, data) => {
+            if (socket.data.closed) return;
+            const event: EventEnvelope = { kind: "event", name, data };
+            send(socket, encodeFrame(event));
+          },
+        };
+        socket.data = {
+          decoder: new FrameDecoder(),
+          text: new TextDecoder(),
+          pending: null,
+          closed: false,
+          client,
+        };
       },
       data(socket, chunk) {
         const state = socket.data;
@@ -106,7 +144,7 @@ export function startServer(socketPath: string, handlers: Handlers, readOnly = f
             console.error(`[sidecar] dropped malformed frame: ${line.slice(0, 200)}`);
             continue;
           }
-          void dispatch(handlers, decoded.envelope, readOnly).then((response) =>
+          void dispatch(handlers, decoded.envelope, readOnly, state.client).then((response) =>
             send(socket, encodeFrame(response)),
           );
         }
@@ -117,7 +155,9 @@ export function startServer(socketPath: string, handlers: Handlers, readOnly = f
         const written = socket.write(state.pending);
         state.pending = written < state.pending.length ? state.pending.subarray(written) : null;
       },
-      close() {
+      close(socket) {
+        socket.data.closed = true;
+        hooks.onClientClosed?.(socket.data.client);
         connected--;
         if (sawClient && connected === 0) resolveIdle();
       },
