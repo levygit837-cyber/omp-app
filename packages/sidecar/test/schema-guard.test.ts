@@ -1,6 +1,6 @@
 import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, setDefaultTimeout, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, statSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SCHEMA_VERSION } from "@oh-my-pi/pi-coding-agent/session/agent-storage";
@@ -94,5 +94,28 @@ describe("schema guard", () => {
     client.close();
     await sidecar.proc.exited;
     expect(await fingerprint(dbPath())).toEqual(before);
+  });
+
+  test("a corrupt database fails startup with a one-line message naming the path", async () => {
+    writeFileSync(dbPath(), "this is not a sqlite database, just text\n".repeat(50));
+    const proc = Bun.spawn(
+      [
+        process.execPath,
+        join(import.meta.dir, "../src/main.ts"),
+        `--socket=${join(home, "s.sock")}`,
+      ],
+      {
+        stdin: "ignore",
+        stdout: "pipe",
+        stderr: "pipe",
+        env: { ...process.env, PI_CODING_AGENT_DIR: agentDir, HOME: home },
+      },
+    );
+    const stderr = await new Response(proc.stderr).text();
+
+    expect(await proc.exited).not.toBe(0);
+    const fatal = stderr.split("\n").filter((l) => l.includes("fatal:"));
+    expect(fatal).toHaveLength(1);
+    expect(fatal[0]).toContain(`cannot read agent database ${dbPath()}`);
   });
 });

@@ -1,7 +1,7 @@
 /**
  * Stand-in for the sidecar, to exercise the supervisor's lifecycle without booting omp.
  * Behaviour is chosen by FAKE_SIDECAR: `ok` (default), `slow` (listens after 600 ms),
- * `silent` (listens, never answers), `old-protocol` (answers with another protocolVersion).
+ * `silent` (listens, never answers), `read-only` (reports a newer schema on disk), `old-protocol` (answers with another protocolVersion).
  */
 
 import {
@@ -35,7 +35,8 @@ Bun.listen({
               sidecarVersion: "fake",
               ompVersion: "fake-omp",
               capabilities: ["handshake"],
-              mode: "normal",
+              mode: mode === "read-only" ? "read_only" : "normal",
+              ...(mode === "read-only" ? { schema: { onDisk: 7, expected: 6 } } : {}),
             }),
           ),
         );

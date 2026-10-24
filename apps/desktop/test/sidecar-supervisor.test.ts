@@ -173,6 +173,26 @@ describe("SidecarSupervisor lifecycle", () => {
     expect(pids[0]).not.toBe(first);
   });
 
+  test("ready carries the read-only mode and both schema versions", async () => {
+    const s = superviseFake("read-only");
+    await s.start();
+
+    const ready = await until(s, "ready");
+
+    expect(ready.mode).toBe("read_only");
+    expect(ready.schema).toEqual({ onDisk: 7, expected: 6 });
+  });
+
+  test("ready in normal mode carries no schema", async () => {
+    const s = superviseFake("ok");
+    await s.start();
+
+    const ready = await until(s, "ready");
+
+    expect(ready.mode).toBe("normal");
+    expect(ready.schema).toBeUndefined();
+  });
+
   test("a restart issued while starting replaces the child instead of adding one", async () => {
     const s = superviseFake("slow"); // listens only after 600 ms: still starting when restarted
     await s.start();

@@ -2,7 +2,7 @@ import "./stdio";
 import { writeSync } from "node:fs";
 import { type HandshakeResult, PROTOCOL_VERSION } from "@omp-app/protocol";
 import { startOmpHost } from "./omp-host";
-import { checkSchema } from "./schema-guard";
+import { AgentDbUnreadableError, checkSchema } from "./schema-guard";
 import { type Handlers, startServer } from "./server";
 import { SIDECAR_VERSION } from "./version";
 
@@ -66,6 +66,10 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
+  if (error instanceof AgentDbUnreadableError) {
+    console.error(`[sidecar] fatal: ${error.message}`);
+    process.exit(1);
+  }
   console.error(
     `[sidecar] fatal: ${error instanceof Error ? (error.stack ?? error.message) : error}`,
   );
