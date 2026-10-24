@@ -3,6 +3,9 @@
  * Pure types and codecs: no runtime dependencies, safe to import from any package.
  */
 
+/** Bumped on every incompatible change to the envelopes or to a method's params/result. */
+export const PROTOCOL_VERSION = 1;
+
 /** Machine-readable failure reasons. Extend as methods are added. */
 export type ErrorCode = "invalid_request" | "unknown_method" | "disabled" | "internal";
 
@@ -40,6 +43,8 @@ export type Envelope = RequestEnvelope | ResponseEnvelope | EventEnvelope;
 
 /** First request on every connection. */
 export interface HandshakeResult {
+  /** `PROTOCOL_VERSION` the sidecar speaks; main refuses a sidecar that differs from its own. */
+  readonly protocolVersion: number;
   /** Version of the sidecar build (`@omp-app/sidecar`). */
   readonly sidecarVersion: string;
   /** Version reported by the pinned omp the sidecar hosts. */
@@ -74,8 +79,12 @@ export function request<M extends MethodName>(
     : { kind: "request", id, method, params };
 }
 
-export function okResponse<R>(id: string, result: R): ResponseEnvelope<R> {
-  return { kind: "response", id, ok: true, result };
+/** What a result looks like on the wire: JSON has no `undefined`, so a void result is `null`. */
+export type WireResult<R> = R extends undefined ? null : R;
+
+export function okResponse<R>(id: string, result: R): ResponseEnvelope<WireResult<R>> {
+  // JSON.stringify drops `result: undefined`, and a response without `result` is malformed.
+  return { kind: "response", id, ok: true, result: (result ?? null) as WireResult<R> };
 }
 
 export function errorResponse(id: string, error: ProtocolError): ResponseEnvelope<never> {
@@ -111,6 +120,7 @@ export function isEnvelope(v: unknown): v is Envelope {
 export function isHandshakeResult(v: unknown): v is HandshakeResult {
   return (
     isRecord(v) &&
+    typeof v.protocolVersion === "number" &&
     typeof v.sidecarVersion === "string" &&
     typeof v.ompVersion === "string" &&
     Array.isArray(v.capabilities) &&

@@ -1,6 +1,6 @@
 import "./stdio";
 import { writeSync } from "node:fs";
-import type { HandshakeResult } from "@omp-app/protocol";
+import { type HandshakeResult, PROTOCOL_VERSION } from "@omp-app/protocol";
 import { startOmpHost } from "./omp-host";
 import { type Handlers, startServer } from "./server";
 import { SIDECAR_VERSION } from "./version";
@@ -23,6 +23,7 @@ async function main(): Promise<void> {
   const capabilities = ["handshake", ...(DEBUG ? ["debug.logStdout"] : [])];
   const handlers: Handlers = {
     handshake: async (): Promise<HandshakeResult> => ({
+      protocolVersion: PROTOCOL_VERSION,
       sidecarVersion: SIDECAR_VERSION,
       ompVersion: host.ompVersion,
       capabilities,
