@@ -36,3 +36,9 @@ Default vocabulary for the five roles. See `docs/agents/triage-labels.md`.
 ### Domain docs
 
 Single-context: `CONTEXT.md` and `docs/adr/` at the root. See `docs/agents/domain.md`.
+
+## Toolchain pins
+
+- TypeScript is pinned to `6.0.3`, not 7. dependency-cruiser 18.7.0 supports only TypeScript below 7 and silently skips TS sources on 7.x. Revisit when dependency-cruiser supports 7.
+- Root `trustedDependencies` lists only `electron`. Electron 45 has no `postinstall`: its binary downloads lazily on the first `electron` or `electron-vite` run, not during `bun install`. `esbuild` is not trusted because nothing here needs its install script.
+- The sandboxed preload is built as CommonJS (`out/preload/index.cjs`) because `sandbox: true` cannot load ESM preloads.
