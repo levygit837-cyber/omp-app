@@ -26,6 +26,16 @@ function SidecarPanel({ status }: { status: SidecarStatus }) {
           Sidecar: ready · omp {status.ompVersion} · sidecar {status.sidecarVersion}
         </p>
       )}
+      {status.state === "ready" && status.mode === "read_only" && status.schema && (
+        <p
+          role="alert"
+          data-testid="read-only-notice"
+          className="rounded-control border border-accent p-2 font-medium"
+        >
+          Read-only mode: the shared omp database is schema v{status.schema.onDisk}, but this app
+          supports v{status.schema.expected}. Update omp-app to make changes.
+        </p>
+      )}
       {status.state === "failed" && (
         <>
           <p role="alert" className="font-medium">

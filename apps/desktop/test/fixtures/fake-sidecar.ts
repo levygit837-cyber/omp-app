@@ -35,6 +35,7 @@ Bun.listen({
               sidecarVersion: "fake",
               ompVersion: "fake-omp",
               capabilities: ["handshake"],
+              mode: "normal",
             }),
           ),
         );
