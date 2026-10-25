@@ -8,6 +8,7 @@ import {
   useSessionError,
   useStatus,
   useSyncError,
+  useWarnings,
 } from "./session-hooks";
 import { SessionLostError } from "./session-store";
 
@@ -38,6 +39,27 @@ const TimelineItem = memo(function TimelineItem({
     </li>
   );
 });
+
+/** Non-blocking problems the session carries on despite. Raw text; #11 gives it a design. */
+function Warnings({ sessionId }: { sessionId: string }) {
+  const warnings = useWarnings(sessionId);
+  if (!warnings || warnings.length === 0) return null;
+  return (
+    <ul
+      data-testid="session-warnings"
+      aria-label="Session warnings"
+      className="flex flex-col gap-1"
+    >
+      {warnings.map((w, index) => (
+        // Append-only list, so the index is a stable identity.
+        // biome-ignore lint/suspicious/noArrayIndexKey: append-only list
+        <li key={index} data-testid="session-warning" className="text-xs">
+          {w.source} server "{w.server}": {w.message}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 function Timeline({ sessionId }: { sessionId: string }) {
   const count = useItemCount(sessionId);
@@ -223,6 +245,7 @@ export function SessionView({ sidecar }: { sidecar: SidecarStatus }) {
       )}
       {sessionId && (
         <>
+          <Warnings sessionId={sessionId} />
           <Timeline sessionId={sessionId} />
           <Composer sessionId={sessionId} />
         </>

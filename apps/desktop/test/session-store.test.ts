@@ -17,6 +17,7 @@ const emptyVm = (id = "s1", patch: Partial<SessionViewModel> = {}): SessionViewM
   status: "idle",
   model: "p/m",
   timeline: [],
+  warnings: [],
   ...patch,
 });
 

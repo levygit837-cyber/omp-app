@@ -4,6 +4,7 @@ import type {
   SessionOpEvent,
   SessionSnapshot,
   SessionViewModel,
+  SessionWarning,
 } from "@omp-app/protocol";
 import { applyOp } from "@omp-app/protocol";
 import { type Reduced, reduceEvent, reduceModel } from "./reducer";
@@ -56,6 +57,13 @@ export class SessionStore {
       viewModel: applyOp(entry.viewModel, op),
       ops: [op],
     });
+  }
+
+  /** Records a non-blocking problem; the session keeps running. */
+  warn(sessionId: string, warning: SessionWarning): void {
+    const entry = this.#entry(sessionId);
+    const op: SessionOp = { type: "warning.add", warning };
+    this.#commit(sessionId, entry, { viewModel: applyOp(entry.viewModel, op), ops: [op] });
   }
 
   snapshot(sessionId: string): SessionSnapshot {

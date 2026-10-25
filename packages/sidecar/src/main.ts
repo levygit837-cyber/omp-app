@@ -26,7 +26,12 @@ async function main(): Promise<void> {
   // Before omp opens the agent database: omp only warns about a newer schema, then writes.
   const guard = checkSchema();
   const store = new SessionStore();
-  const host = await startOmpHost({ onSessionCreated: (session) => attachSession(store, session) });
+  const host = await startOmpHost({
+    onSessionCreated: (session) => attachSession(store, session),
+    onMcpFailure: (sessionId, server, message) => {
+      if (store.has(sessionId)) store.warn(sessionId, { source: "mcp", server, message });
+    },
+  });
   const capabilities = [
     "handshake",
     ...SESSION_CAPABILITIES,

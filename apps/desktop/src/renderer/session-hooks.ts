@@ -1,4 +1,4 @@
-import type { Item, SessionStatus } from "@omp-app/protocol";
+import type { Item, SessionStatus, SessionWarning } from "@omp-app/protocol";
 import { useStore } from "zustand";
 import { createSessionReplicas, type SessionsState } from "./session-store";
 
@@ -25,3 +25,5 @@ export const useCwd = (sessionId: string): string | undefined =>
 export const useSessionError = (sessionId: string): string | undefined =>
   select((s) => s.sessions[sessionId]?.error);
 export const useSyncError = (): string | null => select((s) => s.error);
+export const useWarnings = (sessionId: string): readonly SessionWarning[] | undefined =>
+  select((s) => s.sessions[sessionId]?.warnings);

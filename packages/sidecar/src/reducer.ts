@@ -183,5 +183,12 @@ export function emptyViewModel(init: {
   cwd: string;
   model: string | null;
 }): SessionViewModel {
-  return { id: init.id, cwd: init.cwd, status: "idle", model: init.model, timeline: [] };
+  return {
+    id: init.id,
+    cwd: init.cwd,
+    status: "idle",
+    model: init.model,
+    timeline: [],
+    warnings: [],
+  };
 }
