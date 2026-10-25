@@ -101,7 +101,8 @@ describe("SidecarSupervisor failure reporting", () => {
     const failed = await until(s, "failed");
 
     expect(failed.error).toContain("code 3");
-    expect(failed.logTail).toEqual(["line one", "boom: bad config"]);
+    // stdout and stderr are separate pipes: their relative order is not guaranteed.
+    expect([...failed.logTail].sort()).toEqual(["boom: bad config", "line one"]);
   });
 
   test("a missing binary reports why it could not start", async () => {

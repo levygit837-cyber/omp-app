@@ -1,3 +1,4 @@
+import { UNKNOWN_SESSION_MESSAGE } from "@omp-app/protocol";
 import type { Handlers } from "./server";
 import type { SessionStore } from "./session-store";
 
@@ -22,7 +23,7 @@ export function sessionHandlers(
   store: SessionStore,
 ): Pick<Required<Handlers>, (typeof SESSION_CAPABILITIES)[number]> {
   const known = (sessionId: string): string => {
-    if (!store.has(sessionId)) throw new Error(`unknown session: ${sessionId}`);
+    if (!store.has(sessionId)) throw new Error(`${UNKNOWN_SESSION_MESSAGE}: ${sessionId}`);
     return sessionId;
   };
   return {

@@ -3,6 +3,7 @@ import {
   type SessionOp,
   type SessionOpEvent,
   type SessionViewModel,
+  UNKNOWN_SESSION_MESSAGE,
 } from "@omp-app/protocol";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { OmpBridge } from "../shared/bridge";
@@ -56,12 +57,12 @@ export class SessionLostError extends Error {
 }
 
 /**
- * The sidecar answers `unknown session: <id>`. Electron wraps a rejected IPC call as
+ * The sidecar answers `${UNKNOWN_SESSION_MESSAGE}: <id>`. Electron wraps a rejected IPC call as
  * "Error invoking remote method '<channel>': Error: <message>", and only the text survives, so
  * the message is matched rather than an error code.
  */
 function isUnknownSession(error: unknown): boolean {
-  return error instanceof Error && error.message.includes("unknown session");
+  return error instanceof Error && error.message.includes(UNKNOWN_SESSION_MESSAGE);
 }
 
 /**

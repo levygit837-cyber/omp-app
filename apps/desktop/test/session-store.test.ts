@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import type {
-  SessionOp,
-  SessionOpEvent,
-  SessionSnapshot,
-  SessionViewModel,
+import {
+  type SessionOp,
+  type SessionOpEvent,
+  type SessionSnapshot,
+  type SessionViewModel,
+  UNKNOWN_SESSION_MESSAGE,
 } from "@omp-app/protocol";
 import {
   createSessionReplicas,
@@ -250,7 +251,9 @@ describe("snapshot replaces state", () => {
 describe("session lost after a sidecar restart", () => {
   // Electron wraps a rejected IPC call; only the message text reaches the renderer.
   const unknownSession = (id: string) =>
-    new Error(`Error invoking remote method 'session:subscribe': Error: unknown session: ${id}`);
+    new Error(
+      `Error invoking remote method 'session:subscribe': Error: ${UNKNOWN_SESSION_MESSAGE}: ${id}`,
+    );
 
   /** The first subscribe works; later ones fail the way a restarted sidecar answers. */
   function restartedSidecar() {

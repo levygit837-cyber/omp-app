@@ -6,7 +6,7 @@ import type {
   SessionViewModel,
   SessionWarning,
 } from "@omp-app/protocol";
-import { applyOp } from "@omp-app/protocol";
+import { applyOp, UNKNOWN_SESSION_MESSAGE } from "@omp-app/protocol";
 import { type Reduced, reduceEvent, reduceModel } from "./reducer";
 
 export type OpSink = (event: SessionOpEvent) => void;
@@ -93,7 +93,7 @@ export class SessionStore {
 
   #entry(sessionId: string): Entry {
     const entry = this.#sessions.get(sessionId);
-    if (!entry) throw new Error(`unknown session: ${sessionId}`);
+    if (!entry) throw new Error(`${UNKNOWN_SESSION_MESSAGE}: ${sessionId}`);
     return entry;
   }
 

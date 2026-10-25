@@ -11,6 +11,12 @@ export * from "./session";
 /** Bumped on every incompatible change to the envelopes or to a method's params/result. */
 export const PROTOCOL_VERSION = 1;
 
+/**
+ * Prefix of the error message for a session id the sidecar does not know. Shared because
+ * Electron's IPC keeps only the message text, so the renderer has to match on it.
+ */
+export const UNKNOWN_SESSION_MESSAGE = "unknown session";
+
 /** Machine-readable failure reasons. Extend as methods are added. */
 export type ErrorCode =
   | "invalid_request"
