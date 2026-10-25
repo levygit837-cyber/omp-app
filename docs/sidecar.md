@@ -71,6 +71,7 @@ Pontos de atenção:
 - `ensureTheme()` de `@oh-my-pi/pi-tui/theme` é obrigatório no startup. Sem ele a tool `ask` falha `[V]`.
 - O spike fixa modelo e `thinkingLevel: "low"` e usa `SessionManager.inMemory()`. O app terá sessão em arquivo (`SessionManager` padrão) e modelo por aba `[I]`.
 - O spike tipa só o que usa (`SpikeSession`). O app deve tipar a partir de `AgentSession`, sem `any`.
+- O binário do app (`packages/sidecar/scripts/build.ts`) substitui `omp-legacy-pi-modules` por um registro vazio. O omp só importa esse módulo, de forma lazy, ao carregar uma extensão legada do Pi; como o sidecar ainda não carrega extensões, uma busca falha com o erro "no bundled module registered" do omp. Rever quando o app passar a carregar extensões `[V]`.
 
 ## Superfície a expor (o que o app vai precisar além do spike)
 
