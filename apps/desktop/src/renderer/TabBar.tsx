@@ -1,4 +1,11 @@
-import { ChatIcon, cx, IconButton, SidebarLeftIcon, StateMark, StatusPill } from "@omp-app/ui";
+import {
+  ChatIcon,
+  cx,
+  IconButton,
+  SidebarLeftExpandIcon,
+  StateMark,
+  StatusPill,
+} from "@omp-app/ui";
 import type { Ref } from "react";
 import { sessionMark } from "./format";
 import { useSessionTitle } from "./session-hooks";
@@ -55,7 +62,7 @@ export function TabBar({
             aria-expanded={false}
             onClick={onToggleSidebar}
           >
-            <SidebarLeftIcon />
+            <SidebarLeftExpandIcon />
             {engineStopped && (
               <StateMark
                 state="error"
