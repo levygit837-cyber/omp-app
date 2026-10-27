@@ -1,0 +1,11 @@
+import { connect } from "./cdp.mjs";
+const c = await connect(9342);
+await c.viewport(1440, 900);
+await c.eval(`location.reload()`);
+await c.sleep(2500);
+await c.shot("/tmp/smoke12/shots/perm-reload.png");
+console.log(await c.eval(`JSON.stringify({band: !!document.querySelector('[data-testid=wait-band]'), tab: document.querySelector('[data-testid=waiting-tab]')?.textContent, marks: [...document.querySelectorAll('[data-mark]')].map(m=>m.dataset.mark).slice(0,3)})`));
+await c.eval(`document.querySelector('[data-testid=answer-allow_once]').click()`);
+await c.sleep(1200);
+await c.shot("/tmp/smoke12/shots/perm-answered.png");
+c.close();
