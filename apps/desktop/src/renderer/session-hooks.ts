@@ -1,4 +1,5 @@
 import type { Item, PendingRequest, SessionStatus, SessionWarning } from "@omp-app/protocol";
+import { useMemo } from "react";
 import { useStore } from "zustand";
 import { sessionTitle } from "./format";
 import { createSessionReplicas, type SessionsState } from "./session-store";
@@ -40,6 +41,22 @@ export const useSessionTitle = (sessionId: string): string =>
     const first = s.sessions[sessionId]?.timeline.find((item) => item.kind === "user");
     return sessionTitle(first?.text);
   });
+
+/**
+ * Folder of every listed session that has a replica. Selected as one string, which is stable
+ * while no folder changes, so streaming deltas do not re-render the sidebar.
+ */
+export function useOpenCwds(ids: readonly string[]): ReadonlyMap<string, string> {
+  const key = select((s) => ids.map((id) => `${id}\t${s.sessions[id]?.cwd ?? ""}`).join("\n"));
+  return useMemo(() => {
+    const map = new Map<string, string>();
+    for (const line of key.split("\n")) {
+      const [id, cwd] = line.split("\t");
+      if (id && cwd) map.set(id, cwd);
+    }
+    return map;
+  }, [key]);
+}
 
 /** Read once, when a turn ends: subscribing would re-render on every streamed chunk. */
 export function lastAssistantText(sessionId: string): string | undefined {

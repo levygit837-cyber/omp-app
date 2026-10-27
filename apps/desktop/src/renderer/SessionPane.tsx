@@ -25,17 +25,23 @@ function Warnings({ sessionId }: { sessionId: string }) {
         // Append-only list, so the index is a stable identity.
         // biome-ignore lint/suspicious/noArrayIndexKey: append-only list
         <li key={index} data-testid="session-warning">
-          <Notice
-            severity="warning"
-            title={
-              <>
-                {w.source.toUpperCase()} server <span className="font-mono">{w.server}</span>
-              </>
-            }
-            detail="didn’t start cleanly"
-          >
-            {w.message}
-          </Notice>
+          {w.source === "mcp" ? (
+            <Notice
+              severity="warning"
+              title={
+                <>
+                  MCP server <span className="font-mono">{w.server}</span>
+                </>
+              }
+              detail="didn’t start cleanly"
+            >
+              {w.message}
+            </Notice>
+          ) : (
+            <Notice severity="warning" title={w.title}>
+              {w.message}
+            </Notice>
+          )}
         </li>
       ))}
     </ul>

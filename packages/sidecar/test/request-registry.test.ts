@@ -11,6 +11,14 @@ import { SessionStore } from "../src/session-store";
 
 const SID = "s1";
 
+/** The lifecycle members of `SessionControl` that these tests never reach. */
+const idle = {
+  list: async () => [],
+  resumeSession: async (id: string) => id,
+  forkSession: async (id: string) => id,
+  closeSession: async () => {},
+};
+
 function setup() {
   const store = new SessionStore();
   store.create(emptyViewModel({ id: SID, cwd: "/work", model: null }));
@@ -167,6 +175,7 @@ describe("permission requests", () => {
     const cancelled: string[] = [];
     const handlers = sessionHandlers(
       {
+        ...idle,
         createSession: async () => SID,
         prompt: async () => "end_turn",
         cancel: async (id) => void cancelled.push(id),
@@ -242,7 +251,12 @@ describe("permission requests", () => {
     // The sidecar restarted: new store, new registry, the session is gone.
     const reborn = new SessionStore();
     const handlers = sessionHandlers(
-      { createSession: async () => SID, prompt: async () => "end_turn", cancel: async () => {} },
+      {
+        ...idle,
+        createSession: async () => SID,
+        prompt: async () => "end_turn",
+        cancel: async () => {},
+      },
       reborn,
       new RequestRegistry(reborn),
     );
@@ -500,7 +514,8 @@ describe("the session bridge", () => {
     const session = {
       sessionId: SID,
       model: undefined,
-      sessionManager: { getCwd: () => "/work" },
+      sessionManager: { getCwd: () => "/work", onPersistenceNotice: () => () => {} },
+      buildTranscriptSessionContext: () => ({ messages: [] }),
       subscribe: (listener: (event: AgentSessionEvent) => void) => {
         emit = listener;
         return () => {};

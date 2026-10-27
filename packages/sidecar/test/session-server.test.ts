@@ -98,6 +98,16 @@ async function replayServer(name: string, readOnly = false, pauseAt = -1) {
     async cancel() {
       cancelled = true;
     },
+    async list() {
+      return [];
+    },
+    async resumeSession(sessionId: string) {
+      return sessionId;
+    },
+    async forkSession(sessionId: string) {
+      return sessionId;
+    },
+    async closeSession() {},
   };
   dir = mkdtempSync(join(tmpdir(), "omp-app-sess-"));
   const socketPath = join(dir, "s.sock");
@@ -189,6 +199,243 @@ describe("session.* over the socket", () => {
     expect(await code(client.request("session.cancel", { sessionId: id }))).toBe("read_only");
     // Not a write: reaches the handler, which says the session does not exist.
     expect(await code(client.request("session.subscribe", { sessionId: id }))).toBe("internal");
+    client.close();
+  });
+});
+
+/** Lets other work run: one turn of the event loop, not a duration. */
+const tick = (): Promise<void> => {
+  const { promise, resolve } = Promise.withResolvers<void>();
+  setImmediate(resolve);
+  return promise;
+};
+
+/**
+ * A server hosting several sessions at once. Each "omp" session replays its own recorded
+ * fixture; `prompt` calls overlap, and every event yields to the event loop so the sessions'
+ * ops interleave on the wire.
+ */
+async function multiServer(fixtureNames: readonly string[], readOnly = false) {
+  const fixtures = await Promise.all(fixtureNames.map((name) => loadFixture(name)));
+  const store = new SessionStore();
+  const byId = new Map(fixtures.map((f) => [f.header.sessionId, f]));
+  const cancelled = new Set<string>();
+  const calls: string[] = [];
+  const running: Promise<string>[] = [];
+  let created = 0;
+  const control = {
+    async createSession(cwd: string) {
+      const fixture = fixtures[created++];
+      if (!fixture) throw new Error("no more fixtures");
+      store.create(
+        emptyViewModel({ id: fixture.header.sessionId, cwd, model: fixture.header.model }),
+      );
+      return fixture.header.sessionId;
+    },
+    prompt(sessionId: string) {
+      const fixture = byId.get(sessionId);
+      if (!fixture) return Promise.reject(new Error(`no fixture for ${sessionId}`));
+      const run = (async () => {
+        for (const event of fixture.events) {
+          if (cancelled.has(sessionId)) break;
+          store.dispatch(sessionId, event);
+          await tick();
+        }
+        return "end_turn";
+      })();
+      running.push(run);
+      return run;
+    },
+    async cancel(sessionId: string) {
+      cancelled.add(sessionId);
+    },
+    async list() {
+      calls.push("list");
+      return [];
+    },
+    async resumeSession(sessionId: string) {
+      calls.push(`resume:${sessionId}`);
+      const fixture = byId.get(sessionId);
+      if (fixture && !store.has(sessionId))
+        store.create(
+          emptyViewModel({ id: sessionId, cwd: "/work/a", model: fixture.header.model }),
+        );
+      return sessionId;
+    },
+    async forkSession(sessionId: string) {
+      calls.push(`fork:${sessionId}`);
+      return sessionId;
+    },
+    async closeSession(sessionId: string) {
+      calls.push(`close:${sessionId}`);
+    },
+  };
+  dir = mkdtempSync(join(tmpdir(), "omp-app-multi-"));
+  const socketPath = join(dir, "s.sock");
+  server = startServer(
+    socketPath,
+    sessionHandlers(control, store, new RequestRegistry(store)) as Handlers,
+    readOnly,
+    { onClientClosed: (client) => store.unsubscribeAll(client) },
+  );
+  // Prompts are done when their promises settle. Events and responses share one ordered socket,
+  // so a round trip afterwards proves the client already holds every op sent before it.
+  const settled = async (client: Client) => {
+    await Promise.all(running);
+    await client.request("session.list");
+  };
+  return { socketPath, store, ids: fixtures.map((f) => f.header.sessionId), calls, settled };
+}
+
+describe("several sessions in one sidecar", () => {
+  test("interleaved events keep each session's ops, seq and state isolated", async () => {
+    const { socketPath, store, ids, settled } = await multiServer(["basic", "cancel"]);
+    const client = await connect(socketPath);
+    const [a, b] = ids as [string, string];
+    await client.request("session.create", { cwd: "/work/a" });
+    await client.request("session.create", { cwd: "/work/b" });
+    await client.request("session.subscribe", { sessionId: a });
+    await client.request("session.subscribe", { sessionId: b });
+    await client.request("session.prompt", { sessionId: a, text: "one" });
+    await client.request("session.prompt", { sessionId: b, text: "two" });
+    await settled(client);
+
+    // Both streams were live at once: the wire alternates between the two sessions.
+    const order = client.events.map((e) => e.sessionId);
+    expect(order.indexOf(b)).toBeLessThan(order.lastIndexOf(a));
+
+    for (const [id, name] of [
+      [a, "basic"],
+      [b, "cancel"],
+    ] as const) {
+      const golden = await readGolden(name);
+      expect(client.events.filter((e) => e.sessionId === id)).toEqual(
+        golden.ops as SessionOpEvent[],
+      );
+      expect(store.snapshot(id).snapshot).toEqual({
+        ...golden.final.snapshot,
+        cwd: id === a ? "/work/a" : "/work/b",
+      });
+      expect(store.snapshot(id).seq).toBe(golden.final.seq);
+    }
+    client.close();
+  });
+
+  test("cancel reaches only the session it names; the other one finishes", async () => {
+    const { socketPath, store, ids, settled } = await multiServer(["basic", "cancel"]);
+    const client = await connect(socketPath);
+    const [a, b] = ids as [string, string];
+    await client.request("session.create", { cwd: "/work/a" });
+    await client.request("session.create", { cwd: "/work/b" });
+    await client.request("session.subscribe", { sessionId: a });
+    await client.request("session.subscribe", { sessionId: b });
+    await client.request("session.prompt", { sessionId: a, text: "one" });
+    await client.request("session.prompt", { sessionId: b, text: "two" });
+    while (store.snapshot(a).seq < 2) await tick();
+    await client.request("session.cancel", { sessionId: a });
+    await settled(client);
+
+    const goldenA = await readGolden("basic");
+    const goldenB = await readGolden("cancel");
+    expect(client.events.filter((e) => e.sessionId === b)).toEqual(goldenB.ops as SessionOpEvent[]);
+    expect(store.snapshot(b)).toEqual({
+      ...goldenB.final,
+      snapshot: { ...goldenB.final.snapshot, cwd: "/work/b" },
+    });
+    expect(store.snapshot(a).seq).toBeLessThan(goldenA.final.seq);
+    client.close();
+  });
+
+  test("close forgets the session; resume of an open session does not open it twice", async () => {
+    const { socketPath, ids, calls } = await multiServer(["basic"]);
+    const client = await connect(socketPath);
+    const [a] = ids as [string];
+    await client.request("session.create", { cwd: "/work/a" });
+
+    expect(await client.request("session.resume", { sessionId: a })).toEqual({ sessionId: a });
+    expect(calls).not.toContain(`resume:${a}`);
+
+    await client.request("session.close", { sessionId: a });
+    expect(calls).toContain(`close:${a}`);
+    await expect(client.request("session.subscribe", { sessionId: a })).rejects.toThrow(
+      /unknown session/,
+    );
+    // Closing again is a no-op, not an error.
+    await client.request("session.close", { sessionId: a });
+    expect(calls.filter((c) => c === `close:${a}`)).toHaveLength(1);
+
+    // Not open any more: resume goes to omp.
+    await client.request("session.resume", { sessionId: a });
+    expect(calls).toContain(`resume:${a}`);
+    client.close();
+  });
+
+  test("read_only: list and close are served, resume and fork are refused", async () => {
+    const { socketPath } = await multiServer(["basic"], true);
+    const client = await connect(socketPath);
+    const code = (p: Promise<unknown>) =>
+      p.then(
+        () => null,
+        (e: Error & { code?: string }) => e.code,
+      );
+    expect(await client.request("session.list")).toEqual({ sessions: [] });
+    expect(await code(client.request("session.resume", { sessionId: "x" }))).toBe("read_only");
+    expect(await code(client.request("session.fork", { sessionId: "x" }))).toBe("read_only");
+    expect(await code(client.request("session.close", { sessionId: "x" }))).toBeNull();
+    client.close();
+  });
+  test("close and resume of one session run in call order, whichever settles first", async () => {
+    const { socketPath, store, ids, calls } = await multiServer(["basic"]);
+    const client = await connect(socketPath);
+    const [a] = ids as [string];
+    await client.request("session.create", { cwd: "/work/a" });
+
+    // Sent together: resume must not see the session as open and skip, then lose it to the close.
+    const settled = await Promise.allSettled([
+      client.request("session.close", { sessionId: a }),
+      client.request("session.resume", { sessionId: a }),
+    ]);
+    expect(settled.map((s) => s.status)).toEqual(["fulfilled", "fulfilled"]);
+    expect(calls.filter((c) => c === `close:${a}` || c === `resume:${a}`)).toEqual([
+      `close:${a}`,
+      `resume:${a}`,
+    ]);
+    expect(store.has(a)).toBe(true);
+
+    // The other way round: the resume finds it open, then the close removes it.
+    await Promise.allSettled([
+      client.request("session.resume", { sessionId: a }),
+      client.request("session.close", { sessionId: a }),
+    ]);
+    expect(store.has(a)).toBe(false);
+    client.close();
+  });
+
+  test("a session omp moved to a new id answers to both ids", async () => {
+    const { socketPath, store, ids, calls } = await multiServer(["basic"]);
+    const client = await connect(socketPath);
+    const [a] = ids as [string];
+    await client.request("session.create", { cwd: "/work/a" });
+    await client.request("session.subscribe", { sessionId: a });
+
+    store.rekey(a, "moved-to");
+
+    // The subscriber is told under the old id, then every later op arrives under the new one.
+    await client.request("session.list");
+    expect(client.events.at(-1)).toMatchObject({
+      sessionId: a,
+      op: { type: "session.moved", id: "moved-to" },
+    });
+    // A caller still holding the old id is sent to the successor.
+    const snapshot = await client.request("session.subscribe", { sessionId: a });
+    expect(snapshot.snapshot.id).toBe("moved-to");
+    expect(await client.request("session.resume", { sessionId: a })).toEqual({
+      sessionId: "moved-to",
+    });
+    expect(calls).not.toContain(`resume:${a}`);
+    await client.request("session.close", { sessionId: a });
+    expect(calls).toContain("close:moved-to");
+    expect(store.has("moved-to")).toBe(false);
     client.close();
   });
 });

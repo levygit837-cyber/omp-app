@@ -12,3 +12,7 @@ export const SESSION_ANSWER_PERMISSION = "session:answer-permission";
 export const SESSION_ANSWER_ASK = "session:answer-ask";
 export const SESSION_OP = "session:op";
 export const APP_OPEN_LINK = "app:open-link";
+export const SESSION_LIST = "session:list";
+export const SESSION_RESUME = "session:resume";
+export const SESSION_FORK = "session:fork";
+export const SESSION_CLOSE = "session:close";

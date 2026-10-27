@@ -148,10 +148,14 @@ function LostBoundary({ onOpen, disabled }: { onOpen: () => void; disabled: bool
 
 function FirstUse({
   onOpen,
+  onOpenFolder,
+  recent,
   disabled,
   hint,
 }: {
   onOpen: () => void;
+  onOpenFolder: (cwd: string) => void;
+  recent: readonly string[];
   disabled: boolean;
   hint?: string;
 }) {
@@ -159,7 +163,8 @@ function FirstUse({
     <div className="flex w-(--layout-empty-column) max-w-full flex-col gap-(--space-14)">
       <h1 className="text-size-title font-medium">Open a folder to start</h1>
       <p className="text-size-body text-text-secondary">
-        omp works inside a project folder: it reads, edits and runs code there.
+        omp works inside a project folder: it reads, edits and runs code there. Sessions you already
+        have in ~/.omp show up in the sidebar on their own.
       </p>
       <div className="pt-(--space-6)">
         <Button
@@ -174,6 +179,32 @@ function FirstUse({
         </Button>
       </div>
       {hint && <p className="text-size-sm text-text-dim">{hint}</p>}
+      {recent.length > 0 && (
+        <section
+          aria-label="Recent folders"
+          className="flex flex-col gap-(--space-4) pt-(--space-14)"
+        >
+          <h2 className="pb-(--space-6) font-mono text-size-2xs tracking-caps text-text-dim">
+            OR PICK A RECENT FOLDER
+          </h2>
+          <ul className="flex flex-col">
+            {recent.map((cwd) => (
+              <li key={cwd}>
+                <button
+                  type="button"
+                  data-testid="recent-folder"
+                  disabled={disabled}
+                  onClick={() => onOpenFolder(cwd)}
+                  className="flex w-full items-center gap-(--space-10) rounded-sm px-(--space-8) py-(--space-6) text-left font-mono text-size-sm text-text-secondary hover:bg-bg-hover disabled:opacity-(--opacity-disabled)"
+                >
+                  <FolderIcon className="text-icon-neutral" />
+                  <span className="min-w-0 truncate">{cwd}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }
@@ -182,10 +213,15 @@ export interface StageProps {
   sidecar: SidecarStatus;
   track: EngineTrack;
   lost: boolean;
+  /** The open sessions are being brought back: the empty state would flash and be wrong. */
+  restoring: boolean;
   error: string | null;
+  /** Folders of the most recently used sessions on disk, newest first. */
+  recent: readonly string[];
   readOnlyDismissed: boolean;
   onDismissReadOnly: () => void;
   onOpen: () => void;
+  onOpenFolder: (cwd: string) => void;
   onRestart: () => void;
 }
 
@@ -221,9 +257,11 @@ export function Stage(props: StageProps) {
       {readOnly && !props.readOnlyDismissed && (
         <ReadOnlyNotice status={sidecar} onDismiss={props.onDismissReadOnly} />
       )}
-      {!lost && !(readOnly && !props.readOnlyDismissed) && (
+      {!lost && !props.restoring && !(readOnly && !props.readOnlyDismissed) && (
         <FirstUse
           onOpen={onOpen}
+          onOpenFolder={props.onOpenFolder}
+          recent={props.recent}
           disabled={!ready || readOnly}
           hint={readOnly ? "New sessions are paused while omp-app is read-only." : undefined}
         />

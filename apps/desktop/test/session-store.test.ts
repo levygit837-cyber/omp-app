@@ -367,3 +367,65 @@ describe("per-frame batching", () => {
     expect(t.vm("b")?.timeline[0]).toMatchObject({ text: "y" });
   });
 });
+
+describe("a session that moved to a new id", () => {
+  test("the replica, its seq and its listeners follow the move", async () => {
+    const t = setup([{ snapshot: emptyVm("old"), seq: 0 }]);
+    const moves: [string, string][] = [];
+    t.replicas.onMoved((from, to) => moves.push([from, to]));
+    await t.replicas.open("old");
+
+    t.replicas.receive(op(1, { type: "item.add", item: assistant("i0", "a") }, "old"));
+    t.replicas.receive(op(2, { type: "session.moved", id: "new" }, "old"));
+    t.frames.run();
+
+    expect(moves).toEqual([["old", "new"]]);
+    expect(t.vm("old")).toBeUndefined();
+    expect(t.vm("new")?.id).toBe("new");
+    expect(t.vm("new")?.timeline).toHaveLength(1);
+
+    // Later ops arrive under the new id and continue the seq: no gap, no resubscribe.
+    t.replicas.receive(op(3, { type: "item.appendText", itemId: "i0", text: "b" }, "new"));
+    t.frames.run();
+    expect(t.vm("new")?.timeline[0]).toMatchObject({ text: "ab" });
+    expect(t.calls).toEqual(["subscribe:old"]);
+  });
+
+  test("opening an id the session left behind resolves with the id it is under now", async () => {
+    const t = setup([{ snapshot: emptyVm("new"), seq: 4 }]);
+    expect(await t.replicas.open("old")).toBe("new");
+    expect(t.vm("new")?.id).toBe("new");
+    expect(t.vm("old")).toBeUndefined();
+  });
+});
+
+describe("requests of a sidecar that is gone", () => {
+  const ask = { kind: "ask" as const, id: "req-1", message: "Pick", fields: [], raisedAt: 1 };
+
+  test("clearPending empties every replica's requests and keeps the rest; a snapshot brings back what is real", async () => {
+    const t = setup([
+      { snapshot: emptyVm("a", { pending: [ask] }), seq: 3 },
+      { snapshot: emptyVm("b", { pending: [ask] }), seq: 1 },
+      { snapshot: emptyVm("a"), seq: 0 },
+    ]);
+    await t.replicas.open("a");
+    await t.replicas.open("b");
+
+    t.replicas.clearPending();
+    expect(t.vm("a")?.pending).toEqual([]);
+    expect(t.vm("b")?.pending).toEqual([]);
+    expect(t.vm("a")?.model).toBe("p/m");
+
+    // The new sidecar's snapshot of the same id carries no request: none comes back.
+    await t.replicas.open("a");
+    expect(t.vm("a")?.pending).toEqual([]);
+  });
+
+  test("a replica with nothing pending is left as it was (no render)", async () => {
+    const t = setup([{ snapshot: emptyVm("a"), seq: 0 }]);
+    await t.replicas.open("a");
+    const before = t.vm("a");
+    t.replicas.clearPending();
+    expect(t.vm("a")).toBe(before);
+  });
+});

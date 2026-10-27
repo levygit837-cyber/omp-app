@@ -2,9 +2,10 @@
  * Stand-in for the sidecar, to exercise the supervisor's lifecycle and the UI without booting omp.
  * Behaviour is chosen by FAKE_SIDECAR: `ok` (default), `slow` (listens after 600 ms),
  * `silent` (listens, never answers), `read-only` (reports a newer schema on disk; refuses
- * `session.create`), `old-protocol` (answers with another protocolVersion).
+ * `session.create|resume|fork`), `old-protocol` (answers with another protocolVersion).
  *
- * Every mode except `silent` also serves `session.create|subscribe|unsubscribe|prompt|cancel`
+ * Every mode except `silent` also serves
+ * `session.create|list|resume|fork|close|subscribe|unsubscribe|prompt|cancel`
  * with in-memory sessions (`fake-<n>`) whose state is kept with `applyOp`, so snapshots match
  * the `session.op` stream. A prompt runs a scripted turn. Knobs, all optional:
  * - FAKE_REPLY: reply text of a turn (default: a short English paragraph).
@@ -19,6 +20,7 @@
  * - FAKE_WARN=1: emit one MCP `warning.add` right after the first subscribe of each session.
  * - FAKE_REQUEST=permission|ask|form|queue: halfway through the reply, raise that request and
  *   wait for its answer (see fake-requests.ts). Also serves `session.answerPermission|answerAsk`.
+ * - FAKE_STORED=<n>: n sessions "on disk" (`stored-<i>`, see fake-catalog.ts) for list/resume/fork.
  */
 
 import {
@@ -37,6 +39,7 @@ import {
   type SessionViewModel,
   UNKNOWN_SESSION_MESSAGE,
 } from "@omp-app/protocol";
+import { storedSessions, storedTimeline } from "./fake-catalog";
 import { answerRequest, dismissRequests, raiseRequests, scripted } from "./fake-requests";
 import { fakeViewModel, mixedTimeline, stateTimeline } from "./fake-timeline";
 
@@ -52,6 +55,7 @@ const CHUNK_MS = Number(process.env.FAKE_CHUNK_MS ?? 30);
 const CHUNK_SIZE = 12;
 const PRELOADED = Number(process.env.FAKE_ITEMS ?? 0);
 const MODEL = process.env.FAKE_MODEL ?? "anthropic/claude-opus-5-5";
+const stored = storedSessions(Number(process.env.FAKE_STORED ?? 0));
 
 /** The part of a Bun socket this fixture uses; typed here so the file imports nothing from "bun". */
 type Conn = { write(data: Uint8Array): number };
@@ -202,6 +206,59 @@ function param(params: unknown, key: string): string {
   return typeof value === "string" ? value : "";
 }
 
+/** A session in memory with the given history; `seq` starts at 0, as a fresh attach does. */
+function openFake(sessionId: string, cwd: string, timeline: Item[]): void {
+  sessions.set(sessionId, {
+    vm: fakeViewModel({ id: sessionId, cwd, model: MODEL, timeline }),
+    seq: 0,
+    subs: new Set(),
+    turns: 0,
+    warned: false,
+  });
+}
+
+function readOnlyError(id: string, method: string): ResponseEnvelope {
+  return errorResponse(id, {
+    code: "read_only",
+    message: `${method} writes and the shared omp database is newer than this app supports`,
+  });
+}
+
+/** list / resume / fork / close over the `FAKE_STORED` catalog; undefined for any other method. */
+function handleCatalog(method: string, id: string, params: unknown): ResponseEnvelope | undefined {
+  const notFound = (sessionId: string) =>
+    errorResponse(id, { code: "internal", message: `session not found: ${sessionId}` });
+  const sessionId = param(params, "sessionId");
+  switch (method) {
+    case "session.list":
+      return okResponse(id, { sessions: stored });
+    case "session.close":
+      sessions.delete(sessionId);
+      return okResponse(id, null);
+    case "session.resume": {
+      if (mode === "read-only") return readOnlyError(id, method);
+      if (sessions.has(sessionId)) return okResponse(id, { sessionId });
+      const found = stored.find((s) => s.id === sessionId);
+      if (!found) return notFound(sessionId);
+      openFake(sessionId, found.cwd, storedTimeline(found));
+      return okResponse(id, { sessionId });
+    }
+    case "session.fork": {
+      if (mode === "read-only") return readOnlyError(id, method);
+      const open = sessions.get(sessionId);
+      const found = stored.find((s) => s.id === sessionId);
+      const timeline = open?.vm.timeline ?? (found ? storedTimeline(found) : undefined);
+      const cwd = open?.vm.cwd ?? found?.cwd;
+      if (!timeline || !cwd) return notFound(sessionId);
+      const copy = `fake-${++created}`;
+      openFake(copy, cwd, [...timeline]);
+      return okResponse(id, { sessionId: copy });
+    }
+    default:
+      return undefined;
+  }
+}
+
 function handleSession(
   method: string,
   id: string,
@@ -230,6 +287,9 @@ function handleSession(
     });
     return okResponse(id, { sessionId });
   }
+
+  const catalog = handleCatalog(method, id, params);
+  if (catalog) return catalog;
 
   if (!method.startsWith("session.")) return undefined;
   const sessionId = param(params, "sessionId");

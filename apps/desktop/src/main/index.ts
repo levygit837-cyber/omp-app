@@ -6,10 +6,14 @@ import {
   SESSION_ANSWER_ASK,
   SESSION_ANSWER_PERMISSION,
   SESSION_CANCEL,
+  SESSION_CLOSE,
   SESSION_CREATE,
+  SESSION_FORK,
+  SESSION_LIST,
   SESSION_OP,
   SESSION_PICK_DIRECTORY,
   SESSION_PROMPT,
+  SESSION_RESUME,
   SESSION_SUBSCRIBE,
   SESSION_UNSUBSCRIBE,
   SIDECAR_GET_STATUS,
@@ -108,6 +112,22 @@ function registerSessionRelay(sidecar: SidecarSupervisor): void {
       });
     },
   );
+  ipcMain.handle(SESSION_LIST, async () => (await sidecar.request("session.list")).sessions);
+  ipcMain.handle(SESSION_RESUME, async (_event, sessionId: unknown) => {
+    const opened = await sidecar.request("session.resume", {
+      sessionId: text(sessionId, "sessionId"),
+    });
+    return opened.sessionId;
+  });
+  ipcMain.handle(SESSION_FORK, async (_event, sessionId: unknown) => {
+    const forked = await sidecar.request("session.fork", {
+      sessionId: text(sessionId, "sessionId"),
+    });
+    return forked.sessionId;
+  });
+  ipcMain.handle(SESSION_CLOSE, async (_event, sessionId: unknown) => {
+    await sidecar.request("session.close", { sessionId: text(sessionId, "sessionId") });
+  });
 }
 
 function createWindow(): void {

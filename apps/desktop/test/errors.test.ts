@@ -22,4 +22,16 @@ describe("describeError", () => {
     expect(describeError("plain")).toBe("plain");
     expect(describeError(new Error(""))).not.toBe("");
   });
+
+  test("what the sidecar and omp say becomes a sentence, never the raw text", () => {
+    const via = (text: string) =>
+      describeError(new Error(`Error invoking remote method 'session:resume': Error: ${text}`));
+    expect(via("session not found: 7f3c-uuid")).not.toContain("7f3c");
+    expect(via("folder no longer exists: /gone")).toContain("/gone");
+    expect(via("Could not restore model openai/gpt-x")).toContain("openai/gpt-x");
+    expect(via("unknown session: abc")).not.toContain("abc");
+    expect(via("ACP session fork is unavailable while a prompt is in progress: abc")).not.toContain(
+      "abc",
+    );
+  });
 });
