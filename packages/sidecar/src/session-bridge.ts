@@ -1,4 +1,5 @@
 import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { readContextFill } from "./context-fill";
 import { emptyViewModel } from "./reducer";
 import type { SessionStore } from "./session-store";
 
@@ -18,6 +19,12 @@ export function attachSession(store: SessionStore, session: AgentSession): void 
     try {
       if (event.type === "model_changed") store.setModel(id, modelOf(session));
       else store.dispatch(id, event);
+      // The context size changes when a reply lands, the history is compacted or the model changes.
+      if (
+        ["message_end", "agent_end", "auto_compaction_end", "model_changed"].includes(event.type)
+      ) {
+        store.setContext(id, readContextFill(session));
+      }
     } catch (error) {
       // A reducer bug must not take the agent run down with it.
       console.error(

@@ -20,6 +20,10 @@ export type OmpBridge = {
     readonly electron: string;
     readonly chrome: string;
   };
+  readonly app: {
+    /** Opens an http(s) address in the system browser. Resolves false when main refuses the address. */
+    openLink(url: string): Promise<boolean>;
+  };
   readonly sidecar: {
     /** Current status; subscribe with `onStatus` first, then read this, to avoid missing a change. */
     getStatus(): Promise<SidecarStatus>;

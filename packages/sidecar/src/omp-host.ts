@@ -25,6 +25,12 @@ export interface OmpHostOptions {
   readonly onSessionCreated: (session: AgentSession) => void;
   /** An MCP server failed to connect for this session. The session carries on without it. */
   readonly onMcpFailure: (sessionId: string, server: string, message: string) => void;
+  /**
+   * Runs every tool without asking (`createAgentSession`'s `autoApprove`, `sdk.ts:947` [V]).
+   * Only the recording script sets it, so a recorded run executes shell calls that the ACP
+   * permission gate would otherwise hold back. The app never does.
+   */
+  readonly autoApprove?: boolean;
 }
 
 export interface OmpHost {
@@ -103,6 +109,7 @@ export async function startOmpHost(options: OmpHostOptions): Promise<OmpHost> {
       agentId: `acp:${sessionManager.getSessionId()}`,
       interactivePrompts: factoryOptions?.interactivePrompts,
       deferUsageReserveConfirmation: true,
+      autoApprove: options.autoApprove === true,
       enableMCP: false,
       eventBus: new EventBus(),
       subagentEventBus: new EventBus(),

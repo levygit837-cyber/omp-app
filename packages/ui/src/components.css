@@ -31,13 +31,120 @@
     }
   }
 
-  /* Block caret that ends a streaming message. */
-  .ui-caret {
+  /* Block caret that ends a streaming message. `Markdown` marks itself `data-streaming` and the
+   * caret is drawn after the last word of its last block. */
+  .ui-caret,
+  [data-streaming="true"] > :last-child::after {
+    content: "";
     display: inline-block;
     width: var(--space-8);
     height: 1em;
     margin-inline-start: var(--space-2);
     vertical-align: text-bottom;
     background: var(--color-accent);
+  }
+}
+
+@layer components {
+  /* Syntax tokens differ by luminance and weight only: contrast on bg-base is 15.8:1 (primary),
+   * 7.7:1 (secondary), 5.0:1 (dim). Plain code text is text-primary. */
+  .ui-hl-keyword {
+    color: var(--color-text-primary);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .ui-hl-string,
+  .ui-hl-number {
+    color: var(--color-text-secondary);
+  }
+
+  .ui-hl-comment {
+    color: var(--color-text-dim);
+    font-style: italic;
+  }
+}
+
+@layer components {
+  /* The turning dot of a live thinking line. Six frames of --motion-thinking-frame each: a dot is
+   * lit on its frame, trails on the next, and rests in the quiet tone otherwise. The trail is the
+   * accent mixed toward the background, so it needs no color token of its own. */
+  @keyframes ui-think-top {
+    0%,
+    100% {
+      fill: var(--color-accent);
+    }
+    16.667% {
+      fill: var(--ui-think-trail);
+    }
+    33.333%,
+    50%,
+    66.667% {
+      fill: var(--color-state-done);
+    }
+    83.333% {
+      fill: var(--color-accent);
+    }
+  }
+  @keyframes ui-think-right {
+    0%,
+    83.333% {
+      fill: var(--color-state-done);
+    }
+    16.667%,
+    33.333% {
+      fill: var(--color-accent);
+    }
+    50% {
+      fill: var(--ui-think-trail);
+    }
+    66.667% {
+      fill: var(--color-state-done);
+    }
+  }
+  @keyframes ui-think-left {
+    0%,
+    33.333%,
+    16.667% {
+      fill: var(--color-state-done);
+    }
+    50%,
+    66.667% {
+      fill: var(--color-accent);
+    }
+    83.333% {
+      fill: var(--ui-think-trail);
+    }
+    100% {
+      fill: var(--color-state-done);
+    }
+  }
+
+  .ui-think-dot {
+    --ui-think-trail: color-mix(in srgb, var(--color-accent) 55%, var(--color-bg-base));
+    animation-duration: calc(var(--motion-thinking-frame) * 6);
+    animation-timing-function: steps(1, end);
+    animation-iteration-count: infinite;
+  }
+  .ui-think-top {
+    animation-name: ui-think-top;
+  }
+  .ui-think-right {
+    animation-name: ui-think-right;
+  }
+  .ui-think-left {
+    animation-name: ui-think-left;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ui-think-dot {
+      animation: none;
+    }
+    .ui-think-top {
+      fill: var(--color-accent);
+    }
+    .ui-think-right,
+    .ui-think-left {
+      fill: var(--color-state-done);
+    }
   }
 }

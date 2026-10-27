@@ -1,0 +1,211 @@
+{
+  "ops": [
+    {
+      "sessionId": "01a17ea8-4b90-739c-8699-a2532727331f",
+      "seq": 1,
+      "op": {
+        "type": "status.set",
+        "status": "streaming"
+      }
+    },
+    {
+      "sessionId": "01a17ea8-4b90-739c-8699-a2532727331f",
+      "seq": 2,
+      "op": {
+        "type": "item.add",
+        "item": {
+          "kind": "user",
+          "id": "i0",
+          "text": "What is 17 times 23? Think it through step by step, then answer with the number only. No tools."
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea8-4b90-739c-8699-a2532727331f",
+      "seq": 3,
+      "op": {
+        "type": "item.add",
+        "item": {
+          "kind": "thinking",
+          "id": "i1",
+          "text": "",
+          "done": false,
+          "startedAt": 1000700
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea8-4b90-739c-8699-a2532727331f",
+      "seq": 4,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i1",
+        "text": "17"
+      }
+    },
+    {
+      "sessionId": "01a17ea8-4b90-739c-8699-a2532727331f",
+      "seq": 5,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i1",
+        "text": " times"
+      }
+    },
+    {
+      "sessionId": "01a17ea8-4b90-739c-8699-a2532727331f",
+      "seq": 6,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i1",
+        "text": " 23:"
+      }
+    },
+    {
+      "sessionId": "01a17ea8-4b90-739c-8699-a2532727331f",
+      "seq": 7,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i1",
+        "text": " 17*20 "
+      }
+    },
+    {
+      "sessionId": "01a17ea8-4b90-739c-8699-a2532727331f",
+      "seq": 8,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i1",
+        "text": "is 340, plus 17"
+      }
+    },
+    {
+      "sessionId": "01a17ea8-4b90-739c-8699-a2532727331f",
+      "seq": 9,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i1",
+        "text": "*3 is 51, gi"
+      }
+    },
+    {
+      "sessionId": "01a17ea8-4b90-739c-8699-a2532727331f",
+      "seq": 10,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i1",
+        "text": "ving 391"
+      }
+    },
+    {
+      "sessionId": "01a17ea8-4b90-739c-8699-a2532727331f",
+      "seq": 11,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i1",
+        "text": "."
+      }
+    },
+    {
+      "sessionId": "01a17ea8-4b90-739c-8699-a2532727331f",
+      "seq": 12,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i1",
+        "text": "\n\n"
+      }
+    },
+    {
+      "sessionId": "01a17ea8-4b90-739c-8699-a2532727331f",
+      "seq": 13,
+      "op": {
+        "type": "thinking.end",
+        "itemId": "i1",
+        "endedAt": 1001700
+      }
+    },
+    {
+      "sessionId": "01a17ea8-4b90-739c-8699-a2532727331f",
+      "seq": 14,
+      "op": {
+        "type": "item.add",
+        "item": {
+          "kind": "assistant",
+          "id": "i2",
+          "text": "391",
+          "done": false
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea8-4b90-739c-8699-a2532727331f",
+      "seq": 15,
+      "op": {
+        "type": "usage.set",
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 27,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0,
+          "cost": 0.00027
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea8-4b90-739c-8699-a2532727331f",
+      "seq": 16,
+      "op": {
+        "type": "item.done",
+        "itemId": "i2"
+      }
+    },
+    {
+      "sessionId": "01a17ea8-4b90-739c-8699-a2532727331f",
+      "seq": 17,
+      "op": {
+        "type": "status.set",
+        "status": "idle"
+      }
+    }
+  ],
+  "final": {
+    "snapshot": {
+      "id": "01a17ea8-4b90-739c-8699-a2532727331f",
+      "cwd": "/work/project",
+      "status": "idle",
+      "model": "kiro/claude-sonnet-5.5",
+      "timeline": [
+        {
+          "kind": "user",
+          "id": "i0",
+          "text": "What is 17 times 23? Think it through step by step, then answer with the number only. No tools."
+        },
+        {
+          "kind": "thinking",
+          "id": "i1",
+          "text": "17 times 23: 17*20 is 340, plus 17*3 is 51, giving 391.\n\n",
+          "done": true,
+          "startedAt": 1000700,
+          "endedAt": 1001700
+        },
+        {
+          "kind": "assistant",
+          "id": "i2",
+          "text": "391",
+          "done": true
+        }
+      ],
+      "warnings": [],
+      "usage": {
+        "inputTokens": 0,
+        "outputTokens": 27,
+        "cacheReadTokens": 0,
+        "cacheWriteTokens": 0,
+        "cost": 0.00027
+      },
+      "context": null,
+      "todo": []
+    },
+    "seq": 17
+  }
+}

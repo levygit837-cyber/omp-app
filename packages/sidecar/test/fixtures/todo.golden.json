@@ -1,0 +1,980 @@
+{
+  "ops": [
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 1,
+      "op": {
+        "type": "status.set",
+        "status": "streaming"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 2,
+      "op": {
+        "type": "item.add",
+        "item": {
+          "kind": "user",
+          "id": "i0",
+          "text": "Use the todo tool to create a list with exactly two tasks, `read notes` and `report`. Then mark `read notes` done. Do nothing else. Finish with one short sentence."
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 3,
+      "op": {
+        "type": "usage.set",
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 24,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0,
+          "cost": 0.00024000000000000003
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 4,
+      "op": {
+        "type": "item.add",
+        "item": {
+          "kind": "tool",
+          "id": "i1",
+          "tool": "todo",
+          "intent": "Creating task list",
+          "calls": [
+            {
+              "toolCallId": "toolu_bdrk_01SiwcKociJHGMDVXRk4HB3d",
+              "status": "running",
+              "startedAt": 1001900
+            }
+          ]
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 5,
+      "op": {
+        "type": "tool.call.update",
+        "itemId": "i1",
+        "toolCallId": "toolu_bdrk_01SiwcKociJHGMDVXRk4HB3d",
+        "patch": {
+          "status": "done",
+          "endedAt": 1002000,
+          "output": {
+            "kind": "todo",
+            "done": 0,
+            "total": 2,
+            "phases": [
+              {
+                "name": "Tasks",
+                "tasks": [
+                  {
+                    "content": "read notes",
+                    "status": "in_progress"
+                  },
+                  {
+                    "content": "report",
+                    "status": "pending"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 6,
+      "op": {
+        "type": "todo.set",
+        "todo": [
+          {
+            "name": "Tasks",
+            "tasks": [
+              {
+                "content": "read notes",
+                "status": "in_progress"
+              },
+              {
+                "content": "report",
+                "status": "pending"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 7,
+      "op": {
+        "type": "usage.set",
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 48,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0,
+          "cost": 0.00048000000000000007
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 8,
+      "op": {
+        "type": "item.add",
+        "item": {
+          "kind": "tool",
+          "id": "i2",
+          "tool": "todo",
+          "intent": "Marking read notes done",
+          "calls": [
+            {
+              "toolCallId": "toolu_bdrk_017KBGMUSRf13WWi64932qWN",
+              "status": "running",
+              "startedAt": 1003900
+            }
+          ]
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 9,
+      "op": {
+        "type": "tool.call.update",
+        "itemId": "i2",
+        "toolCallId": "toolu_bdrk_017KBGMUSRf13WWi64932qWN",
+        "patch": {
+          "status": "done",
+          "endedAt": 1004000,
+          "output": {
+            "kind": "todo",
+            "done": 1,
+            "total": 2,
+            "phases": [
+              {
+                "name": "Tasks",
+                "tasks": [
+                  {
+                    "content": "read notes",
+                    "status": "completed"
+                  },
+                  {
+                    "content": "report",
+                    "status": "in_progress"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 10,
+      "op": {
+        "type": "todo.set",
+        "todo": [
+          {
+            "name": "Tasks",
+            "tasks": [
+              {
+                "content": "read notes",
+                "status": "completed"
+              },
+              {
+                "content": "report",
+                "status": "in_progress"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 11,
+      "op": {
+        "type": "item.add",
+        "item": {
+          "kind": "assistant",
+          "id": "i3",
+          "text": "Cri",
+          "done": false
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 12,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i3",
+        "text": "ei"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 13,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i3",
+        "text": " a lista com "
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 14,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i3",
+        "text": "`"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 15,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i3",
+        "text": "read notes"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 16,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i3",
+        "text": "`"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 17,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i3",
+        "text": " e "
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 18,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i3",
+        "text": "`"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 19,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i3",
+        "text": "report"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 20,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i3",
+        "text": "`"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 21,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i3",
+        "text": " e marqu"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 22,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i3",
+        "text": "ei "
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 23,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i3",
+        "text": "`"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 24,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i3",
+        "text": "read notes"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 25,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i3",
+        "text": "`"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 26,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i3",
+        "text": " como conc"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 27,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i3",
+        "text": "luída; "
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 28,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i3",
+        "text": "`"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 29,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i3",
+        "text": "report"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 30,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i3",
+        "text": "`"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 31,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i3",
+        "text": " seg"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 32,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i3",
+        "text": "ue p"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 33,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i3",
+        "text": "endente,"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 34,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i3",
+        "text": " como"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 35,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i3",
+        "text": " você p"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 36,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i3",
+        "text": "edi"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 37,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i3",
+        "text": "u."
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 38,
+      "op": {
+        "type": "usage.set",
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 86,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0,
+          "cost": 0.0008600000000000001
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 39,
+      "op": {
+        "type": "item.done",
+        "itemId": "i3"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 40,
+      "op": {
+        "type": "item.add",
+        "item": {
+          "kind": "thinking",
+          "id": "i4",
+          "text": "",
+          "done": false,
+          "startedAt": 1008100
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 41,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i4",
+        "text": "The"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 42,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i4",
+        "text": " user"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 43,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i4",
+        "text": "'s original instruction was clear"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 44,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i4",
+        "text": ": mark only the read"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 45,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i4",
+        "text": " notes as done, and do"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 46,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i4",
+        "text": " nothing else. The"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 47,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i4",
+        "text": " system"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 48,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i4",
+        "text": " re"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 49,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i4",
+        "text": "minder is just autom"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 50,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i4",
+        "text": "ated and doesn't override that"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 51,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i4",
+        "text": " explicit sc"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 52,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i4",
+        "text": "ope,"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 53,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i4",
+        "text": " so I sh"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 54,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i4",
+        "text": "ouldn't m"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 55,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i4",
+        "text": "ark the report as compl"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 56,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i4",
+        "text": "ete—"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 57,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i4",
+        "text": "le"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 58,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i4",
+        "text": "aving it pending mat"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 59,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i4",
+        "text": "ches the user's act"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 60,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i4",
+        "text": "ual intent.\n\n"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 61,
+      "op": {
+        "type": "thinking.end",
+        "itemId": "i4",
+        "endedAt": 1010200
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 62,
+      "op": {
+        "type": "item.add",
+        "item": {
+          "kind": "assistant",
+          "id": "i5",
+          "text": "De",
+          "done": false
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 63,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "ixei "
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 64,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "`"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 65,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "report"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 66,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "`"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 67,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": " pendente"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 68,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": " de"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 69,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": " prop"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 70,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "ósito: você"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 71,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": " pediu só"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 72,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": " marcar "
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 73,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "`"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 74,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "read notes"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 75,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "`"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 76,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": " como concluída e não f"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 77,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "azer mais nada."
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 78,
+      "op": {
+        "type": "usage.set",
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 174,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0,
+          "cost": 0.0017400000000000002
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 79,
+      "op": {
+        "type": "item.done",
+        "itemId": "i5"
+      }
+    },
+    {
+      "sessionId": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "seq": 80,
+      "op": {
+        "type": "status.set",
+        "status": "idle"
+      }
+    }
+  ],
+  "final": {
+    "snapshot": {
+      "id": "01a17ea7-ef02-7480-a221-59ce89dc8bbf",
+      "cwd": "/work/project",
+      "status": "idle",
+      "model": "kiro/claude-sonnet-5.5",
+      "timeline": [
+        {
+          "kind": "user",
+          "id": "i0",
+          "text": "Use the todo tool to create a list with exactly two tasks, `read notes` and `report`. Then mark `read notes` done. Do nothing else. Finish with one short sentence."
+        },
+        {
+          "kind": "tool",
+          "id": "i1",
+          "tool": "todo",
+          "intent": "Creating task list",
+          "calls": [
+            {
+              "toolCallId": "toolu_bdrk_01SiwcKociJHGMDVXRk4HB3d",
+              "status": "done",
+              "startedAt": 1001900,
+              "endedAt": 1002000,
+              "output": {
+                "kind": "todo",
+                "done": 0,
+                "total": 2,
+                "phases": [
+                  {
+                    "name": "Tasks",
+                    "tasks": [
+                      {
+                        "content": "read notes",
+                        "status": "in_progress"
+                      },
+                      {
+                        "content": "report",
+                        "status": "pending"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "kind": "tool",
+          "id": "i2",
+          "tool": "todo",
+          "intent": "Marking read notes done",
+          "calls": [
+            {
+              "toolCallId": "toolu_bdrk_017KBGMUSRf13WWi64932qWN",
+              "status": "done",
+              "startedAt": 1003900,
+              "endedAt": 1004000,
+              "output": {
+                "kind": "todo",
+                "done": 1,
+                "total": 2,
+                "phases": [
+                  {
+                    "name": "Tasks",
+                    "tasks": [
+                      {
+                        "content": "read notes",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "report",
+                        "status": "in_progress"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "kind": "assistant",
+          "id": "i3",
+          "text": "Criei a lista com `read notes` e `report` e marquei `read notes` como concluída; `report` segue pendente, como você pediu.",
+          "done": true
+        },
+        {
+          "kind": "thinking",
+          "id": "i4",
+          "text": "The user's original instruction was clear: mark only the read notes as done, and do nothing else. The system reminder is just automated and doesn't override that explicit scope, so I shouldn't mark the report as complete—leaving it pending matches the user's actual intent.\n\n",
+          "done": true,
+          "startedAt": 1008100,
+          "endedAt": 1010200
+        },
+        {
+          "kind": "assistant",
+          "id": "i5",
+          "text": "Deixei `report` pendente de propósito: você pediu só marcar `read notes` como concluída e não fazer mais nada.",
+          "done": true
+        }
+      ],
+      "warnings": [],
+      "usage": {
+        "inputTokens": 0,
+        "outputTokens": 174,
+        "cacheReadTokens": 0,
+        "cacheWriteTokens": 0,
+        "cost": 0.0017400000000000002
+      },
+      "context": null,
+      "todo": [
+        {
+          "name": "Tasks",
+          "tasks": [
+            {
+              "content": "read notes",
+              "status": "completed"
+            },
+            {
+              "content": "report",
+              "status": "in_progress"
+            }
+          ]
+        }
+      ]
+    },
+    "seq": 80
+  }
+}

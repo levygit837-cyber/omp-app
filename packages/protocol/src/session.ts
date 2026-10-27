@@ -8,6 +8,20 @@
  * older replica never breaks on a newer op.
  */
 import { isRecord } from "./guards";
+import {
+  type CompactionItem,
+  type ContextFill,
+  isContextFill,
+  isSessionUsage,
+  isTimelineItem,
+  isTodoPhase,
+  type RetryItem,
+  type SessionUsage,
+  type ThinkingItem,
+  type TodoPhase,
+  type ToolCall,
+  type ToolItem,
+} from "./timeline";
 
 export type SessionStatus = "idle" | "streaming" | "failed";
 
@@ -26,7 +40,15 @@ export interface AssistantItem {
 }
 
 /** One entry of the timeline. Discriminated by `kind`. */
-export type Item = UserItem | AssistantItem;
+export type Item = UserItem | AssistantItem | ToolItem | ThinkingItem | CompactionItem | RetryItem;
+
+/** The fields of a status event an `item.patch` may change. `kind` and `id` never change. */
+export type StatusItemPatch =
+  | Partial<Omit<CompactionItem, "kind" | "id">>
+  | Partial<Omit<RetryItem, "kind" | "id">>;
+
+/** The fields of a tool call an update may change. `toolCallId` never changes. */
+export type ToolCallPatch = Partial<Omit<ToolCall, "toolCallId">>;
 
 /**
  * A non-blocking problem the session carries on despite. `source` says who raised it, so a
@@ -50,6 +72,12 @@ export interface SessionViewModel {
   readonly timeline: readonly Item[];
   /** Append-only, in the order they were raised. */
   readonly warnings: readonly SessionWarning[];
+  /** Summed over every assistant message of the session so far. */
+  readonly usage: SessionUsage;
+  /** Null until omp can measure it (before the first model reply, or for a model without a window). */
+  readonly context: ContextFill | null;
+  /** The session's todo list as omp last reported it; empty when there is none. */
+  readonly todo: readonly TodoPhase[];
 }
 
 /** A change to the view model. Discriminated by `type`. */
@@ -63,7 +91,29 @@ export type SessionOp =
       readonly error?: string;
     }
   | { readonly type: "model.set"; readonly model: string | null }
-  | { readonly type: "warning.add"; readonly warning: SessionWarning };
+  | { readonly type: "warning.add"; readonly warning: SessionWarning }
+  /** Adds a call to a tool item that is already on the timeline (a grouped line). */
+  | { readonly type: "tool.call.add"; readonly itemId: string; readonly call: ToolCall }
+  | {
+      readonly type: "tool.call.update";
+      readonly itemId: string;
+      readonly toolCallId: string;
+      readonly patch: ToolCallPatch;
+    }
+  /** Closes a thinking item. `tokens` is what the provider counted for the reasoning, if it did. */
+  | {
+      readonly type: "thinking.end";
+      readonly itemId: string;
+      readonly endedAt: number;
+      readonly tokens?: number;
+    }
+  /** Tokens the provider has counted so far for an open thinking item. */
+  | { readonly type: "thinking.tokens"; readonly itemId: string; readonly tokens: number }
+  /** Shallow-merges into a compaction or retry item. */
+  | { readonly type: "item.patch"; readonly itemId: string; readonly patch: StatusItemPatch }
+  | { readonly type: "usage.set"; readonly usage: SessionUsage }
+  | { readonly type: "context.set"; readonly context: ContextFill | null }
+  | { readonly type: "todo.set"; readonly todo: readonly TodoPhase[] };
 
 /** Full state of a session at `seq`: the number of ops applied since it was created. */
 export interface SessionSnapshot {
@@ -106,7 +156,7 @@ export function applyOp(vm: SessionViewModel, op: SessionOp): SessionViewModel {
       return { ...vm, timeline: [...vm.timeline, op.item] };
     case "item.appendText":
       return updateItem(vm, op.itemId, (item) =>
-        item.kind === "assistant" || item.kind === "user"
+        item.kind === "assistant" || item.kind === "user" || item.kind === "thinking"
           ? { ...item, text: item.text + op.text }
           : item,
       );
@@ -122,6 +172,49 @@ export function applyOp(vm: SessionViewModel, op: SessionOp): SessionViewModel {
       return vm.model === op.model ? vm : { ...vm, model: op.model };
     case "warning.add":
       return { ...vm, warnings: [...vm.warnings, op.warning] };
+    case "tool.call.add":
+      return updateItem(vm, op.itemId, (item) =>
+        item.kind === "tool" ? { ...item, calls: [...item.calls, op.call] } : item,
+      );
+    case "tool.call.update":
+      return updateItem(vm, op.itemId, (item) => {
+        if (item.kind !== "tool") return item;
+        const at = item.calls.findIndex((c) => c.toolCallId === op.toolCallId);
+        const call = item.calls[at];
+        if (!call) return item;
+        const calls = item.calls.slice();
+        calls[at] = { ...call, ...op.patch };
+        return { ...item, calls };
+      });
+    case "thinking.end":
+      return updateItem(vm, op.itemId, (item) =>
+        item.kind === "thinking" && !item.done
+          ? {
+              ...item,
+              done: true,
+              endedAt: op.endedAt,
+              ...(op.tokens === undefined ? {} : { tokens: op.tokens }),
+            }
+          : item,
+      );
+    case "thinking.tokens":
+      return updateItem(vm, op.itemId, (item) =>
+        item.kind === "thinking" && item.tokens !== op.tokens
+          ? { ...item, tokens: op.tokens }
+          : item,
+      );
+    case "item.patch":
+      return updateItem(vm, op.itemId, (item) =>
+        item.kind === "compaction" || item.kind === "retry"
+          ? ({ ...item, ...op.patch } as Item)
+          : item,
+      );
+    case "usage.set":
+      return { ...vm, usage: op.usage };
+    case "context.set":
+      return { ...vm, context: op.context };
+    case "todo.set":
+      return { ...vm, todo: op.todo };
     default:
       return vm;
   }
@@ -140,7 +233,7 @@ function isItem(v: unknown): v is Item {
   if (!isRecord(v) || typeof v.id !== "string") return false;
   if (v.kind === "user") return typeof v.text === "string";
   if (v.kind === "assistant") return typeof v.text === "string" && typeof v.done === "boolean";
-  return false;
+  return isTimelineItem(v);
 }
 
 export function isSessionViewModel(v: unknown): v is SessionViewModel {
@@ -154,7 +247,11 @@ export function isSessionViewModel(v: unknown): v is SessionViewModel {
     Array.isArray(v.timeline) &&
     v.timeline.every(isItem) &&
     Array.isArray(v.warnings) &&
-    v.warnings.every(isWarning)
+    v.warnings.every(isWarning) &&
+    isSessionUsage(v.usage) &&
+    (v.context === null || isContextFill(v.context)) &&
+    Array.isArray(v.todo) &&
+    v.todo.every(isTodoPhase)
   );
 }
 

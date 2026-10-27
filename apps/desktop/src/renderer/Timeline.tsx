@@ -1,48 +1,82 @@
-import { Caret } from "@omp-app/ui";
+import type { AssistantItem, Item } from "@omp-app/protocol";
+import { Caret, Markdown } from "@omp-app/ui";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { memo, useRef } from "react";
 import { projectName } from "./format";
 import { useCwd, useItem, useItemCount, useItemKind } from "./session-hooks";
 import { useShownStatus } from "./shown-status";
+import { CompactionLine, compactionVisible, RetryLine } from "./timeline/StatusLines";
+import { ThinkingLine } from "./timeline/ThinkingLine";
+import { ToolLine } from "./timeline/ToolLine";
 import { useFollowBottom } from "./use-follow-bottom";
 
 /** Height guess for a row that has not been measured yet; the measurement replaces it. */
 const ESTIMATED_ROW = 96;
 const OVERSCAN = 8;
 
-/** The caret of an unfinished reply. A dead engine writes no more, so it shows only while running. */
-function OpenCaret({ sessionId }: { sessionId: string }) {
-  return useShownStatus(sessionId) === "streaming" ? <Caret /> : null;
+/** Lines of the agent's work sit close together; a reply or a new turn gets more air. */
+const WORK_KINDS: Record<string, true> = { tool: true, thinking: true, retry: true };
+
+function gapBefore(previous: Item["kind"] | undefined, kind: Item["kind"]): string {
+  if (previous === undefined) return "";
+  if (kind === "user") return "pt-(--space-turn)";
+  if (WORK_KINDS[previous] === true && WORK_KINDS[kind] === true) return "pt-(--space-tool-step)";
+  return "pt-(--space-event)";
 }
 
-/**
- * One row. It re-renders only when its own item changes (items keep identity otherwise).
- * The space above a row belongs to the row, so the virtualizer measures it: 64 before a
- * user message that opens a new turn, 20 between the events of a turn, none before the first.
- */
-const Row = memo(function Row({ sessionId, index }: { sessionId: string; index: number }) {
-  const item = useItem(sessionId, index);
-  const previous = useItemKind(sessionId, index - 1);
-  if (!item) return null;
-  const gap =
-    previous === undefined ? "" : item.kind === "user" ? "pt-(--space-turn)" : "pt-(--space-event)";
+/** Links in a reply never navigate the window: main checks the address and opens the system browser. */
+const openLink = (url: string) => void window.omp.app.openLink(url);
+
+/** The reply. The caret shows only while it is the open message of a run that is really streaming. */
+function Reply({ sessionId, item }: { sessionId: string; item: AssistantItem }) {
+  const streaming = useShownStatus(sessionId) === "streaming" && !item.done;
   return (
-    <div className={gap} data-testid={`item-${item.kind}`}>
-      {item.kind === "user" ? (
+    <div data-done={item.done} className="text-size-body leading-(--line-height-prose) break-words">
+      {item.text === "" ? (
+        streaming && <Caret />
+      ) : (
+        <Markdown text={item.text} streaming={streaming} onOpenLink={openLink} />
+      )}
+    </div>
+  );
+}
+
+function Body({ sessionId, item }: { sessionId: string; item: Item }) {
+  switch (item.kind) {
+    case "user":
+      return (
         <div className="flex justify-end">
           <p className="max-w-(--layout-user-band-max) rounded-sm bg-bg-user px-(--space-user-band-x) py-(--space-user-band-y) text-size-body leading-(--line-height-prose) break-words whitespace-pre-wrap">
             {item.text}
           </p>
         </div>
-      ) : (
-        <p
-          data-done={item.done}
-          className="text-size-body leading-(--line-height-prose) break-words whitespace-pre-wrap"
-        >
-          {item.text}
-          {!item.done && <OpenCaret sessionId={sessionId} />}
-        </p>
-      )}
+      );
+    case "assistant":
+      return <Reply sessionId={sessionId} item={item} />;
+    case "tool":
+      return <ToolLine sessionId={sessionId} item={item} />;
+    case "thinking":
+      return <ThinkingLine sessionId={sessionId} item={item} />;
+    case "compaction":
+      return <CompactionLine sessionId={sessionId} item={item} />;
+    case "retry":
+      return <RetryLine sessionId={sessionId} item={item} />;
+  }
+}
+
+/**
+ * One row. It re-renders only when its own item changes (items keep identity otherwise).
+ * The space above a row belongs to the row, so the virtualizer measures it: 64 before a
+ * user message that opens a new turn, 6 between lines of work, 20 between other events, none
+ * before the first.
+ */
+const Row = memo(function Row({ sessionId, index }: { sessionId: string; index: number }) {
+  const item = useItem(sessionId, index);
+  const previous = useItemKind(sessionId, index - 1);
+  if (!item || (item.kind === "compaction" && !compactionVisible(item))) return null;
+  return (
+    <div className={gapBefore(previous, item.kind)} data-testid={`item-${item.kind}`}>
+      <Body sessionId={sessionId} item={item} />
     </div>
   );
 });

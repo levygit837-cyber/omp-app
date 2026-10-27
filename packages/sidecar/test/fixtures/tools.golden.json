@@ -1,0 +1,876 @@
+{
+  "ops": [
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 1,
+      "op": {
+        "type": "status.set",
+        "status": "streaming"
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 2,
+      "op": {
+        "type": "item.add",
+        "item": {
+          "kind": "user",
+          "id": "i0",
+          "text": "In this directory: read notes.txt, use the edit tool to change the word draft to final in it, use the write tool to create done.txt containing the single line ok, then run `wc -l notes.txt` with bash. Finish with one short sentence."
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 3,
+      "op": {
+        "type": "usage.set",
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 16,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0,
+          "cost": 0.00016
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 4,
+      "op": {
+        "type": "item.add",
+        "item": {
+          "kind": "tool",
+          "id": "i1",
+          "tool": "read",
+          "intent": "Reading notes file",
+          "calls": [
+            {
+              "toolCallId": "toolu_bdrk_01Xxw9cqDJbaCbWyF12q7wAy",
+              "status": "running",
+              "startedAt": 1001800,
+              "target": "notes.txt"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 5,
+      "op": {
+        "type": "tool.call.update",
+        "itemId": "i1",
+        "toolCallId": "toolu_bdrk_01Xxw9cqDJbaCbWyF12q7wAy",
+        "patch": {
+          "status": "done",
+          "endedAt": 1001900,
+          "output": {
+            "kind": "paths",
+            "count": 1,
+            "paths": ["notes.txt"],
+            "lines": 3
+          }
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 6,
+      "op": {
+        "type": "usage.set",
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 73,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0,
+          "cost": 0.0007300000000000001
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 7,
+      "op": {
+        "type": "item.add",
+        "item": {
+          "kind": "tool",
+          "id": "i2",
+          "tool": "edit",
+          "intent": "Changing draft to final",
+          "calls": [
+            {
+              "toolCallId": "toolu_bdrk_01AaNvEYXfz48BQ3UaTNfypW",
+              "status": "running",
+              "startedAt": 1005800,
+              "target": "notes.txt"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 8,
+      "op": {
+        "type": "tool.call.update",
+        "itemId": "i2",
+        "toolCallId": "toolu_bdrk_01AaNvEYXfz48BQ3UaTNfypW",
+        "patch": {
+          "output": {
+            "kind": "diff",
+            "files": [
+              {
+                "path": "notes.txt",
+                "op": "update",
+                "added": 1,
+                "removed": 1,
+                "rows": [
+                  {
+                    "kind": "context",
+                    "oldLine": 1,
+                    "newLine": 1,
+                    "text": "release notes"
+                  },
+                  {
+                    "kind": "remove",
+                    "oldLine": 2,
+                    "text": "status: draft"
+                  },
+                  {
+                    "kind": "add",
+                    "newLine": 2,
+                    "text": "status: final"
+                  },
+                  {
+                    "kind": "context",
+                    "oldLine": 3,
+                    "newLine": 3,
+                    "text": "owner: levy"
+                  }
+                ],
+                "rowsOmitted": 0
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 9,
+      "op": {
+        "type": "tool.call.update",
+        "itemId": "i2",
+        "toolCallId": "toolu_bdrk_01AaNvEYXfz48BQ3UaTNfypW",
+        "patch": {
+          "status": "done",
+          "endedAt": 1006000,
+          "output": {
+            "kind": "diff",
+            "files": [
+              {
+                "path": "/work/project/notes.txt",
+                "op": "update",
+                "added": 1,
+                "removed": 1,
+                "rows": [
+                  {
+                    "kind": "context",
+                    "oldLine": 1,
+                    "newLine": 1,
+                    "text": "release notes"
+                  },
+                  {
+                    "kind": "remove",
+                    "oldLine": 2,
+                    "text": "status: draft"
+                  },
+                  {
+                    "kind": "add",
+                    "newLine": 2,
+                    "text": "status: final"
+                  },
+                  {
+                    "kind": "context",
+                    "oldLine": 3,
+                    "newLine": 3,
+                    "text": "owner: levy"
+                  }
+                ],
+                "rowsOmitted": 0
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 10,
+      "op": {
+        "type": "item.add",
+        "item": {
+          "kind": "tool",
+          "id": "i3",
+          "tool": "write",
+          "intent": "Creating done.txt",
+          "calls": [
+            {
+              "toolCallId": "toolu_bdrk_01LXwzmNEW7iq9snW5aJq6D8",
+              "status": "running",
+              "startedAt": 1006300,
+              "target": "done.txt",
+              "output": {
+                "kind": "diff",
+                "files": [
+                  {
+                    "path": "done.txt",
+                    "op": "write",
+                    "added": 1,
+                    "removed": 0,
+                    "rows": [
+                      {
+                        "kind": "add",
+                        "newLine": 1,
+                        "text": "ok"
+                      }
+                    ],
+                    "rowsOmitted": 0
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 11,
+      "op": {
+        "type": "tool.call.update",
+        "itemId": "i3",
+        "toolCallId": "toolu_bdrk_01LXwzmNEW7iq9snW5aJq6D8",
+        "patch": {
+          "status": "done",
+          "endedAt": 1006500,
+          "output": {
+            "kind": "diff",
+            "files": [
+              {
+                "path": "done.txt",
+                "op": "write",
+                "added": 1,
+                "removed": 0,
+                "rows": [
+                  {
+                    "kind": "add",
+                    "newLine": 1,
+                    "text": "ok"
+                  }
+                ],
+                "rowsOmitted": 0
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 12,
+      "op": {
+        "type": "usage.set",
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 95,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0,
+          "cost": 0.0009500000000000001
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 13,
+      "op": {
+        "type": "item.add",
+        "item": {
+          "kind": "tool",
+          "id": "i4",
+          "tool": "bash",
+          "intent": "Counting lines in notes.txt",
+          "calls": [
+            {
+              "toolCallId": "toolu_bdrk_01JAjPqMCnju6A9jcHzz9LqV",
+              "status": "running",
+              "startedAt": 1008400,
+              "target": "wc -l notes.txt"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 14,
+      "op": {
+        "type": "tool.call.update",
+        "itemId": "i4",
+        "toolCallId": "toolu_bdrk_01JAjPqMCnju6A9jcHzz9LqV",
+        "patch": {
+          "output": {
+            "kind": "shell",
+            "lines": ["3 notes.txt"],
+            "linesOmitted": 0
+          }
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 15,
+      "op": {
+        "type": "tool.call.update",
+        "itemId": "i4",
+        "toolCallId": "toolu_bdrk_01JAjPqMCnju6A9jcHzz9LqV",
+        "patch": {
+          "output": {
+            "kind": "shell",
+            "wallTimeMs": 61,
+            "lines": ["3 notes.txt"],
+            "linesOmitted": 0
+          }
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 16,
+      "op": {
+        "type": "tool.call.update",
+        "itemId": "i4",
+        "toolCallId": "toolu_bdrk_01JAjPqMCnju6A9jcHzz9LqV",
+        "patch": {
+          "status": "done",
+          "endedAt": 1008700,
+          "output": {
+            "kind": "shell",
+            "wallTimeMs": 61,
+            "lines": ["3 notes.txt"],
+            "linesOmitted": 0
+          }
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 17,
+      "op": {
+        "type": "item.add",
+        "item": {
+          "kind": "assistant",
+          "id": "i5",
+          "text": "M",
+          "done": false
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 18,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "udei "
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 19,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "`"
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 20,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "draft"
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 21,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "`"
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 22,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": " para "
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 23,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "`"
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 24,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "final"
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 25,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "`"
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 26,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": " em"
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 27,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": " "
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 28,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "`"
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 29,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "notes.txt"
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 30,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "`"
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 31,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": ","
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 32,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": " criei "
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 33,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "`"
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 34,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "done.txt"
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 35,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "`"
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 36,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": " com "
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 37,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "`"
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 38,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "ok"
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 39,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "`"
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 40,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": ", e o"
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 41,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": " "
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 42,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "`"
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 43,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "wc -l"
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 44,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "`"
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 45,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": " most"
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 46,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "rou 3 linhas"
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 47,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": " em "
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 48,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "`"
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 49,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "notes.txt"
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 50,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "`"
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 51,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i5",
+        "text": "."
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 52,
+      "op": {
+        "type": "usage.set",
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 139,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0,
+          "cost": 0.0013900000000000002
+        }
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 53,
+      "op": {
+        "type": "item.done",
+        "itemId": "i5"
+      }
+    },
+    {
+      "sessionId": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "seq": 54,
+      "op": {
+        "type": "status.set",
+        "status": "idle"
+      }
+    }
+  ],
+  "final": {
+    "snapshot": {
+      "id": "01a17ea5-0dbd-7516-8938-a1752f6f42e6",
+      "cwd": "/work/project",
+      "status": "idle",
+      "model": "kiro/claude-sonnet-5.5",
+      "timeline": [
+        {
+          "kind": "user",
+          "id": "i0",
+          "text": "In this directory: read notes.txt, use the edit tool to change the word draft to final in it, use the write tool to create done.txt containing the single line ok, then run `wc -l notes.txt` with bash. Finish with one short sentence."
+        },
+        {
+          "kind": "tool",
+          "id": "i1",
+          "tool": "read",
+          "intent": "Reading notes file",
+          "calls": [
+            {
+              "toolCallId": "toolu_bdrk_01Xxw9cqDJbaCbWyF12q7wAy",
+              "status": "done",
+              "startedAt": 1001800,
+              "target": "notes.txt",
+              "endedAt": 1001900,
+              "output": {
+                "kind": "paths",
+                "count": 1,
+                "paths": ["notes.txt"],
+                "lines": 3
+              }
+            }
+          ]
+        },
+        {
+          "kind": "tool",
+          "id": "i2",
+          "tool": "edit",
+          "intent": "Changing draft to final",
+          "calls": [
+            {
+              "toolCallId": "toolu_bdrk_01AaNvEYXfz48BQ3UaTNfypW",
+              "status": "done",
+              "startedAt": 1005800,
+              "target": "notes.txt",
+              "output": {
+                "kind": "diff",
+                "files": [
+                  {
+                    "path": "/work/project/notes.txt",
+                    "op": "update",
+                    "added": 1,
+                    "removed": 1,
+                    "rows": [
+                      {
+                        "kind": "context",
+                        "oldLine": 1,
+                        "newLine": 1,
+                        "text": "release notes"
+                      },
+                      {
+                        "kind": "remove",
+                        "oldLine": 2,
+                        "text": "status: draft"
+                      },
+                      {
+                        "kind": "add",
+                        "newLine": 2,
+                        "text": "status: final"
+                      },
+                      {
+                        "kind": "context",
+                        "oldLine": 3,
+                        "newLine": 3,
+                        "text": "owner: levy"
+                      }
+                    ],
+                    "rowsOmitted": 0
+                  }
+                ]
+              },
+              "endedAt": 1006000
+            }
+          ]
+        },
+        {
+          "kind": "tool",
+          "id": "i3",
+          "tool": "write",
+          "intent": "Creating done.txt",
+          "calls": [
+            {
+              "toolCallId": "toolu_bdrk_01LXwzmNEW7iq9snW5aJq6D8",
+              "status": "done",
+              "startedAt": 1006300,
+              "target": "done.txt",
+              "output": {
+                "kind": "diff",
+                "files": [
+                  {
+                    "path": "done.txt",
+                    "op": "write",
+                    "added": 1,
+                    "removed": 0,
+                    "rows": [
+                      {
+                        "kind": "add",
+                        "newLine": 1,
+                        "text": "ok"
+                      }
+                    ],
+                    "rowsOmitted": 0
+                  }
+                ]
+              },
+              "endedAt": 1006500
+            }
+          ]
+        },
+        {
+          "kind": "tool",
+          "id": "i4",
+          "tool": "bash",
+          "intent": "Counting lines in notes.txt",
+          "calls": [
+            {
+              "toolCallId": "toolu_bdrk_01JAjPqMCnju6A9jcHzz9LqV",
+              "status": "done",
+              "startedAt": 1008400,
+              "target": "wc -l notes.txt",
+              "output": {
+                "kind": "shell",
+                "wallTimeMs": 61,
+                "lines": ["3 notes.txt"],
+                "linesOmitted": 0
+              },
+              "endedAt": 1008700
+            }
+          ]
+        },
+        {
+          "kind": "assistant",
+          "id": "i5",
+          "text": "Mudei `draft` para `final` em `notes.txt`, criei `done.txt` com `ok`, e o `wc -l` mostrou 3 linhas em `notes.txt`.",
+          "done": true
+        }
+      ],
+      "warnings": [],
+      "usage": {
+        "inputTokens": 0,
+        "outputTokens": 139,
+        "cacheReadTokens": 0,
+        "cacheWriteTokens": 0,
+        "cost": 0.0013900000000000002
+      },
+      "context": null,
+      "todo": []
+    },
+    "seq": 54
+  }
+}

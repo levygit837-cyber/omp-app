@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { SidecarStatus } from "../shared/bridge";
 import { enginePhase, useEngine } from "./engine";
+import { RightPanel, RightPanelToggle } from "./right-panel/RightPanel";
+import { useRightPanel } from "./right-panel/use-right-panel";
 import { SessionPane } from "./SessionPane";
 import { SidebarBody, SidebarTop } from "./Sidebar";
 import { Stage } from "./Stage";
@@ -44,6 +46,7 @@ export function App() {
     handoff.current = false;
     (sidebarOpen ? hideButton : showButton).current?.focus();
   }, [sidebarOpen]);
+  const right = useRightPanel();
   const [readOnlyDismissed, setReadOnlyDismissed] = useState(false);
   const { sessionId } = controller;
   const ready = sidecar.state === "ready";
@@ -98,6 +101,14 @@ export function App() {
             readOnly={readOnly}
             toggleRef={showButton}
             onToggleSidebar={() => toggleSidebar(true)}
+            rightToggle={
+              sessionId && !right.open ? (
+                <RightPanelToggle
+                  toggleRef={right.showButton}
+                  onToggle={() => right.toggle(true)}
+                />
+              ) : null
+            }
           />
           {sessionId ? (
             <SessionPane
@@ -120,6 +131,13 @@ export function App() {
             />
           )}
         </main>
+        {sessionId && right.open && (
+          <RightPanel
+            sessionId={sessionId}
+            toggleRef={right.hideButton}
+            onToggle={() => right.toggle(false)}
+          />
+        )}
       </div>
     </EngineContext.Provider>
   );

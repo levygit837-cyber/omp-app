@@ -2,6 +2,7 @@ import type { SessionOpEvent } from "@omp-app/protocol";
 import { contextBridge, ipcRenderer } from "electron";
 import type { OmpBridge, SidecarStatus } from "../shared/bridge";
 import {
+  APP_OPEN_LINK,
   SESSION_CANCEL,
   SESSION_CREATE,
   SESSION_OP,
@@ -18,6 +19,9 @@ const bridge: OmpBridge = {
   versions: {
     electron: process.versions.electron ?? "unknown",
     chrome: process.versions.chrome ?? "unknown",
+  },
+  app: {
+    openLink: (url) => ipcRenderer.invoke(APP_OPEN_LINK, url),
   },
   sidecar: {
     getStatus: () => ipcRenderer.invoke(SIDECAR_GET_STATUS),

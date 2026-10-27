@@ -9,3 +9,4 @@ export const SESSION_CANCEL = "session:cancel";
 export const SESSION_SUBSCRIBE = "session:subscribe";
 export const SESSION_UNSUBSCRIBE = "session:unsubscribe";
 export const SESSION_OP = "session:op";
+export const APP_OPEN_LINK = "app:open-link";

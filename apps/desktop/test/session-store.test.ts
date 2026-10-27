@@ -19,6 +19,9 @@ const emptyVm = (id = "s1", patch: Partial<SessionViewModel> = {}): SessionViewM
   model: "p/m",
   timeline: [],
   warnings: [],
+  usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, cost: 0 },
+  context: null,
+  todo: [],
   ...patch,
 });
 

@@ -71,10 +71,14 @@ const retryEnd = (success: boolean, finalError?: string): AgentSessionEvent => (
 const start = (): SessionViewModel => emptyViewModel({ id: "s", cwd: "/w", model: null });
 
 /** Feeds events through the reducer, as the store does: each step sees the previous model. */
-function run(events: readonly AgentSessionEvent[], from = start()) {
+function run(
+  events: readonly AgentSessionEvent[],
+  from = start(),
+  clock: () => number = () => 1000,
+) {
   let viewModel = from;
   const ops = events.flatMap((event) => {
-    const reduced = reduceEvent(viewModel, event);
+    const reduced = reduceEvent(viewModel, event, clock());
     viewModel = reduced.viewModel;
     return reduced.ops;
   });
@@ -283,7 +287,11 @@ describe("reduceEvent, auto retry", () => {
     ]);
     expect(viewModel.status).toBe("idle");
     expect(viewModel.error).toBeUndefined();
-    expect(viewModel.timeline).toEqual([{ kind: "assistant", id: "i0", text: "par", done: true }]);
+    // The text is closed; the retry the stop interrupted stays on the timeline as cancelled.
+    expect(viewModel.timeline).toMatchObject([
+      { kind: "assistant", id: "i0", text: "par", done: true },
+      { kind: "retry", id: "i1", state: "cancelled" },
+    ]);
   });
 
   test("a stop during the wait after a failed attempt clears that attempt's error", () => {

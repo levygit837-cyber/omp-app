@@ -1,7 +1,8 @@
 import { join } from "node:path";
 import { isSessionOpEvent } from "@omp-app/protocol";
-import { app, BrowserWindow, dialog, ipcMain, nativeTheme } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, shell } from "electron";
 import {
+  APP_OPEN_LINK,
   SESSION_CANCEL,
   SESSION_CREATE,
   SESSION_OP,
@@ -13,6 +14,7 @@ import {
   SIDECAR_RESTART,
   SIDECAR_STATUS,
 } from "../shared/channels";
+import { externalUrl } from "./external-url";
 import { platform } from "./platform";
 import { SidecarSupervisor } from "./sidecar-supervisor";
 
@@ -122,6 +124,12 @@ app.whenReady().then(() => {
   supervisor = sidecar;
   sidecar.onStatus((status) => {
     for (const win of BrowserWindow.getAllWindows()) win.webContents.send(SIDECAR_STATUS, status);
+  });
+  ipcMain.handle(APP_OPEN_LINK, async (_event, url: unknown) => {
+    const checked = externalUrl(url);
+    if (checked === null) return false;
+    await shell.openExternal(checked);
+    return true;
   });
   ipcMain.handle(SIDECAR_GET_STATUS, () => sidecar.status);
   ipcMain.handle(SIDECAR_RESTART, () => sidecar.restart());

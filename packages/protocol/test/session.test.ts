@@ -15,6 +15,9 @@ const empty: SessionViewModel = {
   model: null,
   timeline: [],
   warnings: [],
+  usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, cost: 0 },
+  context: null,
+  todo: [],
 };
 
 const fold = (ops: readonly SessionOp[], from = empty) => ops.reduce(applyOp, from);
