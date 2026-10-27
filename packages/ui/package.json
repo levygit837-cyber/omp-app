@@ -5,12 +5,15 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./tokens.css": "./src/tokens.css"
+    "./tokens.css": "./src/tokens.css",
+    "./components.css": "./src/components.css"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
   },
   "devDependencies": {
+    "@types/react": "19.3.0",
+    "react": "19.3.1",
     "typescript": "6.0.3"
   }
 }
