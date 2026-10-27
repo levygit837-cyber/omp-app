@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { isSessionOpEvent } from "@omp-app/protocol";
-import { app, BrowserWindow, dialog, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme } from "electron";
 import {
   SESSION_CANCEL,
   SESSION_CREATE,
@@ -85,8 +85,15 @@ function registerSessionRelay(sidecar: SidecarSupervisor): void {
 
 function createWindow(): void {
   const win = new BrowserWindow({
-    width: 1100,
-    height: 720,
+    ...platform.windowChrome,
+    width: 1440,
+    height: 900,
+    // Below this the three columns of the design no longer fit.
+    minWidth: 960,
+    minHeight: 600,
+    // Matches `color-bg-base`, so the window never flashes white before the renderer paints.
+    // The main process cannot read the CSS tokens; keep the two in step.
+    backgroundColor: "#100908",
     webPreferences: {
       preload: join(import.meta.dirname, "../preload/index.cjs"),
       contextIsolation: true,
@@ -108,6 +115,9 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  // The app is dark only: never follow the system appearance.
+  nativeTheme.themeSource = "dark";
+  platform.installMenu();
   const sidecar = new SidecarSupervisor({ command: sidecarCommand() });
   supervisor = sidecar;
   sidecar.onStatus((status) => {
