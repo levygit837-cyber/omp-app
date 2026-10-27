@@ -137,10 +137,9 @@ async function scenario(
   console.log(`ops: ${JSON.stringify(kinds)}`);
   console.log(`status: ${vm.status}, model: ${vm.model}`);
   for (const item of vm.timeline) {
-    const t =
-      item.text.length > 100
-        ? `${item.text.slice(0, 100)}… (${item.text.length} chars)`
-        : item.text;
+    const body =
+      "text" in item ? item.text : item.kind === "tool" ? (item.intent ?? item.tool) : item.kind;
+    const t = body.length > 100 ? `${body.slice(0, 100)}… (${body.length} chars)` : body;
     console.log(
       `  ${item.kind}${item.kind === "assistant" ? (item.done ? " [done]" : " [open]") : ""}: ${JSON.stringify(t)}`,
     );

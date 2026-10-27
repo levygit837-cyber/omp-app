@@ -1,5 +1,6 @@
 import type { AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-session-events";
 import type {
+  ContextFill,
   SessionOp,
   SessionOpEvent,
   SessionSnapshot,
@@ -25,6 +26,12 @@ interface Entry {
  */
 export class SessionStore {
   readonly #sessions = new Map<string, Entry>();
+  readonly #now: () => number;
+
+  /** `now` stamps the events omp does not time itself (tool calls, thinking, retries); tests inject a fake. */
+  constructor(now: () => number = Date.now) {
+    this.#now = now;
+  }
 
   /** Registers a session. Ops that happen later are numbered from 1. */
   create(viewModel: SessionViewModel): void {
@@ -40,7 +47,7 @@ export class SessionStore {
   /** Feeds one `AgentSessionEvent` through the reducer and publishes the resulting ops. */
   dispatch(sessionId: string, event: AgentSessionEvent): void {
     const entry = this.#entry(sessionId);
-    this.#commit(sessionId, entry, reduceEvent(entry.viewModel, event));
+    this.#commit(sessionId, entry, reduceEvent(entry.viewModel, event, this.#now()));
   }
 
   /** `model_changed` has no payload; the caller reads the session's current model. */
@@ -63,6 +70,15 @@ export class SessionStore {
   warn(sessionId: string, warning: SessionWarning): void {
     const entry = this.#entry(sessionId);
     const op: SessionOp = { type: "warning.add", warning };
+    this.#commit(sessionId, entry, { viewModel: applyOp(entry.viewModel, op), ops: [op] });
+  }
+
+  /** Records how full the context is, as the caller measured it. No op when nothing changed. */
+  setContext(sessionId: string, context: ContextFill | null): void {
+    const entry = this.#entry(sessionId);
+    const now = entry.viewModel.context;
+    if (JSON.stringify(now) === JSON.stringify(context)) return;
+    const op: SessionOp = { type: "context.set", context };
     this.#commit(sessionId, entry, { viewModel: applyOp(entry.viewModel, op), ops: [op] });
   }
 

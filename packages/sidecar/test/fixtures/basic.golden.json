@@ -37,13 +37,27 @@
       "sessionId": "01a17009-54dc-749c-b1ea-d59006bd92d2",
       "seq": 4,
       "op": {
+        "type": "usage.set",
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 1,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0,
+          "cost": 0.00001
+        }
+      }
+    },
+    {
+      "sessionId": "01a17009-54dc-749c-b1ea-d59006bd92d2",
+      "seq": 5,
+      "op": {
         "type": "item.done",
         "itemId": "i1"
       }
     },
     {
       "sessionId": "01a17009-54dc-749c-b1ea-d59006bd92d2",
-      "seq": 5,
+      "seq": 6,
       "op": {
         "type": "status.set",
         "status": "idle"
@@ -69,8 +83,17 @@
           "done": true
         }
       ],
-      "warnings": []
+      "warnings": [],
+      "usage": {
+        "inputTokens": 0,
+        "outputTokens": 1,
+        "cacheReadTokens": 0,
+        "cacheWriteTokens": 0,
+        "cost": 0.00001
+      },
+      "context": null,
+      "todo": []
     },
-    "seq": 5
+    "seq": 6
   }
 }

@@ -4,10 +4,25 @@ import { emptyViewModel } from "../src/reducer";
 import { SessionStore } from "../src/session-store";
 import { type Fixture, loadFixture, readGolden, updatingGoldens, writeGolden } from "./replay";
 
-const SCENARIOS = ["basic", "cancel"] as const;
+const SCENARIOS = [
+  "basic",
+  "cancel",
+  "tools",
+  "failures",
+  "search",
+  "todo",
+  "thinking",
+  "compaction",
+] as const;
+
+/** One tick per event, from a fixed origin: durations in the goldens are stable. */
+export function tickingClock(origin = 1_000_000, step = 100): () => number {
+  let t = origin - step;
+  return () => (t += step);
+}
 
 export function newStore(fixture: Fixture): SessionStore {
-  const store = new SessionStore();
+  const store = new SessionStore(tickingClock());
   store.create(
     emptyViewModel({
       id: fixture.header.sessionId,

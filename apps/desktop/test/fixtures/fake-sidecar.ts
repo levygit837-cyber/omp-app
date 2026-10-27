@@ -13,6 +13,8 @@
  * - FAKE_FAIL=1: after the first chunks, set the status to `failed` ("fake failure").
  * - FAKE_ITEMS=<n>: preload n done timeline items at create, alternating user/assistant, of
  *   varied length (one-liners, multi-paragraph, ~1500 chars). Deterministic.
+ * - FAKE_MIXED=1: with FAKE_ITEMS, preload a mixed timeline (reasoning, tools, diffs, markdown) instead.
+ * - FAKE_MIXED=states: preload one of each state a live omp cannot produce on demand.
  * - FAKE_MODEL: model of new sessions (default anthropic/claude-opus-5-5).
  * - FAKE_WARN=1: emit one MCP `warning.add` right after the first subscribe of each session.
  */
@@ -33,6 +35,7 @@ import {
   type SessionViewModel,
   UNKNOWN_SESSION_MESSAGE,
 } from "@omp-app/protocol";
+import { fakeViewModel, mixedTimeline, stateTimeline } from "./fake-timeline";
 
 const mode = process.env.FAKE_SIDECAR ?? "ok";
 const socketPath = process.argv.find((a) => a.startsWith("--socket="))?.slice("--socket=".length);
@@ -117,6 +120,8 @@ function preloadedText(i: number): string {
 }
 
 function preloadedItems(): Item[] {
+  if (process.env.FAKE_MIXED === "states") return stateTimeline();
+  if (process.env.FAKE_MIXED === "1") return mixedTimeline(PRELOADED);
   return Array.from(
     { length: PRELOADED },
     (_, i): Item =>
@@ -206,14 +211,12 @@ function handleSession(
     }
     const sessionId = `fake-${++created}`;
     sessions.set(sessionId, {
-      vm: {
+      vm: fakeViewModel({
         id: sessionId,
         cwd: param(params, "cwd"),
-        status: "idle",
         model: MODEL,
         timeline: preloadedItems(),
-        warnings: [],
-      },
+      }),
       seq: 0,
       subs: new Set(),
       turns: 0,

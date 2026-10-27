@@ -6,7 +6,7 @@ import {
   StateMark,
   StatusPill,
 } from "@omp-app/ui";
-import type { Ref } from "react";
+import type { ReactNode, Ref } from "react";
 import { sessionMark } from "./format";
 import { useSessionTitle } from "./session-hooks";
 import { useShownStatus } from "./shown-status";
@@ -37,6 +37,7 @@ export function TabBar({
   readOnly,
   toggleRef,
   onToggleSidebar,
+  rightToggle,
 }: {
   sessionId: string | null;
   sidebarOpen: boolean;
@@ -44,6 +45,8 @@ export function TabBar({
   readOnly: boolean;
   toggleRef: Ref<HTMLButtonElement>;
   onToggleSidebar: () => void;
+  /** The right panel's "show" button, present only while that panel is closed. */
+  rightToggle?: ReactNode;
 }) {
   return (
     <div
@@ -82,6 +85,7 @@ export function TabBar({
           <StatusPill>Read-only</StatusPill>
         </div>
       )}
+      {rightToggle}
     </div>
   );
 }

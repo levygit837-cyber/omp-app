@@ -7,6 +7,7 @@ import { isRecord } from "./guards";
 import { isSessionSnapshot, type SessionOpEvent, type SessionSnapshot } from "./session";
 
 export * from "./session";
+export * from "./timeline";
 
 /** Bumped on every incompatible change to the envelopes or to a method's params/result. */
 export const PROTOCOL_VERSION = 1;

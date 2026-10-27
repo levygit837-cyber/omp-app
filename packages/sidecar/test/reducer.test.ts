@@ -71,10 +71,14 @@ const retryEnd = (success: boolean, finalError?: string): AgentSessionEvent => (
 const start = (): SessionViewModel => emptyViewModel({ id: "s", cwd: "/w", model: null });
 
 /** Feeds events through the reducer, as the store does: each step sees the previous model. */
-function run(events: readonly AgentSessionEvent[], from = start()) {
+function run(
+  events: readonly AgentSessionEvent[],
+  from = start(),
+  clock: () => number = () => 1000,
+) {
   let viewModel = from;
   const ops = events.flatMap((event) => {
-    const reduced = reduceEvent(viewModel, event);
+    const reduced = reduceEvent(viewModel, event, clock());
     viewModel = reduced.viewModel;
     return reduced.ops;
   });
@@ -283,7 +287,11 @@ describe("reduceEvent, auto retry", () => {
     ]);
     expect(viewModel.status).toBe("idle");
     expect(viewModel.error).toBeUndefined();
-    expect(viewModel.timeline).toEqual([{ kind: "assistant", id: "i0", text: "par", done: true }]);
+    // The text is closed; the retry the stop interrupted stays on the timeline as cancelled.
+    expect(viewModel.timeline).toMatchObject([
+      { kind: "assistant", id: "i0", text: "par", done: true },
+      { kind: "retry", id: "i1", state: "cancelled" },
+    ]);
   });
 
   test("a stop during the wait after a failed attempt clears that attempt's error", () => {
@@ -316,5 +324,87 @@ describe("reduceModel", () => {
   test("an assistant message from another model switches the model", () => {
     const { ops } = run([assistantStart(assistant({ provider: "x", model: "y" }))]);
     expect(ops).toEqual([{ type: "model.set", model: "x/y" }]);
+  });
+});
+
+describe("reduceEvent, retry as a timeline item (synthesized events: a live omp cannot fail on demand)", () => {
+  const items = (events: readonly AgentSessionEvent[], clock?: () => number) =>
+    run(events, start(), clock).viewModel.timeline;
+
+  test("a retry that recovers is one item: attempts, when it retries, how long it took", () => {
+    let t = 1000;
+    const timeline = items([retryStart, retryEnd(true)], () => {
+      const now = t;
+      t += 4000;
+      return now;
+    });
+    expect(timeline).toMatchObject([
+      {
+        kind: "retry",
+        state: "recovered",
+        attempt: 1,
+        maxAttempts: 3,
+        retryAt: 2000,
+        startedAt: 1000,
+        endedAt: 5000,
+        error: "overloaded",
+      },
+    ]);
+  });
+
+  test("a second attempt updates the same item instead of stacking another one", () => {
+    const second: AgentSessionEvent = { ...retryStart, attempt: 2, errorMessage: "still down" };
+    const timeline = items([retryStart, second, retryEnd(true)]);
+    expect(timeline).toHaveLength(1);
+    expect(timeline[0]).toMatchObject({ state: "recovered", attempt: 2, error: "still down" });
+  });
+
+  test("giving up keeps omp's final error on the item", () => {
+    const timeline = items([retryStart, retryEnd(false, "503 Service Unavailable")]);
+    expect(timeline).toMatchObject([
+      { kind: "retry", state: "failed", error: "503 Service Unavailable" },
+    ]);
+  });
+});
+
+describe("reduceEvent, compaction as a timeline item", () => {
+  const compactionStart: AgentSessionEvent = {
+    type: "auto_compaction_start",
+    reason: "threshold",
+    action: "context-full",
+  };
+  const compactionEnd = (patch: Record<string, unknown>): AgentSessionEvent =>
+    ({
+      type: "auto_compaction_end",
+      action: "context-full",
+      aborted: false,
+      willRetry: false,
+      ...patch,
+    }) as AgentSessionEvent;
+  const timelineOf = (events: readonly AgentSessionEvent[]) => run(events).viewModel.timeline;
+
+  test("while it runs, the item is open", () => {
+    expect(timelineOf([compactionStart])).toMatchObject([
+      { kind: "compaction", state: "running", reason: "threshold", action: "context-full" },
+    ]);
+  });
+
+  test("done keeps the summary and the size before", () => {
+    const result = { summary: "long", shortSummary: "short", tokensBefore: 184000 };
+    expect(timelineOf([compactionStart, compactionEnd({ result })])).toMatchObject([
+      { state: "done", summary: "short", tokensBefore: 184000, willRetry: false },
+    ]);
+  });
+
+  test.each([
+    ["skipped", { skipped: true }],
+    ["aborted", { aborted: true }],
+    ["failed", { errorMessage: "summary model unavailable" }],
+  ])("%s is its own state, never `done`", (state, patch) => {
+    expect(timelineOf([compactionStart, compactionEnd(patch)])).toMatchObject([{ state }]);
+  });
+
+  test("an end with no start adds nothing", () => {
+    expect(timelineOf([compactionEnd({})])).toEqual([]);
   });
 });

@@ -1,6 +1,9 @@
 export { Button, type ButtonProps, type ButtonVariant, IconButton } from "./button";
 export { Caret } from "./caret";
+export { CodeBlock, type CodeBlockProps } from "./code-block";
 export { cx } from "./cx";
+export type { DiffLine } from "./diff";
+export { DiffView, type DiffViewProps } from "./diff-view";
 export {
   AskIcon,
   AstGrepIcon,
@@ -51,6 +54,11 @@ export {
   WebSearchIcon,
   WriteIcon,
 } from "./icons";
+export { type LanguageId, parseFenceInfo, resolveLanguage } from "./languages";
+export { type SafeLink, safeLinkUrl } from "./links";
+export type { MarkdownProps } from "./markdown";
+export { Markdown } from "./markdown-lazy";
 export { Notice, type NoticeProps } from "./notice";
 export { type MarkState, StateMark, type StateMarkProps } from "./state-mark";
 export { StatusPill } from "./status-pill";
+export { ThinkingGlyph, type ThinkingGlyphProps } from "./thinking-glyph";
