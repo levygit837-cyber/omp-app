@@ -1,6 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { SidecarStatus } from "../shared/bridge";
-import { SessionView } from "./SessionView";
+import { enginePhase, useEngine } from "./engine";
+import { SessionPane } from "./SessionPane";
+import { SidebarBody, SidebarTop } from "./Sidebar";
+import { Stage } from "./Stage";
+import { useSessionController } from "./session-controller";
+import { useSyncError } from "./session-hooks";
+import { EngineContext } from "./shown-status";
+import { TabBar } from "./TabBar";
 
 function useSidecarStatus(): SidecarStatus {
   const [status, setStatus] = useState<SidecarStatus>({ state: "starting" });
@@ -13,65 +20,107 @@ function useSidecarStatus(): SidecarStatus {
   return status;
 }
 
-function SidecarPanel({ status }: { status: SidecarStatus }) {
-  return (
-    <section
-      data-testid="sidecar-status"
-      data-state={status.state}
-      aria-live="polite"
-      className="flex w-[40rem] max-w-full flex-col gap-2 rounded-sm bg-bg-elevated p-4 text-size-sm"
-    >
-      {status.state === "starting" && <p>Sidecar: starting…</p>}
-      {status.state === "ready" && (
-        <p>
-          Sidecar: ready · omp {status.ompVersion} · sidecar {status.sidecarVersion}
-        </p>
-      )}
-      {status.state === "ready" && status.mode === "read_only" && status.schema && (
-        <p
-          role="alert"
-          data-testid="read-only-notice"
-          className="rounded-sm border border-accent p-2 font-medium"
-        >
-          Read-only mode: the shared omp database is schema v{status.schema.onDisk}, but this app
-          supports v{status.schema.expected}. Update omp-app to make changes.
-        </p>
-      )}
-      {status.state === "failed" && (
-        <>
-          <p role="alert" className="font-medium">
-            Sidecar: failed · {status.error}
-          </p>
-          <p className="text-size-xs text-text-secondary">Last sidecar output:</p>
-          <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-sm bg-bg-base p-2 text-size-xs text-text-secondary">
-            {status.logTail.length > 0 ? status.logTail.join("\n") : "(no output)"}
-          </pre>
-        </>
-      )}
-      <div>
-        <button
-          type="button"
-          onClick={() => void window.omp.sidecar.restart()}
-          className="rounded-sm bg-accent px-3 py-1 text-on-accent"
-        >
-          Restart sidecar
-        </button>
-      </div>
-    </section>
-  );
-}
+const restart = () => void window.omp.sidecar.restart();
 
 export function App() {
   const { electron, chrome } = window.omp.versions;
-  const status = useSidecarStatus();
+  const sidecar = useSidecarStatus();
+  const track = useEngine(sidecar);
+  const engine = enginePhase(track);
+  const controller = useSessionController(sidecar);
+  const syncError = useSyncError();
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // The toggle that was pressed unmounts with its sidebar state, so focus moves to the one that
+  // replaces it; otherwise it falls to <body> and the next Tab starts over.
+  const hideButton = useRef<HTMLButtonElement>(null);
+  const showButton = useRef<HTMLButtonElement>(null);
+  const handoff = useRef(false);
+  const toggleSidebar = (open: boolean) => {
+    handoff.current = true;
+    setSidebarOpen(open);
+  };
+  useEffect(() => {
+    if (!handoff.current) return;
+    handoff.current = false;
+    (sidebarOpen ? hideButton : showButton).current?.focus();
+  }, [sidebarOpen]);
+  const [readOnlyDismissed, setReadOnlyDismissed] = useState(false);
+  const { sessionId } = controller;
+  const ready = sidecar.state === "ready";
+  const readOnly = ready && sidecar.mode === "read_only";
+  const canOpen = ready && !readOnly;
+  const open = () => void controller.start();
+
+  // ⌘R restarts the engine when it is stopped; ⌘O opens a folder. The menu leaves both free.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!event.metaKey || event.shiftKey || event.altKey) return;
+      if (event.key === "r" && sidecar.state === "failed") {
+        event.preventDefault();
+        restart();
+      } else if (event.key === "o" && canOpen) {
+        event.preventDefault();
+        open();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
+  const stageError = controller.error ?? (sessionId ? null : syncError);
+
   return (
-    <main className="flex h-screen flex-col items-center gap-3 bg-bg-base p-4 font-text text-text-primary">
-      <h1 className="text-size-display text-text-secondary">omp-app</h1>
-      <p data-testid="bridge-versions" className="text-size-sm text-text-secondary">
-        electron {electron} · chrome {chrome}
-      </p>
-      <SidecarPanel status={status} />
-      <SessionView sidecar={status} />
-    </main>
+    <EngineContext.Provider value={engine}>
+      <div className="flex h-full bg-bg-base text-size-md text-text-primary">
+        {sidebarOpen && (
+          <aside
+            aria-label="Sidebar"
+            className="flex w-(--layout-sidebar-left) shrink-0 flex-col border-r border-border-hairline bg-bg-sidebar"
+          >
+            <SidebarTop
+              toggleRef={hideButton}
+              onToggle={() => toggleSidebar(false)}
+              onNewSession={open}
+              newDisabled={!canOpen}
+            />
+            <SidebarBody
+              sessionId={sessionId}
+              sidecar={sidecar}
+              versions={`electron ${electron} · chrome ${chrome}`}
+            />
+          </aside>
+        )}
+        <main className="flex min-w-0 flex-1 flex-col" aria-label="Session">
+          <TabBar
+            sessionId={sessionId}
+            sidebarOpen={sidebarOpen}
+            engineStopped={sidecar.state === "failed"}
+            readOnly={readOnly}
+            toggleRef={showButton}
+            onToggleSidebar={() => toggleSidebar(true)}
+          />
+          {sessionId ? (
+            <SessionPane
+              sessionId={sessionId}
+              sidecar={sidecar}
+              track={track}
+              engine={engine}
+              onRestart={restart}
+            />
+          ) : (
+            <Stage
+              sidecar={sidecar}
+              track={track}
+              lost={controller.lost}
+              error={stageError}
+              readOnlyDismissed={readOnlyDismissed}
+              onDismissReadOnly={() => setReadOnlyDismissed(true)}
+              onOpen={open}
+              onRestart={restart}
+            />
+          )}
+        </main>
+      </div>
+    </EngineContext.Provider>
   );
 }

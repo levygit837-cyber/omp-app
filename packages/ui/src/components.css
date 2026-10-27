@@ -1,0 +1,43 @@
+/*
+ * Rules the components of this package need and Tailwind utilities cannot express.
+ * They sit in Tailwind's layers so a utility on the element still wins.
+ */
+
+@layer base {
+  /* Keyboard focus is the same everywhere: a ring of --size-focus-ring, only on :focus-visible. A component that
+   * draws the ring on a wrapper switches the element's own off with `outline-none`. */
+  :where(:focus-visible) {
+    outline: var(--size-focus-ring) solid var(--color-focus-ring);
+    outline-offset: var(--space-2);
+  }
+}
+
+@layer components {
+  /* One turn of the arc per --motion-spinner-cycle. Under reduced motion the arc stops where it
+   * is drawn, which is its 90 degree resting shape. */
+  @keyframes ui-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .ui-spinner {
+    animation: ui-spin var(--motion-spinner-cycle) var(--motion-ease-spin) infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ui-spinner {
+      animation: none;
+    }
+  }
+
+  /* Block caret that ends a streaming message. */
+  .ui-caret {
+    display: inline-block;
+    width: var(--space-8);
+    height: 1em;
+    margin-inline-start: var(--space-2);
+    vertical-align: text-bottom;
+    background: var(--color-accent);
+  }
+}

@@ -1,2 +1,37 @@
+/* Fonts ship with the app: the CSP is default-src 'self', so nothing loads from a CDN. */
+@import "@fontsource/instrument-sans/latin-400.css";
+@import "@fontsource/instrument-sans/latin-500.css";
+@import "@fontsource/instrument-sans/latin-600.css";
+@import "@fontsource/geist-mono/latin-400.css";
+@import "@fontsource/geist-mono/latin-500.css";
 @import "@omp-app/ui/tokens.css";
+@import "@omp-app/ui/components.css";
 @source "../../../../packages/ui/src";
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    overflow: hidden;
+    background: var(--color-bg-base);
+    color: var(--color-text-primary);
+    font-family: var(--font-text);
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* Window chrome: the title and tab bars move the window, anything clickable in them must not. */
+@layer components {
+  .app-drag {
+    -webkit-app-region: drag;
+  }
+
+  .app-no-drag {
+    -webkit-app-region: no-drag;
+  }
+}
