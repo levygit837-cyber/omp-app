@@ -1,0 +1,16 @@
+Rebased onto 130aa79 (#31, #32, #33). Real Electron 45 app, fake sidecar, 1440x900, CDP.
+Two open sessions: fake-1 (/tmp/s18/proj) and fake-2 (/tmp/s18/projB). Script: scenG.ts (G1 draft/scroll/select, G2 Esc, G3 request on non-focused session).
+
+G1 draft and scroll of the focused session (80 mixed items, scrolled up, draft typed)
+  before Settings : draft "a draft in session A", scrollTop 4356, focused row fake-1
+  Settings open   : 2 session rows still listed in the sidebar
+  after Esc       : draft "a draft in session A", scrollTop 4356, focused row fake-1   (identical)
+G4 selecting another session while Settings is open
+  click row fake-2 : settings screen gone, focused row fake-2, Session <main> not inert
+  (back to fake-1: draft "" and scrollTop 6022. SessionPane is keyed by session id in App.tsx (#13), so a switch
+   remounts the composer and the timeline. That is #13's behavior, not caused by Settings.)
+G2 Esc in Settings (FAKE_HOLD, streaming)
+  after one Esc : settings=false status=streaming
+  Esc in session: status=idle (cancels)
+G3 request on the NON-focused session (FAKE_REQUEST=permission, Settings opened first)
+  row fake-2 mark = approval (triangle), row fake-1 mark = idle, focused row fake-1, Settings still open
