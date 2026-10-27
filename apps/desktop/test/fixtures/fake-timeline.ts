@@ -1,4 +1,24 @@
-import type { Item, ToolCall, ToolItem } from "@omp-app/protocol";
+import type { Item, SessionViewModel, ToolCall, ToolItem } from "@omp-app/protocol";
+
+/**
+ * The one place the fake sidecar builds a view model, with every field of `SessionViewModel`.
+ * A field added to the protocol fails the typecheck here, not at each place a session is made.
+ */
+export function fakeViewModel(init: {
+  id: string;
+  cwd: string;
+  model: string;
+  timeline: Item[];
+}): SessionViewModel {
+  return {
+    ...init,
+    status: "idle",
+    warnings: [],
+    usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, cost: 0 },
+    context: null,
+    todo: [],
+  };
+}
 
 /**
  * A deterministic mixed timeline for `FAKE_MIXED=1`: every turn is a user prompt, reasoning,

@@ -29,9 +29,7 @@ export function ThinkingLine({ sessionId, item }: { sessionId: string; item: Thi
       {rate !== undefined && <span className="text-text-dim">{` · ${rate} tok/s`}</span>}
     </>
   ) : (
-    <>
-      <span className="text-text-primary">{`Thought for ${formatDuration(spent)}`}</span>
-    </>
+    <span className="text-text-primary">{`Thought for ${formatDuration(spent)}`}</span>
   );
 
   return (

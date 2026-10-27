@@ -1,7 +1,7 @@
 export interface SafeLink {
   /** Normalised URL, safe to put in `href`. */
   href: string;
-  scheme: "http" | "https" | "mailto";
+  scheme: "http" | "https";
 }
 
 // C0 controls, DEL and space. Browsers strip leading/trailing ones before parsing a URL and
@@ -25,10 +25,9 @@ function hasControl(value: string): boolean {
   return false;
 }
 const HTTP = /^(https?):\/\/[^\s/?#\\]/i;
-const MAILTO = /^mailto:[^\s\\]+$/i;
 
 /**
- * Allow-list for link destinations coming from model output: only http, https and mailto pass.
+ * Allow-list for link destinations coming from model output: only http and https pass.
  * Relative URLs, protocol-relative `//host`, `http:\\host`, `javascript:`, `data:`, `file:` and
  * anything with embedded control characters return null (the caller renders plain text).
  */
@@ -45,6 +44,5 @@ export function safeLinkUrl(raw: string): SafeLink | null {
       return null;
     }
   }
-  if (MAILTO.test(value)) return { href: value, scheme: "mailto" };
   return null;
 }

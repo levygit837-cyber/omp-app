@@ -7,8 +7,6 @@ describe("safeLinkUrl", () => {
     ["https://example.com", "https"],
     ["HTTPS://Example.com/x", "https"],
     ["  https://example.com  ", "https"],
-    ["mailto:a@b.co", "mailto"],
-    ["MAILTO:a@b.co", "mailto"],
   ])("allows %s", (input, scheme) => {
     expect(safeLinkUrl(input)?.scheme).toBe(scheme as never);
   });
@@ -32,7 +30,7 @@ describe("safeLinkUrl", () => {
     "",
     "   ",
     "https://exa\nmple.com",
-    "mailto:",
+    "mailto:a@b.co",
   ])("rejects %j", (input) => {
     expect(safeLinkUrl(input)).toBeNull();
   });

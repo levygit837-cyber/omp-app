@@ -78,7 +78,7 @@ function inlineToken(token: Token, ctx: Ctx, key: number): ReactNode {
           className="text-text-primary underline"
           onClick={(event) => {
             event.preventDefault();
-            if (safe.scheme !== "mailto") ctx.onOpenLink(safe.href);
+            ctx.onOpenLink(safe.href);
           }}
         >
           {children}

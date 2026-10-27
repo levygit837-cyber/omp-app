@@ -2,22 +2,13 @@ import type { CompactionItem, RetryItem } from "@omp-app/protocol";
 import { StateMark } from "@omp-app/ui";
 import { useShownStatus } from "../shown-status";
 import { formatDuration } from "../tool-phrases";
+import { compactionSize } from "./compaction-text";
 import { useOpened } from "./opened";
 import { useNow } from "./use-now";
 
 const LINE =
   "flex min-h-(--size-tool-row) items-start gap-(--space-icon-phrase) text-size-md leading-(--line-height-ui)";
 const MARK_CELL = "flex size-(--size-icon-tool) shrink-0 items-center justify-center";
-
-const tokens = (n: number): string => `${Math.round(n / 1000)}k`;
-
-/**
- * omp's `tokensBefore` comes from the provider's usage. A provider that reports no input tokens
- * (kiro in the recorded fixture: 41) makes it meaningless, so it is shown only when it is a
- * figure a conversation could have: a thousand tokens or more.
- */
-const summarized = (item: CompactionItem): number | undefined =>
-  item.tokensBefore !== undefined && item.tokensBefore >= 1000 ? item.tokensBefore : undefined;
 
 /** A compaction that did nothing leaves no trace in the timeline. */
 export function compactionVisible(item: CompactionItem): boolean {
@@ -68,8 +59,8 @@ export function CompactionLine({ sessionId, item }: { sessionId: string; item: C
         <span aria-hidden="true" className="h-px flex-1 bg-border-hairline" />
         <span>
           Context compacted
-          {summarized(item) !== undefined && (
-            <span className="text-text-dim">{` · ${tokens(summarized(item) as number)} tokens summarized`}</span>
+          {compactionSize(item) && (
+            <span className="text-text-dim">{` · ${compactionSize(item)}`}</span>
           )}
         </span>
         <span aria-hidden="true" className="h-px flex-1 bg-border-hairline" />

@@ -35,7 +35,7 @@ import {
   type SessionViewModel,
   UNKNOWN_SESSION_MESSAGE,
 } from "@omp-app/protocol";
-import { mixedTimeline, stateTimeline } from "./fake-timeline";
+import { fakeViewModel, mixedTimeline, stateTimeline } from "./fake-timeline";
 
 const mode = process.env.FAKE_SIDECAR ?? "ok";
 const socketPath = process.argv.find((a) => a.startsWith("--socket="))?.slice("--socket=".length);
@@ -211,23 +211,12 @@ function handleSession(
     }
     const sessionId = `fake-${++created}`;
     sessions.set(sessionId, {
-      vm: {
+      vm: fakeViewModel({
         id: sessionId,
         cwd: param(params, "cwd"),
-        status: "idle",
         model: MODEL,
         timeline: preloadedItems(),
-        warnings: [],
-        usage: {
-          inputTokens: 0,
-          outputTokens: 0,
-          cacheReadTokens: 0,
-          cacheWriteTokens: 0,
-          cost: 0,
-        },
-        context: null,
-        todo: [],
-      },
+      }),
       seq: 0,
       subs: new Set(),
       turns: 0,

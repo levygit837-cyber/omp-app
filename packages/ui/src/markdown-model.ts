@@ -9,8 +9,10 @@ export interface Block {
 
 /**
  * Lexes the text into top-level blocks. The lexer is a single pass, O(total length) per call, so a
- * streamed message costs O(n) lexing per delta (O(n²) over the whole stream, with a very small
- * constant). Rendering is what we keep O(last block): each block is memoised on its raw text.
+ * streamed message costs O(n) lexing per delta (O(n²) over the whole stream). Measured with
+ * marked 18.1.2 on Bun 1.4, prose with lists and code fences: 5 kB 1.0 ms, 20 kB 2.4 ms, 100 kB
+ * 12.7 ms per lex. A frame is 16.7 ms, so a reply of about 100 kB is where this needs a bound
+ * (lex only the open tail); real replies are a few kB. Rendering is what we keep O(last block): each block is memoised on its raw text.
  * `space` and `def` (link reference definitions) tokens draw nothing and are dropped.
  */
 export function splitBlocks(text: string): Block[] {

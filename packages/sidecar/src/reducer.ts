@@ -34,9 +34,10 @@ type AssistantMessage = Extract<AgentMessage, { role: "assistant" }>;
 /** The text parts of a user or assistant message, joined. Content is a string or a list of parts. */
 function textOf(content: UserMessage["content"] | AssistantMessage["content"]): string {
   if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
   let text = "";
   for (const part of content) {
-    if (part.type === "text") text += part.text;
+    if (part?.type === "text") text += part.text ?? "";
   }
   return text;
 }
@@ -194,13 +195,13 @@ export function reduceEvent(
 
     case "message_start": {
       const message = event.message;
-      if (message.role === "user") {
+      if (message?.role === "user") {
         if (message.synthetic) break;
         step.push({
           type: "item.add",
           item: { kind: "user", id: nextItemId(step.viewModel), text: textOf(message.content) },
         });
-      } else if (message.role === "assistant") {
+      } else if (message?.role === "assistant") {
         const model = modelName(message);
         if (model !== step.viewModel.model) {
           step.push({ type: "model.set", model });
@@ -211,6 +212,7 @@ export function reduceEvent(
 
     case "message_update": {
       const update = event.assistantMessageEvent;
+      if (!update) break;
       if (update.type === "thinking_start") {
         step.push({
           type: "item.add",
@@ -229,7 +231,7 @@ export function reduceEvent(
         if (thinking && update.delta !== "") {
           step.push({ type: "item.appendText", itemId: thinking.id, text: update.delta });
         }
-        const tokens = update.partial.usage.output;
+        const tokens = update.partial?.usage?.output ?? 0;
         if (thinking && tokens > 0) {
           step.push({ type: "thinking.tokens", itemId: thinking.id, tokens });
         }
@@ -239,17 +241,15 @@ export function reduceEvent(
         const thinking = openThinking(step.viewModel);
         if (!thinking) break;
         // Deltas are the live path; the end event repairs any the stream dropped.
-        if (
-          update.content.length > thinking.text.length &&
-          update.content.startsWith(thinking.text)
-        ) {
+        const content = update.content ?? "";
+        if (content.length > thinking.text.length && content.startsWith(thinking.text)) {
           step.push({
             type: "item.appendText",
             itemId: thinking.id,
-            text: update.content.slice(thinking.text.length),
+            text: content.slice(thinking.text.length),
           });
         }
-        const tokens = update.partial.usage.output;
+        const tokens = update.partial?.usage?.output ?? 0;
         step.push({
           type: "thinking.end",
           itemId: thinking.id,
@@ -278,7 +278,7 @@ export function reduceEvent(
 
     case "message_end": {
       const message = event.message;
-      if (message.role !== "assistant") break;
+      if (message?.role !== "assistant") break;
       const finalText = textOf(message.content);
       const u = message.usage;
       if (u) {
@@ -286,11 +286,11 @@ export function reduceEvent(
         step.push({
           type: "usage.set",
           usage: {
-            inputTokens: prev.inputTokens + u.input,
-            outputTokens: prev.outputTokens + u.output,
-            cacheReadTokens: prev.cacheReadTokens + u.cacheRead,
-            cacheWriteTokens: prev.cacheWriteTokens + u.cacheWrite,
-            cost: prev.cost + u.cost.total,
+            inputTokens: prev.inputTokens + (u.input ?? 0),
+            outputTokens: prev.outputTokens + (u.output ?? 0),
+            cacheReadTokens: prev.cacheReadTokens + (u.cacheRead ?? 0),
+            cacheWriteTokens: prev.cacheWriteTokens + (u.cacheWrite ?? 0),
+            cost: prev.cost + (u.cost?.total ?? 0),
           },
         });
       }
@@ -318,6 +318,9 @@ export function reduceEvent(
     }
 
     case "tool_execution_start": {
+      // omp ids are unique per call. A start for an id that already has a call is a replay or a
+      // bug upstream: it must not reopen or join the finished call, so it is ignored.
+      if (findCall(step.viewModel, event.toolCallId)) break;
       const tool = event.toolName;
       const intent = event.intent?.trim() ? event.intent.trim() : undefined;
       const output = tool === "write" ? writeOutput(event.args) : undefined;
@@ -448,7 +451,7 @@ export function reduceEvent(
     case "auto_retry_start": {
       step.setStatus("streaming");
       const active = latestActive(step.viewModel, "retry");
-      const error = oneLine(event.errorMessage);
+      const error = oneLine(event.errorMessage ?? "");
       if (active) {
         step.push({
           type: "item.patch",

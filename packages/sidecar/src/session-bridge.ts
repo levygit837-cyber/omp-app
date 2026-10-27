@@ -6,9 +6,29 @@ import type { SessionStore } from "./session-store";
 const modelOf = (session: AgentSession): string | null =>
   session.model ? `${session.model.provider}/${session.model.id}` : null;
 
+/** The context size changes when a reply lands, the history is compacted or the model changes. */
+const CONTEXT_EVENTS: Record<string, true> = {
+  message_end: true,
+  agent_end: true,
+  auto_compaction_end: true,
+  model_changed: true,
+};
+
+/** A bug in one step must not take the agent run down, nor skip the steps after it. */
+function guarded(type: string, step: () => void): void {
+  try {
+    step();
+  } catch (error) {
+    console.error(
+      `[sidecar] ${type} failed: ${error instanceof Error ? error.stack : String(error)}`,
+    );
+  }
+}
+
 /**
  * Registers a new session with the store and feeds it every event `AgentSession` emits.
- * This is the single source of the timeline.
+ * This is the single source of the timeline. The reducer and the context reading are guarded
+ * separately: a throw in the reducer still leaves the context meter current.
  */
 export function attachSession(store: SessionStore, session: AgentSession): void {
   const id = session.sessionId;
@@ -16,19 +36,13 @@ export function attachSession(store: SessionStore, session: AgentSession): void 
     emptyViewModel({ id, cwd: session.sessionManager.getCwd(), model: modelOf(session) }),
   );
   session.subscribe((event) => {
-    try {
+    guarded(`reducer on ${event.type}`, () => {
       if (event.type === "model_changed") store.setModel(id, modelOf(session));
       else store.dispatch(id, event);
-      // The context size changes when a reply lands, the history is compacted or the model changes.
-      if (
-        ["message_end", "agent_end", "auto_compaction_end", "model_changed"].includes(event.type)
-      ) {
-        store.setContext(id, readContextFill(session));
-      }
-    } catch (error) {
-      // A reducer bug must not take the agent run down with it.
-      console.error(
-        `[sidecar] reducer failed on ${event.type}: ${error instanceof Error ? error.stack : error}`,
+    });
+    if (CONTEXT_EVENTS[event.type] === true) {
+      guarded(`context reading on ${event.type}`, () =>
+        store.setContext(id, readContextFill(session)),
       );
     }
   });
