@@ -1,0 +1,13 @@
+Scenario A (fake sidecar, FAKE_ITEMS=80 FAKE_MIXED=1, 1440x900, CDP on 9344)
+Draft typed and timeline scrolled up, then Settings opened via the sidebar button, left with Esc,
+then opened through the real application-menu item "Settings…" (CmdOrCtrl+,) and left again.
+before:     draft="a draft I have not sent yet" scrollTop=4356 scrollHeight=6385 firstVisibleIndex=44
+during:     session <main> mounted, inert=true, draft intact
+afterButton:draft intact scrollTop=4356 scrollHeight=6385 firstVisibleIndex=44; focus returned to [data-testid=open-settings]
+afterMenu:  draft intact scrollTop=4356 scrollHeight=6385 firstVisibleIndex=44
+
+Scenario B (FAKE_REQUEST=permission)
+band / docked "Waiting for you" tab / sidebar row mark (data-mark) before, during and after Settings:
+before: band=true tab="Waiting for you · 0:00" mark=approval
+during: band=true tab="Waiting for you · 0:01" mark=approval settings=true
+after:  band=true tab="Waiting for you · 0:01" mark=approval settings=false
