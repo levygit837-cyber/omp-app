@@ -1,10 +1,11 @@
-import { Button, SendIcon, StatusPill, StopIcon } from "@omp-app/ui";
+import { Button, Notice, SendIcon, StatusPill, StopIcon } from "@omp-app/ui";
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import type { SidecarStatus } from "../shared/bridge";
 import { composerView, type EnginePhase } from "./composer-state";
 import { modelLabel } from "./format";
 import { message } from "./session-controller";
-import { useModel, useStatus } from "./session-hooks";
+import { useModel } from "./session-hooks";
+import { useShownStatus } from "./shown-status";
 
 /** The input bar. The engine outranks the turn: see `composerView`. */
 export function Composer({
@@ -19,7 +20,7 @@ export function Composer({
   /** Called when a prompt was accepted by the bridge, so the timeline follows the answer. */
   onSent: () => void;
 }) {
-  const status = useStatus(sessionId);
+  const status = useShownStatus(sessionId);
   const model = modelLabel(useModel(sessionId));
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -27,19 +28,21 @@ export function Composer({
   const streaming = status === "streaming";
   const readOnly = sidecar.state === "ready" && sidecar.mode === "read_only";
   const view = composerView({ readOnly, engine, streaming });
+  // Esc stops a turn only while there is one to stop and an engine to tell.
+  const cancellable = streaming && engine === "ready";
 
   const cancel = useCallback(() => {
     window.omp.session.cancel(sessionId).catch((e: unknown) => setError(message(e)));
   }, [sessionId]);
 
   useEffect(() => {
-    if (!streaming) return;
+    if (!cancellable) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") cancel();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [streaming, cancel]);
+  }, [cancellable, cancel]);
 
   const send = (event: FormEvent) => {
     event.preventDefault();
@@ -71,11 +74,7 @@ export function Composer({
       onSubmit={send}
       className="flex w-(--layout-composer) max-w-full flex-col gap-(--space-12) rounded-lg border border-border-hairline bg-bg-elevated px-(--space-18) pt-(--space-14) pb-(--space-12) has-[textarea:focus-visible]:border-border-field has-[textarea:focus-visible]:outline-(length:--size-focus-ring) has-[textarea:focus-visible]:outline-focus-ring has-[textarea:focus-visible]:outline-solid has-[textarea:focus-visible]:outline-offset-(--space-2)"
     >
-      {error && (
-        <p role="alert" className="text-size-sm text-state-error">
-          {error}
-        </p>
-      )}
+      {error && <Notice severity="error" title={error} />}
       <textarea
         ref={field}
         data-testid="prompt-input"
@@ -105,7 +104,7 @@ export function Composer({
             variant="primary"
             className="h-(--size-send)"
             onClick={cancel}
-            disabled={engine !== "ready"}
+            disabled={!cancellable}
           >
             <StopIcon />
             Stop

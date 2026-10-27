@@ -1,11 +1,13 @@
 import { Notice } from "@omp-app/ui";
 import { useState } from "react";
 import type { SidecarStatus } from "../shared/bridge";
+import { Announcer } from "./Announcer";
 import { Composer } from "./Composer";
 import type { EnginePhase } from "./composer-state";
 import { EngineSlot } from "./EngineSlot";
 import type { EngineTrack } from "./engine";
-import { useSessionError, useStatus, useSyncError, useWarnings } from "./session-hooks";
+import { useSessionError, useSyncError, useWarnings } from "./session-hooks";
+import { useShownStatus } from "./shown-status";
 import { Timeline } from "./Timeline";
 
 /** Non-blocking problems the session carries on despite. Warning severity: it still works. */
@@ -53,7 +55,7 @@ export function SessionPane({
   engine: EnginePhase;
   onRestart: () => void;
 }) {
-  const status = useStatus(sessionId);
+  const status = useShownStatus(sessionId);
   const sessionError = useSessionError(sessionId);
   const syncError = useSyncError();
   // Bumped when a prompt is sent, so the timeline follows the answer even after a scroll up.
@@ -62,9 +64,10 @@ export function SessionPane({
 
   return (
     <>
-      <p data-testid="session-status" data-status={status} aria-live="polite" className="sr-only">
+      <p data-testid="session-status" data-status={status} className="sr-only">
         Status: {status ?? "unknown"}
       </p>
+      <Announcer sessionId={sessionId} />
       <Timeline sessionId={sessionId} resume={sent} />
       <div className="flex justify-center px-(--space-48) empty:hidden">
         <div className="flex w-(--layout-chat-column) max-w-full flex-col gap-(--space-event) pt-(--space-event) empty:hidden">

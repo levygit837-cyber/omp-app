@@ -1,14 +1,18 @@
 import { FolderIcon, IconButton, NewSessionIcon, SidebarLeftIcon, StateMark } from "@omp-app/ui";
+import type { Ref } from "react";
 import type { SidecarStatus } from "../shared/bridge";
 import { projectName, sessionMark } from "./format";
-import { useCwd, useSessionTitle, useStatus } from "./session-hooks";
+import { useCwd, useSessionTitle } from "./session-hooks";
+import { useShownStatus } from "./shown-status";
 
 /** Left edge of the title bar: room for the native traffic lights, then the two buttons. */
 export function SidebarTop({
+  toggleRef,
   onToggle,
   onNewSession,
   newDisabled,
 }: {
+  toggleRef: Ref<HTMLButtonElement>;
   onToggle: () => void;
   onNewSession: () => void;
   newDisabled: boolean;
@@ -16,6 +20,7 @@ export function SidebarTop({
   return (
     <div className="app-drag flex h-(--layout-bar-height) shrink-0 items-center pr-(--space-10) pl-(--layout-traffic-lights)">
       <IconButton
+        ref={toggleRef}
         className="app-no-drag"
         aria-label="Hide sidebar"
         aria-expanded={true}
@@ -39,7 +44,7 @@ export function SidebarTop({
 }
 
 function SessionRow({ sessionId }: { sessionId: string }) {
-  const status = useStatus(sessionId);
+  const status = useShownStatus(sessionId);
   const title = useSessionTitle(sessionId);
   return (
     <li

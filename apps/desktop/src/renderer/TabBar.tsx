@@ -1,9 +1,11 @@
 import { ChatIcon, cx, IconButton, SidebarLeftIcon, StateMark, StatusPill } from "@omp-app/ui";
+import type { Ref } from "react";
 import { sessionMark } from "./format";
-import { useSessionTitle, useStatus } from "./session-hooks";
+import { useSessionTitle } from "./session-hooks";
+import { useShownStatus } from "./shown-status";
 
 function ChatTab({ sessionId }: { sessionId: string }) {
-  const status = useStatus(sessionId);
+  const status = useShownStatus(sessionId);
   const title = useSessionTitle(sessionId);
   return (
     <div
@@ -26,12 +28,14 @@ export function TabBar({
   sidebarOpen,
   engineStopped,
   readOnly,
+  toggleRef,
   onToggleSidebar,
 }: {
   sessionId: string | null;
   sidebarOpen: boolean;
   engineStopped: boolean;
   readOnly: boolean;
+  toggleRef: Ref<HTMLButtonElement>;
   onToggleSidebar: () => void;
 }) {
   return (
@@ -45,6 +49,7 @@ export function TabBar({
       {!sidebarOpen && (
         <div className="flex items-center pl-(--layout-traffic-lights)">
           <IconButton
+            ref={toggleRef}
             className="app-no-drag relative"
             aria-label="Show sidebar"
             aria-expanded={false}

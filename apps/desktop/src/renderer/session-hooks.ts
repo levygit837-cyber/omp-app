@@ -38,3 +38,13 @@ export const useSessionTitle = (sessionId: string): string =>
     const first = s.sessions[sessionId]?.timeline.find((item) => item.kind === "user");
     return sessionTitle(first?.text);
   });
+
+/** Read once, when a turn ends: subscribing would re-render on every streamed chunk. */
+export function lastAssistantText(sessionId: string): string | undefined {
+  const timeline = replicas.store.getState().sessions[sessionId]?.timeline ?? [];
+  for (let i = timeline.length - 1; i >= 0; i--) {
+    const item = timeline[i];
+    if (item?.kind === "assistant") return item.text;
+  }
+  return undefined;
+}

@@ -1,3 +1,4 @@
+import type { SessionStatus } from "@omp-app/protocol";
 import { useEffect, useState } from "react";
 import type { SidecarStatus } from "../shared/bridge";
 import type { EnginePhase } from "./composer-state";
@@ -41,6 +42,17 @@ export function enginePhase(track: EngineTrack): EnginePhase {
   if (track.state === "failed") return "failed";
   if (track.state === "ready") return "ready";
   return track.restarting ? "restarting" : "starting";
+}
+
+/**
+ * A turn does not run on a dead engine. The sidecar cannot say so (it is gone), so a session that
+ * was streaming is shown idle while the engine is not ready: no caret, no spinner.
+ */
+export function shownStatus(
+  status: SessionStatus | undefined,
+  engine: EnginePhase,
+): SessionStatus | undefined {
+  return status === "streaming" && engine !== "ready" ? "idle" : status;
 }
 
 export function useEngine(status: SidecarStatus): EngineTrack {

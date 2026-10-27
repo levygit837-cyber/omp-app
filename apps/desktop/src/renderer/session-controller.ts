@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react";
 import type { SidecarStatus } from "../shared/bridge";
+import { describeError } from "./errors";
 import { replicas } from "./session-hooks";
 import { SessionLostError } from "./session-store";
 
 /** Survives a window reload (same tab), so a reload re-attaches to the running session. */
 const STORAGE_KEY = "omp-app.sessionId";
 
-export function message(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
+export const message = describeError;
 
 export interface SessionController {
   /** The session in use, or null. */

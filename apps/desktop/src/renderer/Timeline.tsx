@@ -3,11 +3,17 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { memo, useRef } from "react";
 import { projectName } from "./format";
 import { useCwd, useItem, useItemCount, useItemKind } from "./session-hooks";
+import { useShownStatus } from "./shown-status";
 import { useFollowBottom } from "./use-follow-bottom";
 
 /** Height guess for a row that has not been measured yet; the measurement replaces it. */
 const ESTIMATED_ROW = 96;
 const OVERSCAN = 8;
+
+/** The caret of an unfinished reply. A dead engine writes no more, so it shows only while running. */
+function OpenCaret({ sessionId }: { sessionId: string }) {
+  return useShownStatus(sessionId) === "streaming" ? <Caret /> : null;
+}
 
 /**
  * One row. It re-renders only when its own item changes (items keep identity otherwise).
@@ -34,7 +40,7 @@ const Row = memo(function Row({ sessionId, index }: { sessionId: string; index: 
           className="text-size-body leading-(--line-height-prose) break-words whitespace-pre-wrap"
         >
           {item.text}
-          {!item.done && <Caret />}
+          {!item.done && <OpenCaret sessionId={sessionId} />}
         </p>
       )}
     </div>
@@ -84,7 +90,10 @@ export function Timeline({ sessionId, resume }: { sessionId: string; resume: num
         {count === 0 ? (
           <EmptySession sessionId={sessionId} />
         ) : (
-          <div className="relative w-full" style={{ height: total }}>
+          // Rows mount and unmount as the user scrolls, so this container must not be read out:
+          // the `Announcer` speaks at transitions instead. `aria-live="off"` here wins over the
+          // polite region that `role="log"` implies for its descendants.
+          <div aria-live="off" className="relative w-full" style={{ height: total }}>
             {virtualizer.getVirtualItems().map((row) => (
               <div
                 key={row.key}
