@@ -32,6 +32,28 @@ describe("format", () => {
     expect(Array.from(title).length).toBe(48);
   });
 
+  // The budget is 47 clusters plus the ellipsis. A cluster that ends exactly at the budget stays;
+  // one that starts past it goes whole. Neither may leave half of itself behind (cutting by code
+  // point would keep the first regional indicator of a flag, or a letter without its accent).
+  const titleWith = (text: string, before: number) =>
+    sessionTitle(`${"a".repeat(before)}${text}${"b".repeat(10)}`);
+
+  test.each([
+    ["a flag", "🇧🇷"],
+    ["a ZWJ family", "👨‍👩‍👧‍👦"],
+    ["a letter with a combining mark", "e\u0301"],
+  ])("sessionTitle keeps %s whole at the cut", (_name, text) => {
+    expect(titleWith(text, 46)).toBe(`${"a".repeat(46)}${text}…`);
+  });
+
+  test.each([
+    ["a flag", "🇧🇷"],
+    ["a ZWJ family", "👨‍👩‍👧‍👦"],
+    ["a letter with a combining mark", "e\u0301"],
+  ])("sessionTitle drops %s whole when it starts past the budget", (_name, text) => {
+    expect(titleWith(text, 47)).toBe(`${"a".repeat(47)}…`);
+  });
+
   test("modelLabel drops the provider", () => {
     expect(modelLabel("anthropic/claude-opus-5-5")).toBe("claude-opus-5-5");
     expect(modelLabel("local")).toBe("local");

@@ -15,6 +15,7 @@ export function projectName(cwd: string): string {
 
 export const NEW_SESSION_TITLE = "New session";
 const TITLE_MAX = 48;
+const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
 /**
  * Sessions carry no title yet, so the first line of the first prompt stands in for one.
@@ -23,10 +24,11 @@ const TITLE_MAX = 48;
 export function sessionTitle(firstPrompt: string | undefined): string {
   const line = firstPrompt?.trim().split(/\r?\n/, 1)[0]?.replace(/\s+/g, " ") ?? "";
   if (line.length === 0) return NEW_SESSION_TITLE;
-  // Code points, not UTF-16 units: a cut must not split an emoji in two.
-  const points = Array.from(line);
-  return points.length > TITLE_MAX
-    ? `${points
+  // Grapheme clusters, not UTF-16 units or code points: a cut must not split a flag, a ZWJ
+  // family or a letter with its combining mark.
+  const graphemes = Array.from(GRAPHEMES.segment(line), (part) => part.segment);
+  return graphemes.length > TITLE_MAX
+    ? `${graphemes
         .slice(0, TITLE_MAX - 1)
         .join("")
         .trimEnd()}…`
