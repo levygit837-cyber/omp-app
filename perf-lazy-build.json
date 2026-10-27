@@ -1,0 +1,9 @@
+{
+  "note": "FAKE_MIXED=1 FAKE_ITEMS=700, Electron 45, 1440x900, build after Markdown became a lazy chunk (head fix commit)",
+  "base": { "items": 700, "domNodes": 332, "rowsMounted": 16 },
+  "scroll": { "frames": 481, "p50_ms": 8.3, "p95_ms": 9.0, "max_ms": 9.4, "framesOver33ms": 0, "peakDomNodes": 540 },
+  "followBottom": {
+    "distanceFromEndAfterExpandingVisibleToolLines": 0,
+    "distanceFromEndDuringStreamingTurn_25samples_100ms": "all 0"
+  }
+}

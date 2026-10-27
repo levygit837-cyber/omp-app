@@ -1,0 +1,8 @@
+Built app (file://), CSP: default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; ...
+Fake sidecar reply with a ```rust fence. CDP Network + Runtime + Log enabled before the reload.
+Scripts requested, in order after the session view opened:
+  index-CrZflr8j.js, preload-helper-C02HI4BJ.js, markdown-CY_ojaen.js, highlighter-Bzu3KJK1.js, rust-D_w7iiEa.js
+Network.loadingFailed events: none
+Runtime.consoleAPICalled / Log.entryAdded / Runtime.exceptionThrown: none
+Highlighted token spans in the rendered code block: 8
+Link hrefs rendered as <a>: https://example.com/ only; the mailto: link is plain text
