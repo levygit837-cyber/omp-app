@@ -8,6 +8,7 @@ import { type Handlers, startServer } from "./server";
 import { attachSession } from "./session-bridge";
 import { SESSION_CAPABILITIES, sessionHandlers } from "./session-handlers";
 import { SessionStore } from "./session-store";
+import { SETTINGS_CAPABILITIES, settingsControl, settingsHandlers } from "./settings-handlers";
 import { SIDECAR_VERSION } from "./version";
 
 /** Debug-only requests exist so tests can prove stray output cannot reach the protocol. */
@@ -38,6 +39,7 @@ async function main(): Promise<void> {
   const capabilities = [
     "handshake",
     ...SESSION_CAPABILITIES,
+    ...SETTINGS_CAPABILITIES,
     ...(DEBUG ? ["debug.logStdout", "debug.write"] : []),
   ];
   const handlers: Handlers = {
@@ -50,6 +52,7 @@ async function main(): Promise<void> {
       ...(guard.mode === "read_only" ? { schema: guard.schema } : {}),
     }),
     ...sessionHandlers(host, store, requests),
+    ...settingsHandlers(settingsControl(host, store)),
   };
   if (DEBUG) {
     handlers["debug.logStdout"] = async ({ marker }) => {

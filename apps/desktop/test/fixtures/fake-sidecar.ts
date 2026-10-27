@@ -21,6 +21,8 @@
  * - FAKE_REQUEST=permission|ask|form|queue: halfway through the reply, raise that request and
  *   wait for its answer (see fake-requests.ts). Also serves `session.answerPermission|answerAsk`.
  * - FAKE_STORED=<n>: n sessions "on disk" (`stored-<i>`, see fake-catalog.ts) for list/resume/fork.
+ *
+ * `settings.*` is served from `fake-settings.ts` (in memory; `read-only` refuses the writes).
  */
 
 import {
@@ -41,6 +43,7 @@ import {
 } from "@omp-app/protocol";
 import { storedSessions, storedTimeline } from "./fake-catalog";
 import { answerRequest, dismissRequests, raiseRequests, scripted } from "./fake-requests";
+import { handleSettings } from "./fake-settings";
 import { fakeViewModel, mixedTimeline, stateTimeline } from "./fake-timeline";
 
 const mode = process.env.FAKE_SIDECAR ?? "ok";
@@ -395,7 +398,14 @@ Bun.listen<undefined>({
             ...(mode === "read-only" ? { schema: { onDisk: 7, expected: 6 } } : {}),
           });
         } else {
-          response = handleSession(method, id, params, socket);
+          response =
+            handleSettings(
+              method,
+              id,
+              params,
+              mode === "read-only",
+              (sid) => sessions.get(sid)?.vm.cwd,
+            ) ?? handleSession(method, id, params, socket);
         }
         send(
           socket,

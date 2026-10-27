@@ -16,3 +16,11 @@ export const SESSION_LIST = "session:list";
 export const SESSION_RESUME = "session:resume";
 export const SESSION_FORK = "session:fork";
 export const SESSION_CLOSE = "session:close";
+export const SETTINGS_LIST = "settings:list";
+export const SETTINGS_SET = "settings:set";
+export const SETTINGS_RESET = "settings:reset";
+export const SETTINGS_REVEAL = "settings:reveal";
+/** Opens the global config.yml in the system's editor; takes no path from the window. */
+export const SETTINGS_OPEN_FILE = "settings:open-file";
+/** Pushed by main when the user asks for the settings view from the application menu (⌘,). */
+export const SETTINGS_OPEN = "settings:open";

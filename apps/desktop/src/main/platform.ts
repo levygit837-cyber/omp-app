@@ -1,4 +1,5 @@
 import {
+  app,
   type BrowserWindowConstructorOptions,
   Menu,
   type MenuItemConstructorOptions,
@@ -18,8 +19,9 @@ export interface Platform {
   /**
    * Installs the application menu. Electron's default menu binds ⌘R to "Reload", which the app
    * uses for "Restart omp"; this one keeps the standard roles and leaves out the reload commands.
+   * It adds "Settings…" (⌘, on macOS), which macOS places in the application menu.
    */
-  installMenu(): void;
+  installMenu(handlers: { readonly openSettings: () => void }): void;
 }
 
 const darwin = process.platform === "darwin";
@@ -30,9 +32,31 @@ export const platform: Platform = {
   windowChrome: darwin
     ? { titleBarStyle: "hiddenInset", trafficLightPosition: { x: 16, y: 16 } }
     : {},
-  installMenu() {
+  installMenu({ openSettings }) {
+    const settings: MenuItemConstructorOptions = {
+      label: "Settings…",
+      accelerator: "CmdOrCtrl+,",
+      click: openSettings,
+    };
     const template: MenuItemConstructorOptions[] = [
-      ...(darwin ? ([{ role: "appMenu" }] as const) : []),
+      darwin
+        ? {
+            label: app.name,
+            submenu: [
+              { role: "about" },
+              { type: "separator" },
+              settings,
+              { type: "separator" },
+              { role: "services" },
+              { type: "separator" },
+              { role: "hide" },
+              { role: "hideOthers" },
+              { role: "unhide" },
+              { type: "separator" },
+              { role: "quit" },
+            ],
+          }
+        : { label: "File", submenu: [settings, { type: "separator" }, { role: "quit" }] },
       { role: "editMenu" },
       { label: "View", submenu: [{ role: "toggleDevTools" }, { role: "togglefullscreen" }] },
       { role: "windowMenu" },

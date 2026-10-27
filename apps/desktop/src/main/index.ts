@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { isAskContent, isSessionOpEvent } from "@omp-app/protocol";
+import { isAskContent, isSessionOpEvent, type SettingsTarget } from "@omp-app/protocol";
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, shell } from "electron";
 import {
   APP_OPEN_LINK,
@@ -16,6 +16,12 @@ import {
   SESSION_RESUME,
   SESSION_SUBSCRIBE,
   SESSION_UNSUBSCRIBE,
+  SETTINGS_LIST,
+  SETTINGS_OPEN,
+  SETTINGS_OPEN_FILE,
+  SETTINGS_RESET,
+  SETTINGS_REVEAL,
+  SETTINGS_SET,
   SIDECAR_GET_STATUS,
   SIDECAR_RESTART,
   SIDECAR_STATUS,
@@ -130,6 +136,47 @@ function registerSessionRelay(sidecar: SidecarSupervisor): void {
   });
 }
 
+/**
+ * The renderer picks the scope and names a session; main checks the shape before it reaches the
+ * sidecar. The project directory is never sent by the renderer: the sidecar takes it from the
+ * session (and refuses the home directory there).
+ */
+function settingsTarget(value: unknown): SettingsTarget {
+  if (typeof value !== "object" || value === null) throw new Error("target must be an object");
+  const scope: unknown = "scope" in value ? value.scope : undefined;
+  if (scope !== "global" && scope !== "project") throw new Error("scope must be global or project");
+  const sessionId: unknown = "sessionId" in value ? value.sessionId : undefined;
+  if (sessionId === undefined) {
+    if (scope === "project") throw new Error("the project scope needs a session");
+    return { scope };
+  }
+  return { scope, sessionId: text(sessionId, "sessionId") };
+}
+
+function registerSettingsRelay(sidecar: SidecarSupervisor): void {
+  ipcMain.handle(SETTINGS_LIST, (_event, target: unknown) =>
+    sidecar.request("settings.list", settingsTarget(target)),
+  );
+  ipcMain.handle(SETTINGS_SET, (_event, target: unknown, id: unknown, value: unknown) =>
+    sidecar.request("settings.set", { ...settingsTarget(target), id: text(id, "id"), value }),
+  );
+  ipcMain.handle(SETTINGS_RESET, (_event, target: unknown, id: unknown) =>
+    sidecar.request("settings.reset", { ...settingsTarget(target), id: text(id, "id") }),
+  );
+  // No argument: the file is the global config.yml the sidecar reports, never a path from the window.
+  ipcMain.handle(SETTINGS_OPEN_FILE, async () => {
+    const { files } = await sidecar.request("settings.list", { scope: "global" });
+    if ((await shell.openPath(files.global)) !== "") shell.showItemInFolder(files.global);
+  });
+  ipcMain.handle(SETTINGS_REVEAL, async (_event, target: unknown, id: unknown) => {
+    const revealed = await sidecar.request("settings.reveal", {
+      ...settingsTarget(target),
+      id: text(id, "id"),
+    });
+    return revealed.value;
+  });
+}
+
 function createWindow(): void {
   const win = new BrowserWindow({
     ...platform.windowChrome,
@@ -164,9 +211,14 @@ function createWindow(): void {
 app.whenReady().then(() => {
   // The app is dark only: never follow the system appearance.
   nativeTheme.themeSource = "dark";
-  platform.installMenu();
+  platform.installMenu({
+    openSettings: () => {
+      for (const win of BrowserWindow.getAllWindows()) win.webContents.send(SETTINGS_OPEN);
+    },
+  });
   const sidecar = new SidecarSupervisor({ command: sidecarCommand() });
   supervisor = sidecar;
+  registerSettingsRelay(sidecar);
   sidecar.onStatus((status) => {
     for (const win of BrowserWindow.getAllWindows()) win.webContents.send(SIDECAR_STATUS, status);
   });

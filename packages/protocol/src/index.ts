@@ -7,10 +7,20 @@ import { isSessionListResult, type SessionListResult } from "./catalog";
 import { isRecord } from "./guards";
 import type { AskAction, AskContent } from "./requests";
 import { isSessionSnapshot, type SessionOpEvent, type SessionSnapshot } from "./session";
+import {
+  isSettingsChange,
+  isSettingsListing,
+  isSettingsRevealResult,
+  type SettingScope,
+  type SettingsChange,
+  type SettingsListing,
+  type SettingsRevealResult,
+} from "./settings";
 
 export * from "./catalog";
 export * from "./requests";
 export * from "./session";
+export * from "./settings";
 export * from "./timeline";
 
 /** Bumped on every incompatible change to the envelopes or to a method's params/result. */
@@ -151,6 +161,34 @@ export interface Methods {
   "session.fork": { params: { readonly sessionId: string }; result: SessionCreateResult };
   /** Closes an open session (a running turn stops). The session file stays on disk. */
   "session.close": { params: { readonly sessionId: string }; result: null };
+  /** Registry-driven listing with effective values; secrets are withheld. */
+  "settings.list": { params: SettingsTarget; result: SettingsListing };
+  /** A refused value comes back as `{ ok: false, message }`, not as an error. */
+  "settings.set": {
+    params: SettingsTarget & { readonly id: string; readonly value: unknown };
+    result: SettingsChange;
+  };
+  /** Removes the key from the scope's file, so the next layer (or the default) applies again. */
+  "settings.reset": {
+    params: SettingsTarget & { readonly id: string };
+    result: SettingsChange;
+  };
+  /** The one way a secret leaves the sidecar: the value stored in the scope's file. */
+  "settings.reveal": {
+    params: SettingsTarget & { readonly id: string };
+    result: SettingsRevealResult;
+  };
+}
+
+/**
+ * Which config a settings call reads or edits. `sessionId` names an open session; the sidecar
+ * takes the project directory from that session, never from the caller. It is required for the
+ * `project` scope and gives `layers.project` for `global` too, since a project file can
+ * override the global value.
+ */
+export interface SettingsTarget {
+  readonly scope: SettingScope;
+  readonly sessionId?: string;
 }
 
 export interface SessionCreateResult {
@@ -253,6 +291,11 @@ export const methodWrites: { [M in MethodName]: boolean } = {
   "session.fork": true,
   // Frees memory and stops a turn; nothing in the shared database changes.
   "session.close": false,
+  // Writes go to the shared config.yml / project config.yml. Reveal only reads.
+  "settings.list": false,
+  "settings.set": true,
+  "settings.reset": true,
+  "settings.reveal": false,
 };
 
 export function isDebugWriteResult(v: unknown): v is DebugWriteResult {
@@ -281,6 +324,10 @@ export const resultGuards: { [M in MethodName]: (v: unknown) => v is Methods[M][
   "session.resume": isSessionCreateResult,
   "session.fork": isSessionCreateResult,
   "session.close": isNull,
+  "settings.list": isSettingsListing,
+  "settings.set": isSettingsChange,
+  "settings.reset": isSettingsChange,
+  "settings.reveal": isSettingsRevealResult,
 };
 
 /** A request that failed: the sidecar answered with an error, or the reply was malformed. */

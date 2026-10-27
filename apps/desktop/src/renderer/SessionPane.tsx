@@ -1,7 +1,6 @@
 import { Notice } from "@omp-app/ui";
 import { useState } from "react";
 import type { SidecarStatus } from "../shared/bridge";
-import { Announcer } from "./Announcer";
 import { Composer } from "./Composer";
 import type { EnginePhase } from "./composer-state";
 import { EngineSlot } from "./EngineSlot";
@@ -74,7 +73,6 @@ export function SessionPane({
       <p data-testid="session-status" data-status={status} className="sr-only">
         Status: {status ?? "unknown"}
       </p>
-      <Announcer sessionId={sessionId} />
       <Timeline sessionId={sessionId} resume={sent} />
       <div className="flex justify-center px-(--space-48) empty:hidden">
         <div className="flex w-(--layout-chat-column) max-w-full flex-col gap-(--space-event) pt-(--space-event) empty:hidden">

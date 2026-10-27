@@ -181,6 +181,19 @@
   --size-send: 30px;
   --size-icon-stroke: 1.5px;
   --size-focus-ring: 2px;
+  /* Settings screen and its switch (Pen frame Eg1So; not yet in the Pen variables) */
+  --layout-settings-nav: 216px;
+  --layout-settings-column: 880px;
+  --layout-setting-control: 300px;
+  --layout-settings-search: 280px;
+  --layout-popover: 340px;
+  --size-field: 32px;
+  --size-field-narrow: 120px;
+  --size-toggle-width: 34px;
+  --size-toggle-height: 20px;
+  --size-toggle-knob: 14px;
+  --size-toggle-travel: 14px; /* track 34 - border 2 - padding 4 - knob 14 */
+  --size-dot: 6px;
 }
 
 /* Transitions drop to a hard cut. Anything that animates (spinner, approval

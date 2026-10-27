@@ -60,7 +60,8 @@ const PERMISSION_ORDER: readonly PermissionKind[] = [
 
 /**
  * Keyboard of the band. Esc and Enter work from the band, from the page and from an empty input
- * bar; never while a draft is being typed elsewhere (see `keyAnswer`).
+ * bar; never while a draft is being typed elsewhere (see `keyAnswer`), nor while the band is
+ * inert (Settings is on top).
  */
 function useBandKeys(
   request: PendingRequest,
@@ -74,6 +75,8 @@ function useBandKeys(
   keys.current ??= createBandKeys(() => performance.now());
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      // The session view stays mounted but inert under Settings: its keys are not the user's then.
+      if (band.current?.closest("[inert]")) return;
       const answer = keys.current?.answer(
         request,
         event,

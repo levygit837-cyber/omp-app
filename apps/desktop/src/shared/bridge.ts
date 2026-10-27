@@ -3,6 +3,9 @@ import type {
   AskContent,
   SessionOpEvent,
   SessionSnapshot,
+  SettingsChange,
+  SettingsListing,
+  SettingsTarget,
   StoredSession,
 } from "@omp-app/protocol";
 
@@ -68,5 +71,19 @@ export type OmpBridge = {
     close(sessionId: string): Promise<void>;
     /** Calls `listener` for every op of every subscribed session. Returns the unsubscribe function. */
     onOp(listener: (event: SessionOpEvent) => void): () => void;
+  };
+  readonly settings: {
+    /** Every registry setting with its effective value in `target`'s scope. Secrets are masked. */
+    list(target: SettingsTarget): Promise<SettingsListing>;
+    /** A value the sidecar refuses comes back as `{ ok: false, message }`. Rejects in read-only mode. */
+    set(target: SettingsTarget, id: string, value: unknown): Promise<SettingsChange>;
+    /** Removes the key from the target scope's file. Rejects in read-only mode. */
+    reset(target: SettingsTarget, id: string): Promise<SettingsChange>;
+    /** The stored value of one secret setting, on demand. */
+    reveal(target: SettingsTarget, id: string): Promise<string>;
+    /** Opens the global config.yml in the system's editor (main picks the path, not the window). */
+    openConfigFile(): Promise<void>;
+    /** Calls `listener` when the application menu asks for settings. Returns the unsubscribe function. */
+    onOpenRequested(listener: () => void): () => void;
   };
 };
