@@ -48,8 +48,9 @@ export function clock(ms: number): string {
   return `${Math.floor(total / 60)}:${seconds}`;
 }
 
-/** The state mark a session carries in the sidebar and its tab. */
-export function sessionMark(status: SessionStatus | undefined): MarkState {
+/** The state mark a session carries in the sidebar and its tab. A question waiting outranks the rest. */
+export function sessionMark(status: SessionStatus | undefined, waiting = false): MarkState {
+  if (waiting) return "approval";
   if (status === "streaming") return "running";
   if (status === "failed") return "error";
   return "idle";

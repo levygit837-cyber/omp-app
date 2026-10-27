@@ -1,4 +1,4 @@
-import type { SessionOpEvent, SessionSnapshot } from "@omp-app/protocol";
+import type { AskAction, AskContent, SessionOpEvent, SessionSnapshot } from "@omp-app/protocol";
 
 /** Where the sidecar is in its lifecycle, as the window sees it. */
 export type SidecarStatus =
@@ -43,6 +43,15 @@ export type OmpBridge = {
     /** Resolves once the prompt is accepted; the answer arrives as ops. */
     prompt(sessionId: string, text: string): Promise<void>;
     cancel(sessionId: string): Promise<void>;
+    /** Picks one of the options of a pending permission. Rejects if it is no longer pending. */
+    answerPermission(sessionId: string, requestId: string, optionId: string): Promise<void>;
+    /** Submits (`accept`, with the values by field key) or closes (`decline`) a pending form. */
+    answerAsk(
+      sessionId: string,
+      requestId: string,
+      action: AskAction,
+      content?: AskContent,
+    ): Promise<void>;
     /** Calls `listener` for every op of every subscribed session. Returns the unsubscribe function. */
     onOp(listener: (event: SessionOpEvent) => void): () => void;
   };

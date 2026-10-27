@@ -4,8 +4,10 @@
  */
 
 import { isRecord } from "./guards";
+import type { AskAction, AskContent } from "./requests";
 import { isSessionSnapshot, type SessionOpEvent, type SessionSnapshot } from "./session";
 
+export * from "./requests";
 export * from "./session";
 export * from "./timeline";
 
@@ -17,6 +19,12 @@ export const PROTOCOL_VERSION = 1;
  * Electron's IPC keeps only the message text, so the renderer has to match on it.
  */
 export const UNKNOWN_SESSION_MESSAGE = "unknown session";
+
+/**
+ * Prefix of the error for an answer to a request that is not pending any more (answered in
+ * another window, withdrawn by the agent, turn over). Shared for the same reason as above.
+ */
+export const STALE_REQUEST_MESSAGE = "stale request";
 
 /** Machine-readable failure reasons. Extend as methods are added. */
 export type ErrorCode =
@@ -111,6 +119,25 @@ export interface Methods {
   /** Idempotent. Starts `session.op` events for this connection and returns the current state. */
   "session.subscribe": { params: { readonly sessionId: string }; result: SessionSnapshot };
   "session.unsubscribe": { params: { readonly sessionId: string }; result: null };
+  /**
+   * Answers a pending permission with one of its options. Resolves `null` when the answer was
+   * applied. Answering a request that is no longer pending is an error (`stale request`), so a
+   * second window or a late click never reads as success.
+   */
+  "session.answerPermission": {
+    params: { readonly sessionId: string; readonly requestId: string; readonly optionId: string };
+    result: null;
+  };
+  /** Answers a pending ask form: `accept` with the values by field key, or `decline` (stops the turn). */
+  "session.answerAsk": {
+    params: {
+      readonly sessionId: string;
+      readonly requestId: string;
+      readonly action: AskAction;
+      readonly content?: AskContent;
+    };
+    result: null;
+  };
 }
 
 export interface SessionCreateResult {
@@ -203,6 +230,11 @@ export const methodWrites: { [M in MethodName]: boolean } = {
   "session.cancel": true,
   "session.subscribe": false,
   "session.unsubscribe": false,
+  // Both only complete a call omp is already waiting on; omp itself writes (a gated tool runs,
+  // or a session file grows), but the answer touches nothing of ours. Read-only mode cannot
+  // have a pending request anyway because `session.create` and `session.prompt` are refused.
+  "session.answerPermission": false,
+  "session.answerAsk": false,
 };
 
 export function isDebugWriteResult(v: unknown): v is DebugWriteResult {
@@ -225,6 +257,8 @@ export const resultGuards: { [M in MethodName]: (v: unknown) => v is Methods[M][
   "session.cancel": isNull,
   "session.subscribe": isSessionSnapshot,
   "session.unsubscribe": isNull,
+  "session.answerPermission": isNull,
+  "session.answerAsk": isNull,
 };
 
 /** A request that failed: the sidecar answered with an error, or the reply was malformed. */

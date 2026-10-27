@@ -1,7 +1,8 @@
 import { useContext, useEffect, useRef, useState } from "react";
 import { announce } from "./announce";
+import { requestAnnouncement } from "./requests-view";
 import { lastAssistantText } from "./session-hooks";
-import { EngineContext, useShownStatus } from "./shown-status";
+import { EngineContext, useShownStatus, useWaiting } from "./shown-status";
 
 /**
  * The one polite live region of a session. It speaks at transitions only (a turn starts, a turn
@@ -12,6 +13,16 @@ export function Announcer({ sessionId }: { sessionId: string }) {
   const engine = useContext(EngineContext);
   const previous = useRef(status);
   const [text, setText] = useState("");
+  const waiting = useWaiting(sessionId)[0];
+  const askedId = useRef<string | undefined>(undefined);
+
+  // A request is said once, when it first shows. The band takes focus only from the page, so a
+  // person typing in the input bar hears about it here instead of having the field taken away.
+  useEffect(() => {
+    if (waiting?.id === askedId.current) return;
+    askedId.current = waiting?.id;
+    if (waiting) setText(requestAnnouncement(waiting));
+  }, [waiting]);
 
   useEffect(() => {
     const said = announce({

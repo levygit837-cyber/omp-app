@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { setAgentDir } from "@oh-my-pi/pi-utils";
 import { type OmpHost, startOmpHost } from "../src/omp-host";
+import { RequestRegistry } from "../src/request-registry";
 import { attachSession } from "../src/session-bridge";
 import { SessionStore } from "../src/session-store";
 
@@ -60,9 +61,11 @@ beforeAll(async () => {
     },
     disabledServers: ["denied"],
   });
+  const requests = new RequestRegistry(store);
   host = await startOmpHost({
+    requests,
     onSessionCreated: (session) => {
-      attachSession(store, session);
+      attachSession(store, session, requests);
       sessions.set(session.sessionId, session);
     },
     onMcpFailure: (sessionId, server, message) =>

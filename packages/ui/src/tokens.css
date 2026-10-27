@@ -161,6 +161,12 @@
   --layout-composer: 680px;
   --layout-composer-input-max: 240px;
   --layout-card: 620px;
+  /* Not in the Pen file: the most of the window a wait band may take before it scrolls inside
+   * itself, so a long command or a long form never pushes the input bar off screen. */
+  --layout-band-max: 45svh;
+  /* Not in the Pen file: the most a long question (a plan to approve) may take inside the band;
+   * it scrolls there, so the choices and buttons below it stay on screen. */
+  --layout-band-message-max: 16svh;
   --layout-empty-column: 560px;
   /* Where the native traffic lights end, so the sidebar toggle sits at the same x open or closed */
   --layout-traffic-lights: 78px;

@@ -408,3 +408,34 @@ describe("reduceEvent, compaction as a timeline item", () => {
     expect(timelineOf([compactionEnd({})])).toEqual([]);
   });
 });
+
+describe("reduceEvent, a decision line in the middle of a reply", () => {
+  // A person answers a request while the reply is still open: the decision line lands after
+  // the assistant item, and the end of the message must still close that same item.
+  const withDecision: SessionViewModel = {
+    ...start(),
+    status: "streaming",
+    timeline: [
+      { kind: "user", id: "i0", text: "go" },
+      { kind: "assistant", id: "i1", text: "Sure, I", done: false },
+      { kind: "decision", id: "i2", outcome: "allowed_once", subject: "touch x" },
+    ],
+  };
+
+  test("message_end closes the open reply instead of adding a second one", () => {
+    const { viewModel } = run([assistantEnd(assistant({ text: "Sure, I will." }))], withDecision);
+    expect(viewModel.timeline.map((i) => i.kind)).toEqual(["user", "assistant", "decision"]);
+    expect(viewModel.timeline[1]).toEqual({
+      kind: "assistant",
+      id: "i1",
+      text: "Sure, I will.",
+      done: true,
+    });
+  });
+
+  test("agent_end closes it as well", () => {
+    const { viewModel } = run([agentEnd({ yielded: true })], withDecision);
+    expect(viewModel.timeline[1]).toMatchObject({ kind: "assistant", done: true });
+    expect(viewModel.timeline).toHaveLength(3);
+  });
+});

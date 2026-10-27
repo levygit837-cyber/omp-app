@@ -1,8 +1,10 @@
 import { join } from "node:path";
-import { isSessionOpEvent } from "@omp-app/protocol";
+import { isAskContent, isSessionOpEvent } from "@omp-app/protocol";
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, shell } from "electron";
 import {
   APP_OPEN_LINK,
+  SESSION_ANSWER_ASK,
+  SESSION_ANSWER_PERMISSION,
   SESSION_CANCEL,
   SESSION_CREATE,
   SESSION_OP,
@@ -83,6 +85,29 @@ function registerSessionRelay(sidecar: SidecarSupervisor): void {
   ipcMain.handle(SESSION_CANCEL, async (_event, sessionId: unknown) => {
     await sidecar.request("session.cancel", { sessionId: text(sessionId, "sessionId") });
   });
+  ipcMain.handle(
+    SESSION_ANSWER_PERMISSION,
+    async (_event, sessionId: unknown, requestId: unknown, optionId: unknown) => {
+      await sidecar.request("session.answerPermission", {
+        sessionId: text(sessionId, "sessionId"),
+        requestId: text(requestId, "requestId"),
+        optionId: text(optionId, "optionId"),
+      });
+    },
+  );
+  ipcMain.handle(
+    SESSION_ANSWER_ASK,
+    async (_event, sessionId: unknown, requestId: unknown, action: unknown, content: unknown) => {
+      if (action !== "accept" && action !== "decline") throw new Error("action is not valid");
+      if (content !== undefined && !isAskContent(content)) throw new Error("content is not valid");
+      await sidecar.request("session.answerAsk", {
+        sessionId: text(sessionId, "sessionId"),
+        requestId: text(requestId, "requestId"),
+        action,
+        ...(content === undefined ? {} : { content }),
+      });
+    },
+  );
 }
 
 function createWindow(): void {

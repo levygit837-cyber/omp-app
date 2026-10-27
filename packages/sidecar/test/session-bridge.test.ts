@@ -2,6 +2,7 @@ import { describe, expect, spyOn, test } from "bun:test";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import type { AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-session-events";
+import { RequestRegistry } from "../src/request-registry";
 import { attachSession } from "../src/session-bridge";
 import { SessionStore } from "../src/session-store";
 
@@ -31,7 +32,7 @@ describe("attachSession", () => {
   test("a message_end updates the context meter", () => {
     const store = new SessionStore();
     const { session, emit } = fakeSession();
-    attachSession(store, session);
+    attachSession(store, session, new RequestRegistry(store));
     emit(messageEnd);
     expect(store.snapshot("s").snapshot.context).toMatchObject({ tokens: 500, window: 10_000 });
   });
@@ -43,7 +44,7 @@ describe("attachSession", () => {
     };
     const log = spyOn(console, "error").mockImplementation(() => {});
     const { session, emit } = fakeSession();
-    attachSession(store, session);
+    attachSession(store, session, new RequestRegistry(store));
     expect(() => emit(messageEnd)).not.toThrow();
     expect(log).toHaveBeenCalledTimes(1);
     expect(String(log.mock.calls[0]?.[0])).toContain("reducer on message_end");
@@ -51,10 +52,27 @@ describe("attachSession", () => {
     log.mockRestore();
   });
 
+  test("a throw while withdrawing requests is logged, and the context meter is still updated", () => {
+    const store = new SessionStore();
+    const requests = {
+      agentEvent: () => {
+        throw new Error("registry bug");
+      },
+    };
+    const log = spyOn(console, "error").mockImplementation(() => {});
+    const { session, emit } = fakeSession();
+    attachSession(store, session, requests);
+    expect(() => emit(messageEnd)).not.toThrow();
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(String(log.mock.calls[0]?.[0])).toContain("request withdrawal on message_end");
+    expect(store.snapshot("s").snapshot.context).toMatchObject({ tokens: 500 });
+    log.mockRestore();
+  });
+
   test("an event that does not change the context size does not read it", () => {
     const store = new SessionStore();
     const { session, emit } = fakeSession();
-    attachSession(store, session);
+    attachSession(store, session, new RequestRegistry(store));
     emit({ type: "agent_start" } as AgentSessionEvent);
     expect(store.snapshot("s").snapshot.context).toBeNull();
   });

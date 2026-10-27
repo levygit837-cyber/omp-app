@@ -4,6 +4,8 @@ import type { SidecarStatus } from "../shared/bridge";
 import { type EngineTrack, TIMER_SHOW_AFTER_MS, useElapsed, useRunStart } from "./engine";
 import { clock } from "./format";
 import { Shortcut } from "./Shortcut";
+import { useWaiting } from "./shown-status";
+import { focusBand } from "./WaitingBand";
 
 function Tab({ children, label }: { children: ReactNode; label?: string }) {
   return (
@@ -22,11 +24,13 @@ function Tab({ children, label }: { children: ReactNode; label?: string }) {
  * a stopped or restarting engine hides the run indicator.
  */
 export function EngineSlot({
+  sessionId,
   sidecar,
   track,
   streaming,
   onRestart,
 }: {
+  sessionId: string;
   sidecar: SidecarStatus;
   track: EngineTrack;
   streaming: boolean;
@@ -35,6 +39,8 @@ export function EngineSlot({
   const engineElapsed = useElapsed(sidecar.state === "ready" ? null : track.since);
   const runSince = useRunStart(streaming && sidecar.state === "ready");
   const runElapsed = useElapsed(runSince);
+  const waiting = useWaiting(sessionId)[0];
+  const waitElapsed = useElapsed(waiting?.raisedAt ?? null);
   let content: ReactNode = null;
 
   if (sidecar.state === "failed") {
@@ -62,6 +68,22 @@ export function EngineSlot({
       <Tab>
         <StateMark state="idle" decorative />
         <span>omp engine is back</span>
+      </Tab>
+    );
+  } else if (waiting) {
+    // The approval itself lives in the band; the tab only says the agent waits and leads there.
+    content = (
+      <Tab label="Waiting for you">
+        <StateMark state="approval" decorative />
+        <button
+          type="button"
+          data-testid="waiting-tab"
+          onClick={focusBand}
+          className="flex items-center gap-(--space-8) rounded-sm"
+        >
+          <span>Waiting for you</span>
+          <span className="font-mono text-size-xs text-text-secondary">· {clock(waitElapsed)}</span>
+        </button>
       </Tab>
     );
   } else if (streaming) {

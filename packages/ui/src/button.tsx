@@ -1,10 +1,12 @@
 import type { ComponentProps } from "react";
 import { cx } from "./cx";
 
-export type ButtonVariant = "primary" | "secondary" | "ghost";
+export type ButtonVariant = "primary" | "approval" | "secondary" | "ghost";
 
 const VARIANT: Record<ButtonVariant, string> = {
   primary: "bg-accent px-(--space-control-x) text-on-accent",
+  /** The affirmative answer of a wait band: sulfur, because the band is sulfur. */
+  approval: "bg-state-approval px-(--space-control-x) text-on-accent",
   secondary:
     "border border-border-control px-(--space-control-x) text-text-primary hover:bg-bg-hover",
   ghost: "px-(--space-4) text-text-secondary hover:text-text-primary",
@@ -14,7 +16,7 @@ export interface ButtonProps extends ComponentProps<"button"> {
   variant?: ButtonVariant;
 }
 
-/** Text button, 28 high. The primary action of a view is `primary`; at most one per view. */
+/** Text button, 28 high. The primary action of a view is `primary`; at most one per view. A wait band has its own `approval`. */
 export function Button({
   variant = "secondary",
   className,

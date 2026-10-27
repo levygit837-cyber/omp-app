@@ -7,9 +7,9 @@ import {
 } from "@omp-app/ui";
 import type { Ref } from "react";
 import type { SidecarStatus } from "../shared/bridge";
-import { projectName, sessionMark } from "./format";
+import { projectName } from "./format";
 import { useCwd, useSessionTitle } from "./session-hooks";
-import { useShownStatus } from "./shown-status";
+import { useSessionMark } from "./shown-status";
 
 /** Left edge of the title bar: room for the native traffic lights, then the two buttons. */
 export function SidebarTop({
@@ -50,14 +50,14 @@ export function SidebarTop({
 }
 
 function SessionRow({ sessionId }: { sessionId: string }) {
-  const status = useShownStatus(sessionId);
+  const mark = useSessionMark(sessionId);
   const title = useSessionTitle(sessionId);
   return (
     <li
       aria-current="true"
       className="flex items-center gap-(--space-8) rounded-sm bg-bg-selected py-(--space-6) pr-(--space-8) pl-(--space-30) text-size-md"
     >
-      <StateMark state={sessionMark(status)} />
+      <StateMark state={mark} />
       <span className="min-w-0 truncate">{title}</span>
     </li>
   );
