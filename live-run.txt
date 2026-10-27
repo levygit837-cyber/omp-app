@@ -1,0 +1,9 @@
+Live run, omp 18.12.6, real ~/.omp read-only except the sessions below (deleted afterwards).
+App list vs omp picker (SessionManager.listAllForPicker, cwd != ""):
+  {"app":579,"cli":579,"onlyApp":[],"onlyCli":[],"sameOrder":true}
+CLI session (omp -p, cwd /tmp/ev13-live/cli) listed by the app and resumed with its full history: "Reply with the single word: ready" / "ready".
+Two app sessions (cwd /tmp/ev13-live/a and /tmp/ev13-live/b), same prompt, both marked Running at once.
+ESC with b focused: b -> Idle, a still Running; a finished on its own (60 numbers).
+Fork of a: 2 timeline items (same as source), source unchanged (2 items), new id.
+CLI resumed the app session by id prefix (omp -r 01a17efa-347f): answered "60". omp warned the file was open in another process and saved to a new file.
+Sidebar rows of the user's other projects are painted over in the live screenshots.
