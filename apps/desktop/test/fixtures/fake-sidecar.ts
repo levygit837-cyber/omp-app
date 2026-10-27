@@ -68,7 +68,29 @@ interface FakeSession {
 
 const sessions = new Map<string, FakeSession>();
 const decoders = new Map<Conn, FrameDecoder>();
+/** Bytes a socket did not accept yet; `write` may take only part of a large frame. */
+const outbox = new Map<Conn, Uint8Array>();
 let created = 0;
+
+function flush(conn: Conn, bytes: Uint8Array): void {
+  const written = conn.write(bytes);
+  if (written < bytes.length) outbox.set(conn, bytes.subarray(written));
+  else outbox.delete(conn);
+}
+
+/** Writes a frame in full: the part the socket refuses waits for its `drain`, in order. */
+function send(conn: Conn, frame: string): void {
+  const bytes = new TextEncoder().encode(frame);
+  const queued = outbox.get(conn);
+  if (!queued) {
+    flush(conn, bytes);
+    return;
+  }
+  const joined = new Uint8Array(queued.length + bytes.length);
+  joined.set(queued);
+  joined.set(bytes, queued.length);
+  outbox.set(conn, joined);
+}
 
 /** Deterministic text whose length depends on the index, so row heights vary. */
 function preloadedText(i: number): string {
@@ -110,7 +132,7 @@ function emit(session: FakeSession, op: SessionOp): void {
   if (session.subs.size === 0) return;
   const data: SessionOpEvent = { sessionId: session.vm.id, seq: session.seq, op };
   const frame = encodeFrame({ kind: "event", name: "session.op", data });
-  for (const conn of session.subs) conn.write(frame);
+  for (const conn of session.subs) send(conn, frame);
 }
 
 async function runTurn(session: FakeSession, text: string): Promise<void> {
@@ -249,8 +271,13 @@ Bun.listen<undefined>({
     open(socket) {
       decoders.set(socket, new FrameDecoder());
     },
+    drain(socket) {
+      const queued = outbox.get(socket);
+      if (queued) flush(socket, queued);
+    },
     close(socket) {
       decoders.delete(socket);
+      outbox.delete(socket);
       for (const session of sessions.values()) session.subs.delete(socket);
     },
     data(socket, chunk) {
@@ -274,7 +301,8 @@ Bun.listen<undefined>({
         } else {
           response = handleSession(method, id, params, socket);
         }
-        socket.write(
+        send(
+          socket,
           encodeFrame(
             response ?? errorResponse(id, { code: "unknown_method", message: "unknown method" }),
           ),
