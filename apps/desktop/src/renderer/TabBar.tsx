@@ -7,7 +7,6 @@ import {
   StatusPill,
 } from "@omp-app/ui";
 import type { ReactNode, Ref } from "react";
-import { sessionMark } from "./format";
 import { useSessionTitle } from "./session-hooks";
 import { useSessionMark } from "./shown-status";
 

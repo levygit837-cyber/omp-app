@@ -123,6 +123,14 @@ async function nextRequest(sessionId: string, from: number): Promise<PendingRequ
   return found;
 }
 
+/** The view model a subscriber would hold: the snapshot plus this session's ops since `from`. */
+function replica(snapshot: SessionViewModel, sessionId: string, from: number): SessionViewModel {
+  return ops
+    .slice(from)
+    .filter((o) => o.sessionId === sessionId)
+    .reduce((vm, o) => applyOp(vm, o.op), snapshot);
+}
+
 async function scenario(
   name: string,
   prompt: string,
@@ -138,14 +146,12 @@ async function scenario(
   await drive?.(sessionId, from, failures);
 
   if (name === "cancel") {
-    await until("first streamed text", () =>
-      ops
-        .slice(from)
-        .some(
-          (o) =>
-            o.op.type === "item.appendText" ||
-            (o.op.type === "item.add" && o.op.item.kind === "assistant"),
-        ),
+    // Reasoning is on the timeline too (`thinking` items also take `item.appendText`), so wait
+    // for text of the answer itself: cancelling during the reasoning leaves no answer to close.
+    await until("first streamed answer text", () =>
+      replica(sub.snapshot, sessionId, from).timeline.some(
+        (i) => i.kind === "assistant" && i.text !== "",
+      ),
     );
     await ask("session.cancel", { sessionId });
   }
@@ -205,7 +211,7 @@ await scenario(
   "cancel",
   "Count from 1 to 400, one number per line. No tools. Do not stop early.",
   (vm) => {
-    const a = vm.timeline.at(-1);
+    const a = vm.timeline.findLast((i) => i.kind === "assistant");
     return [
       ...(vm.status === "idle" ? [] : [`status is ${vm.status}, expected idle`]),
       ...(a?.kind === "assistant" && a.done ? [] : ["the partial answer was not closed"]),

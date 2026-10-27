@@ -9,6 +9,12 @@
  */
 import { isRecord } from "./guards";
 import {
+  type DecisionItem,
+  isDecisionItem,
+  isPendingRequest,
+  type PendingRequest,
+} from "./requests";
+import {
   type CompactionItem,
   type ContextFill,
   isContextFill,
@@ -22,12 +28,6 @@ import {
   type ToolCall,
   type ToolItem,
 } from "./timeline";
-import {
-  type DecisionItem,
-  isDecisionItem,
-  isPendingRequest,
-  type PendingRequest,
-} from "./requests";
 
 export type SessionStatus = "idle" | "streaming" | "failed";
 

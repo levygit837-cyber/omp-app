@@ -37,8 +37,8 @@ import {
   type SessionViewModel,
   UNKNOWN_SESSION_MESSAGE,
 } from "@omp-app/protocol";
-import { fakeViewModel, mixedTimeline, stateTimeline } from "./fake-timeline";
 import { answerRequest, dismissRequests, raiseRequests, scripted } from "./fake-requests";
+import { fakeViewModel, mixedTimeline, stateTimeline } from "./fake-timeline";
 
 const mode = process.env.FAKE_SIDECAR ?? "ok";
 const socketPath = process.argv.find((a) => a.startsWith("--socket="))?.slice("--socket=".length);

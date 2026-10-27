@@ -204,7 +204,8 @@
         "cost": 0.00027
       },
       "context": null,
-      "todo": []
+      "todo": [],
+      "pending": []
     },
     "seq": 17
   }
