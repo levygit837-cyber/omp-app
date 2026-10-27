@@ -16,8 +16,11 @@ import {
   type Stream,
 } from "@oh-my-pi/pi-utils/acp";
 import { parseMcpFailure, resolveMcpServers } from "./mcp-config";
+import type { RequestRegistry } from "./request-registry";
 
 export interface OmpHostOptions {
+  /** Holds what the agent is blocked on (permissions, ask forms) until a person answers. */
+  readonly requests: Pick<RequestRegistry, "permission" | "elicitation">;
   /**
    * Called inside session creation, before `createSession` resolves and before any prompt can
    * run, so a subscriber never misses the first event.
@@ -122,18 +125,10 @@ export async function startOmpHost(options: OmpHostOptions): Promise<OmpHost> {
   createAcpConnection(transport.agent, factory);
   const client = new ClientSideConnection(
     () => ({
-      // Real permission and elicitation handling is a later ticket. Until then the safe answer
-      // is "no", and it is logged so a silent refusal never looks like a hang.
-      requestPermission: (params) => {
-        console.error(
-          `[sidecar] permission request cancelled: ${params.toolCall.title ?? params.toolCall.toolCallId}`,
-        );
-        return { outcome: { outcome: "cancelled" } };
-      },
-      unstable_createElicitation: (params) => {
-        console.error(`[sidecar] elicitation cancelled: ${params.message}`);
-        return { action: "cancel" };
-      },
+      // Both wait for a person. The promise stays open while the request is pending; the signal
+      // fires when omp withdraws it (`$/cancel_request`, sent when the user steers).
+      requestPermission: (params, extra) => options.requests.permission(params, extra?.signal),
+      unstable_createElicitation: (params) => options.requests.elicitation(params),
       // The timeline comes from AgentSession.subscribe, not from ACP updates. The one exception
       // is omp's notice that an MCP server did not connect: it exists nowhere else.
       sessionUpdate: (params) => {
@@ -149,7 +144,9 @@ export async function startOmpHost(options: OmpHostOptions): Promise<OmpHost> {
 
   const init = await client.initialize({
     protocolVersion: PROTOCOL_VERSION,
-    clientCapabilities: {},
+    // Without `elicitation.form` omp answers every `ask` itself with "no answer"
+    // (`acp-agent.ts:622`), so the form capability is what lets the agent ask at all.
+    clientCapabilities: { elicitation: { form: {} } },
   });
   const ompVersion = init.agentInfo?.version;
   if (!ompVersion) throw new Error("omp ACP initialize returned no agentInfo.version");

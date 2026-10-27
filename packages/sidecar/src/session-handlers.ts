@@ -1,4 +1,5 @@
 import { UNKNOWN_SESSION_MESSAGE } from "@omp-app/protocol";
+import type { RequestAnswers } from "./request-registry";
 import type { Handlers } from "./server";
 import type { SessionStore } from "./session-store";
 
@@ -15,12 +16,15 @@ export const SESSION_CAPABILITIES = [
   "session.cancel",
   "session.subscribe",
   "session.unsubscribe",
+  "session.answerPermission",
+  "session.answerAsk",
 ] as const;
 
 /** Handlers for the `session.*` methods. Control goes through ACP; state comes from the store. */
 export function sessionHandlers(
   control: SessionControl,
   store: SessionStore,
+  requests: Pick<RequestAnswers, "answerPermission" | "answerAsk" | "dismissSession">,
 ): Pick<Required<Handlers>, (typeof SESSION_CAPABILITIES)[number]> {
   const known = (sessionId: string): string => {
     if (!store.has(sessionId)) throw new Error(`${UNKNOWN_SESSION_MESSAGE}: ${sessionId}`);
@@ -40,7 +44,20 @@ export function sessionHandlers(
     },
 
     "session.cancel": async ({ sessionId }) => {
-      await control.cancel(known(sessionId));
+      // omp keeps the wire request of a permission open when the turn is cancelled (it only
+      // sends `$/cancel_request` on a steer), so drop it here or the band would outlive the turn.
+      requests.dismissSession(known(sessionId));
+      await control.cancel(sessionId);
+      return null;
+    },
+
+    "session.answerPermission": async ({ sessionId, requestId, optionId }) => {
+      requests.answerPermission(known(sessionId), requestId, optionId);
+      return null;
+    },
+
+    "session.answerAsk": async ({ sessionId, requestId, action, content }) => {
+      requests.answerAsk(known(sessionId), requestId, action, content);
       return null;
     },
 

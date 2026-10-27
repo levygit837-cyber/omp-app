@@ -2,6 +2,7 @@ import "./stdio";
 import { writeSync } from "node:fs";
 import { type HandshakeResult, PROTOCOL_VERSION } from "@omp-app/protocol";
 import { startOmpHost } from "./omp-host";
+import { RequestRegistry } from "./request-registry";
 import { AgentDbUnreadableError, checkSchema } from "./schema-guard";
 import { type Handlers, startServer } from "./server";
 import { attachSession } from "./session-bridge";
@@ -26,8 +27,10 @@ async function main(): Promise<void> {
   // Before omp opens the agent database: omp only warns about a newer schema, then writes.
   const guard = checkSchema();
   const store = new SessionStore();
+  const requests = new RequestRegistry(store);
   const host = await startOmpHost({
-    onSessionCreated: (session) => attachSession(store, session),
+    requests,
+    onSessionCreated: (session) => attachSession(store, session, requests),
     onMcpFailure: (sessionId, server, message) => {
       if (store.has(sessionId)) store.warn(sessionId, { source: "mcp", server, message });
     },
@@ -46,7 +49,7 @@ async function main(): Promise<void> {
       mode: guard.mode,
       ...(guard.mode === "read_only" ? { schema: guard.schema } : {}),
     }),
-    ...sessionHandlers(host, store),
+    ...sessionHandlers(host, store, requests),
   };
   if (DEBUG) {
     handlers["debug.logStdout"] = async ({ marker }) => {

@@ -85,7 +85,12 @@ function openThinking(vm: SessionViewModel) {
 function assistantToClose(vm: SessionViewModel) {
   for (let i = vm.timeline.length - 1; i >= 0; i--) {
     const item = vm.timeline[i];
-    if (item?.kind === "thinking" || item?.kind === "retry" || item?.kind === "compaction")
+    if (
+      item?.kind === "thinking" ||
+      item?.kind === "retry" ||
+      item?.kind === "compaction" ||
+      item?.kind === "decision"
+    )
       continue;
     return item?.kind === "assistant" && !item.done ? item : undefined;
   }
@@ -540,5 +545,6 @@ export function emptyViewModel(init: {
     usage: init.usage ?? EMPTY_USAGE,
     context: init.context ?? null,
     todo: [],
+    pending: [],
   };
 }

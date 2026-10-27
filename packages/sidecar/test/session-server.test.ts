@@ -16,6 +16,7 @@ import {
   type SessionOpEvent,
 } from "@omp-app/protocol";
 import { emptyViewModel } from "../src/reducer";
+import { RequestRegistry } from "../src/request-registry";
 import { type Handlers, type Server, startServer } from "../src/server";
 import { sessionHandlers } from "../src/session-handlers";
 import { SessionStore } from "../src/session-store";
@@ -100,9 +101,14 @@ async function replayServer(name: string, readOnly = false, pauseAt = -1) {
   };
   dir = mkdtempSync(join(tmpdir(), "omp-app-sess-"));
   const socketPath = join(dir, "s.sock");
-  server = startServer(socketPath, sessionHandlers(control, store) as Handlers, readOnly, {
-    onClientClosed: (client) => store.unsubscribeAll(client),
-  });
+  server = startServer(
+    socketPath,
+    sessionHandlers(control, store, new RequestRegistry(store)) as Handlers,
+    readOnly,
+    {
+      onClientClosed: (client) => store.unsubscribeAll(client),
+    },
+  );
   return { socketPath, store, id, fixture, atPause: paused.promise, release: gate.resolve };
 }
 

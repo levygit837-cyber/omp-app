@@ -22,6 +22,12 @@ import {
   type ToolCall,
   type ToolItem,
 } from "./timeline";
+import {
+  type DecisionItem,
+  isDecisionItem,
+  isPendingRequest,
+  type PendingRequest,
+} from "./requests";
 
 export type SessionStatus = "idle" | "streaming" | "failed";
 
@@ -40,7 +46,14 @@ export interface AssistantItem {
 }
 
 /** One entry of the timeline. Discriminated by `kind`. */
-export type Item = UserItem | AssistantItem | ToolItem | ThinkingItem | CompactionItem | RetryItem;
+export type Item =
+  | UserItem
+  | AssistantItem
+  | ToolItem
+  | ThinkingItem
+  | CompactionItem
+  | RetryItem
+  | DecisionItem;
 
 /** The fields of a status event an `item.patch` may change. `kind` and `id` never change. */
 export type StatusItemPatch =
@@ -78,6 +91,11 @@ export interface SessionViewModel {
   readonly context: ContextFill | null;
   /** The session's todo list as omp last reported it; empty when there is none. */
   readonly todo: readonly TodoPhase[];
+  /**
+   * Requests the agent is blocked on, oldest first. The first one is the one the person
+   * answers; the rest wait their turn. A request that stops mattering is removed, not kept.
+   */
+  readonly pending: readonly PendingRequest[];
 }
 
 /** A change to the view model. Discriminated by `type`. */
@@ -113,7 +131,17 @@ export type SessionOp =
   | { readonly type: "item.patch"; readonly itemId: string; readonly patch: StatusItemPatch }
   | { readonly type: "usage.set"; readonly usage: SessionUsage }
   | { readonly type: "context.set"; readonly context: ContextFill | null }
-  | { readonly type: "todo.set"; readonly todo: readonly TodoPhase[] };
+  | { readonly type: "todo.set"; readonly todo: readonly TodoPhase[] }
+  | { readonly type: "request.add"; readonly request: PendingRequest }
+  /**
+   * Removes a pending request. `item` is the one-line event it leaves behind when a person
+   * answered; absent when the request simply stopped mattering (turn cancelled, steered).
+   */
+  | {
+      readonly type: "request.settle";
+      readonly requestId: string;
+      readonly item?: DecisionItem;
+    };
 
 /** Full state of a session at `seq`: the number of ops applied since it was created. */
 export interface SessionSnapshot {
@@ -215,6 +243,15 @@ export function applyOp(vm: SessionViewModel, op: SessionOp): SessionViewModel {
       return { ...vm, context: op.context };
     case "todo.set":
       return { ...vm, todo: op.todo };
+    case "request.add":
+      return vm.pending.some((r) => r.id === op.request.id)
+        ? vm
+        : { ...vm, pending: [...vm.pending, op.request] };
+    case "request.settle": {
+      if (!vm.pending.some((r) => r.id === op.requestId)) return vm;
+      const pending = vm.pending.filter((r) => r.id !== op.requestId);
+      return op.item ? { ...vm, pending, timeline: [...vm.timeline, op.item] } : { ...vm, pending };
+    }
     default:
       return vm;
   }
@@ -233,6 +270,7 @@ function isItem(v: unknown): v is Item {
   if (!isRecord(v) || typeof v.id !== "string") return false;
   if (v.kind === "user") return typeof v.text === "string";
   if (v.kind === "assistant") return typeof v.text === "string" && typeof v.done === "boolean";
+  if (v.kind === "decision") return isDecisionItem(v);
   return isTimelineItem(v);
 }
 
@@ -251,7 +289,9 @@ export function isSessionViewModel(v: unknown): v is SessionViewModel {
     isSessionUsage(v.usage) &&
     (v.context === null || isContextFill(v.context)) &&
     Array.isArray(v.todo) &&
-    v.todo.every(isTodoPhase)
+    v.todo.every(isTodoPhase) &&
+    Array.isArray(v.pending) &&
+    v.pending.every(isPendingRequest)
   );
 }
 

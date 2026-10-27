@@ -18,6 +18,7 @@ const empty: SessionViewModel = {
   usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, cost: 0 },
   context: null,
   todo: [],
+  pending: [],
 };
 
 const fold = (ops: readonly SessionOp[], from = empty) => ops.reduce(applyOp, from);

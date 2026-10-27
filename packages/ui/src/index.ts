@@ -62,3 +62,4 @@ export { Notice, type NoticeProps } from "./notice";
 export { type MarkState, StateMark, type StateMarkProps } from "./state-mark";
 export { StatusPill } from "./status-pill";
 export { ThinkingGlyph, type ThinkingGlyphProps } from "./thinking-glyph";
+export { WaitBand, type WaitBandProps } from "./wait-band";

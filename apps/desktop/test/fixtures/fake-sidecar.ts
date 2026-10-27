@@ -17,6 +17,8 @@
  * - FAKE_MIXED=states: preload one of each state a live omp cannot produce on demand.
  * - FAKE_MODEL: model of new sessions (default anthropic/claude-opus-5-5).
  * - FAKE_WARN=1: emit one MCP `warning.add` right after the first subscribe of each session.
+ * - FAKE_REQUEST=permission|ask|form|queue: halfway through the reply, raise that request and
+ *   wait for its answer (see fake-requests.ts). Also serves `session.answerPermission|answerAsk`.
  */
 
 import {
@@ -36,6 +38,7 @@ import {
   UNKNOWN_SESSION_MESSAGE,
 } from "@omp-app/protocol";
 import { fakeViewModel, mixedTimeline, stateTimeline } from "./fake-timeline";
+import { answerRequest, dismissRequests, raiseRequests, scripted } from "./fake-requests";
 
 const mode = process.env.FAKE_SIDECAR ?? "ok";
 const socketPath = process.argv.find((a) => a.startsWith("--socket="))?.slice("--socket=".length);
@@ -159,7 +162,9 @@ async function runTurn(session: FakeSession, text: string): Promise<void> {
   const failAt = Math.min(2, chunks.length);
 
   for (let i = 0; i < chunks.length; i++) {
-    if (process.env.FAKE_HOLD === "1" && i === holdAt) {
+    if (scripted() && i === holdAt) {
+      await raiseRequests(session, (op) => emit(session, op));
+    } else if (process.env.FAKE_HOLD === "1" && i === holdAt) {
       const gate = Promise.withResolvers<void>();
       turn.wake = gate.resolve;
       await gate.promise;
@@ -187,6 +192,7 @@ function cancelTurn(session: FakeSession): void {
   turn.cancelled = true;
   session.turn = undefined;
   turn.wake();
+  dismissRequests(session, (op) => emit(session, op));
   emit(session, { type: "item.done", itemId: turn.openItemId });
   emit(session, { type: "status.set", status: "idle" });
 }
@@ -261,6 +267,33 @@ function handleSession(
     case "session.cancel":
       cancelTurn(session);
       return okResponse(id, null);
+    case "session.answerPermission": {
+      const optionId = param(params, "optionId");
+      const kind = (["allow_once", "allow_always", "reject_once", "reject_always"] as const).find(
+        (k) => k === optionId,
+      );
+      const requestId = param(params, "requestId");
+      if (
+        !kind ||
+        !answerRequest(session, (op) => emit(session, op), requestId, { permission: kind })
+      ) {
+        return errorResponse(id, { code: "internal", message: `stale request: ${requestId}` });
+      }
+      return okResponse(id, null);
+    }
+    case "session.answerAsk": {
+      const requestId = param(params, "requestId");
+      const action = param(params, "action") === "accept" ? "accept" : "decline";
+      if (
+        !answerRequest(session, (op) => emit(session, op), requestId, {
+          ask: action,
+          content: (params as { content?: unknown }).content,
+        })
+      ) {
+        return errorResponse(id, { code: "internal", message: `stale request: ${requestId}` });
+      }
+      return okResponse(id, null);
+    }
     default:
       return undefined;
   }

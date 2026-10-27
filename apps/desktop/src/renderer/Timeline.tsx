@@ -2,6 +2,7 @@ import type { AssistantItem, Item } from "@omp-app/protocol";
 import { Caret, Markdown } from "@omp-app/ui";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { memo, useRef } from "react";
+import { DecisionLine } from "./DecisionLine";
 import { projectName } from "./format";
 import { useCwd, useItem, useItemCount, useItemKind } from "./session-hooks";
 import { useShownStatus } from "./shown-status";
@@ -61,6 +62,8 @@ function Body({ sessionId, item }: { sessionId: string; item: Item }) {
       return <CompactionLine sessionId={sessionId} item={item} />;
     case "retry":
       return <RetryLine sessionId={sessionId} item={item} />;
+    case "decision":
+      return <DecisionLine item={item} />;
   }
 }
 

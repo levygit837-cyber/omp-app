@@ -1,6 +1,8 @@
 import type { AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-session-events";
 import type {
   ContextFill,
+  DecisionItem,
+  PendingRequest,
   SessionOp,
   SessionOpEvent,
   SessionSnapshot,
@@ -82,6 +84,34 @@ export class SessionStore {
     this.#commit(sessionId, entry, { viewModel: applyOp(entry.viewModel, op), ops: [op] });
   }
 
+  /** Puts a request a person has to answer into the view model, so every replica shows it. */
+  addRequest(sessionId: string, request: PendingRequest): void {
+    this.#apply(sessionId, { type: "request.add", request });
+  }
+
+  /**
+   * Removes a pending request. With `decision` it leaves the one-line event in the timeline;
+   * without, it vanishes (the turn ended or was superseded). Nothing happens if it is gone.
+   */
+  settleRequest(
+    sessionId: string,
+    requestId: string,
+    decision?: Omit<DecisionItem, "kind" | "id">,
+  ): void {
+    const entry = this.#entry(sessionId);
+    if (!entry.viewModel.pending.some((r) => r.id === requestId)) return;
+    const item = decision && {
+      kind: "decision" as const,
+      id: `i${entry.viewModel.timeline.length}`,
+      ...decision,
+    };
+    this.#apply(sessionId, {
+      type: "request.settle",
+      requestId,
+      ...(item ? { item } : {}),
+    });
+  }
+
   snapshot(sessionId: string): SessionSnapshot {
     const entry = this.#entry(sessionId);
     return { snapshot: entry.viewModel, seq: entry.seq };
@@ -105,6 +135,11 @@ export class SessionStore {
   /** Drops every subscription of `key`, e.g. when its connection closes. */
   unsubscribeAll(key: unknown): void {
     for (const entry of this.#sessions.values()) entry.sinks.delete(key);
+  }
+
+  #apply(sessionId: string, op: SessionOp): void {
+    const entry = this.#entry(sessionId);
+    this.#commit(sessionId, entry, { viewModel: applyOp(entry.viewModel, op), ops: [op] });
   }
 
   #entry(sessionId: string): Entry {

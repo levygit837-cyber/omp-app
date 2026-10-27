@@ -3,6 +3,8 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { OmpBridge, SidecarStatus } from "../shared/bridge";
 import {
   APP_OPEN_LINK,
+  SESSION_ANSWER_ASK,
+  SESSION_ANSWER_PERMISSION,
   SESSION_CANCEL,
   SESSION_CREATE,
   SESSION_OP,
@@ -42,6 +44,10 @@ const bridge: OmpBridge = {
     unsubscribe: (sessionId) => ipcRenderer.invoke(SESSION_UNSUBSCRIBE, sessionId),
     prompt: (sessionId, text) => ipcRenderer.invoke(SESSION_PROMPT, sessionId, text),
     cancel: (sessionId) => ipcRenderer.invoke(SESSION_CANCEL, sessionId),
+    answerPermission: (sessionId, requestId, optionId) =>
+      ipcRenderer.invoke(SESSION_ANSWER_PERMISSION, sessionId, requestId, optionId),
+    answerAsk: (sessionId, requestId, action, content) =>
+      ipcRenderer.invoke(SESSION_ANSWER_ASK, sessionId, requestId, action, content),
     onOp: (listener) => {
       const handler = (_event: Electron.IpcRendererEvent, op: SessionOpEvent) => listener(op);
       ipcRenderer.on(SESSION_OP, handler);

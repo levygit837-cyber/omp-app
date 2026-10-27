@@ -9,17 +9,17 @@ import {
 import type { ReactNode, Ref } from "react";
 import { sessionMark } from "./format";
 import { useSessionTitle } from "./session-hooks";
-import { useShownStatus } from "./shown-status";
+import { useSessionMark } from "./shown-status";
 
 function ChatTab({ sessionId }: { sessionId: string }) {
-  const status = useShownStatus(sessionId);
+  const mark = useSessionMark(sessionId);
   const title = useSessionTitle(sessionId);
   return (
     <div
       aria-current="true"
       className="app-no-drag flex h-(--layout-bar-height) max-w-full items-center gap-(--space-8) border-b border-accent px-(--space-12) text-size-sm"
     >
-      <StateMark state={sessionMark(status)} />
+      <StateMark state={mark} />
       <ChatIcon className="text-icon-neutral" />
       <span className="min-w-0 truncate">{title}</span>
     </div>

@@ -1,11 +1,12 @@
-import { Button, Notice, SendIcon, StatusPill, StopIcon } from "@omp-app/ui";
+import { Button, Notice, SendIcon, StateMark, StatusPill, StopIcon } from "@omp-app/ui";
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import type { SidecarStatus } from "../shared/bridge";
 import { composerView, type EnginePhase } from "./composer-state";
 import { modelLabel } from "./format";
+import { COMPOSER_ID, waitingPlaceholder } from "./requests-view";
 import { message } from "./session-controller";
 import { useModel } from "./session-hooks";
-import { useShownStatus } from "./shown-status";
+import { useShownStatus, useWaiting } from "./shown-status";
 
 /** The input bar. The engine outranks the turn: see `composerView`. */
 export function Composer({
@@ -26,23 +27,26 @@ export function Composer({
   const [error, setError] = useState<string | null>(null);
   const field = useRef<HTMLTextAreaElement>(null);
   const streaming = status === "streaming";
+  const waiting = useWaiting(sessionId)[0];
   const readOnly = sidecar.state === "ready" && sidecar.mode === "read_only";
   const view = composerView({ readOnly, engine, streaming });
-  // Esc stops a turn only while there is one to stop and an engine to tell.
+  // Esc stops a turn only while there is one to stop and an engine to tell. While the agent
+  // waits for an answer Esc belongs to the band (reject / cancel): stopping is the Stop button.
   const cancellable = streaming && engine === "ready";
+  const escStops = cancellable && !waiting;
 
   const cancel = useCallback(() => {
     window.omp.session.cancel(sessionId).catch((e: unknown) => setError(message(e)));
   }, [sessionId]);
 
   useEffect(() => {
-    if (!cancellable) return;
+    if (!escStops) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") cancel();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [cancellable, cancel]);
+  }, [escStops, cancel]);
 
   const send = (event: FormEvent) => {
     event.preventDefault();
@@ -75,22 +79,32 @@ export function Composer({
       className="flex w-(--layout-composer) max-w-full flex-col gap-(--space-12) rounded-lg border border-border-hairline bg-bg-elevated px-(--space-18) pt-(--space-14) pb-(--space-12) has-[textarea:focus-visible]:border-border-field has-[textarea:focus-visible]:outline-(length:--size-focus-ring) has-[textarea:focus-visible]:outline-focus-ring has-[textarea:focus-visible]:outline-solid has-[textarea:focus-visible]:outline-offset-(--space-2)"
     >
       {error && <Notice severity="error" title={error} />}
-      <textarea
-        ref={field}
-        data-testid="prompt-input"
-        aria-label="Prompt"
-        value={text}
-        placeholder={view.placeholder}
-        rows={1}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-            e.preventDefault();
-            e.currentTarget.form?.requestSubmit();
-          }
-        }}
-        className="max-h-(--layout-composer-input-max) w-full resize-none bg-transparent text-size-body leading-(--line-height-prose) text-text-primary outline-none field-sizing-content placeholder:text-text-dim"
-      />
+      <div className="relative">
+        {waiting && (
+          <StateMark
+            state="approval"
+            decorative
+            className="pointer-events-none absolute top-(--space-4) left-0"
+          />
+        )}
+        <textarea
+          ref={field}
+          id={COMPOSER_ID}
+          data-testid="prompt-input"
+          aria-label="Prompt"
+          value={text}
+          placeholder={waiting ? waitingPlaceholder(waiting) : view.placeholder}
+          rows={1}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              e.currentTarget.form?.requestSubmit();
+            }
+          }}
+          className={`max-h-(--layout-composer-input-max) w-full resize-none bg-transparent text-size-body leading-(--line-height-prose) text-text-primary outline-none field-sizing-content placeholder:text-text-dim${waiting ? " pl-(--space-24) placeholder:text-text-secondary" : ""}`}
+        />
+      </div>
       <div className="flex items-center gap-(--space-16)">
         {model && (
           <p className="flex items-baseline gap-(--space-6) text-size-sm text-text-dim">

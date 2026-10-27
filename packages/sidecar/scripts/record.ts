@@ -15,6 +15,8 @@ import { dirname, join } from "node:path";
 import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { cfgCompactionThresholdTokens } from "@oh-my-pi/pi-coding-agent/session/context-settings";
 import { startOmpHost } from "../src/omp-host";
+import { RequestRegistry } from "../src/request-registry";
+import { SessionStore } from "../src/session-store";
 
 interface Scenario {
   readonly prompt: string;
@@ -144,8 +146,10 @@ let session: AgentSession | undefined;
 let deltas = 0;
 let cancelled: Promise<void> | undefined;
 
+// No session is registered in this store, so a permission or ask cancels at once.
 const host = await startOmpHost({
   autoApprove: true,
+  requests: new RequestRegistry(new SessionStore()),
   onMcpFailure: () => {},
   onSessionCreated: (created) => {
     session = created;

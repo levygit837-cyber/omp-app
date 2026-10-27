@@ -54,6 +54,20 @@ test("a newer shared schema refuses session.create and session.prompt, and write
     "read_only",
   );
   expect(await code(client.request("session.cancel", { sessionId: "x" }))).toBe("read_only");
+  // The answers write nothing of ours (they finish a call omp already waits on), so read-only mode
+  // does not refuse them; with no session in that mode they end as an unknown one.
+  for (const answer of [
+    () =>
+      client.request("session.answerPermission", {
+        sessionId: "x",
+        requestId: "r",
+        optionId: "allow_once",
+      }),
+    () =>
+      client.request("session.answerAsk", { sessionId: "x", requestId: "r", action: "decline" }),
+  ]) {
+    expect(await code(answer())).not.toBe("read_only");
+  }
 
   client.close();
   await sidecar.proc.exited;

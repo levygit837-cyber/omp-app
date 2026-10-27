@@ -9,6 +9,7 @@ import type { EngineTrack } from "./engine";
 import { useSessionError, useSyncError, useWarnings } from "./session-hooks";
 import { useShownStatus } from "./shown-status";
 import { Timeline } from "./Timeline";
+import { WaitingBand } from "./WaitingBand";
 
 /** Non-blocking problems the session carries on despite. Warning severity: it still works. */
 function Warnings({ sessionId }: { sessionId: string }) {
@@ -79,7 +80,13 @@ export function SessionPane({
           )}
         </div>
       </div>
+      <div className="flex justify-center px-(--space-48) empty:hidden">
+        <div className="w-(--layout-chat-column) max-w-full pt-(--space-event) empty:hidden">
+          <WaitingBand sessionId={sessionId} />
+        </div>
+      </div>
       <EngineSlot
+        sessionId={sessionId}
         sidecar={sidecar}
         track={track}
         streaming={status === "streaming"}
