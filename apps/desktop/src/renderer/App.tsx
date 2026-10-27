@@ -19,7 +19,7 @@ function SidecarPanel({ status }: { status: SidecarStatus }) {
       data-testid="sidecar-status"
       data-state={status.state}
       aria-live="polite"
-      className="flex w-[40rem] max-w-full flex-col gap-2 rounded-control bg-surface-muted p-4 text-sm"
+      className="flex w-[40rem] max-w-full flex-col gap-2 rounded-sm bg-bg-elevated p-4 text-size-sm"
     >
       {status.state === "starting" && <p>Sidecar: starting…</p>}
       {status.state === "ready" && (
@@ -31,7 +31,7 @@ function SidecarPanel({ status }: { status: SidecarStatus }) {
         <p
           role="alert"
           data-testid="read-only-notice"
-          className="rounded-control border border-accent p-2 font-medium"
+          className="rounded-sm border border-accent p-2 font-medium"
         >
           Read-only mode: the shared omp database is schema v{status.schema.onDisk}, but this app
           supports v{status.schema.expected}. Update omp-app to make changes.
@@ -42,8 +42,8 @@ function SidecarPanel({ status }: { status: SidecarStatus }) {
           <p role="alert" className="font-medium">
             Sidecar: failed · {status.error}
           </p>
-          <p className="text-xs text-text-muted">Last sidecar output:</p>
-          <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-control bg-surface p-2 text-xs text-text-muted">
+          <p className="text-size-xs text-text-secondary">Last sidecar output:</p>
+          <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-sm bg-bg-base p-2 text-size-xs text-text-secondary">
             {status.logTail.length > 0 ? status.logTail.join("\n") : "(no output)"}
           </pre>
         </>
@@ -52,7 +52,7 @@ function SidecarPanel({ status }: { status: SidecarStatus }) {
         <button
           type="button"
           onClick={() => void window.omp.sidecar.restart()}
-          className="rounded-control bg-accent px-3 py-1 text-surface"
+          className="rounded-sm bg-accent px-3 py-1 text-on-accent"
         >
           Restart sidecar
         </button>
@@ -65,9 +65,9 @@ export function App() {
   const { electron, chrome } = window.omp.versions;
   const status = useSidecarStatus();
   return (
-    <main className="flex h-screen flex-col items-center gap-3 bg-surface p-4 font-sans text-text">
-      <h1 className="text-2xl text-text-muted">omp-app</h1>
-      <p data-testid="bridge-versions" className="text-sm text-text-muted">
+    <main className="flex h-screen flex-col items-center gap-3 bg-bg-base p-4 font-text text-text-primary">
+      <h1 className="text-size-display text-text-secondary">omp-app</h1>
+      <p data-testid="bridge-versions" className="text-size-sm text-text-secondary">
         electron {electron} · chrome {chrome}
       </p>
       <SidecarPanel status={status} />

@@ -34,8 +34,8 @@ const TimelineItem = memo(function TimelineItem({
       data-testid={`item-${item.kind}`}
       data-done={item.kind === "assistant" ? item.done : undefined}
     >
-      <span className="text-xs uppercase text-text-muted">{item.kind}</span>
-      <pre className="whitespace-pre-wrap font-sans text-sm">{item.text}</pre>
+      <span className="text-size-xs uppercase text-text-secondary">{item.kind}</span>
+      <pre className="whitespace-pre-wrap font-text text-size-sm">{item.text}</pre>
     </li>
   );
 });
@@ -53,7 +53,7 @@ function Warnings({ sessionId }: { sessionId: string }) {
       {warnings.map((w, index) => (
         // Append-only list, so the index is a stable identity.
         // biome-ignore lint/suspicious/noArrayIndexKey: append-only list
-        <li key={index} data-testid="session-warning" className="text-xs">
+        <li key={index} data-testid="session-warning" className="text-size-xs">
           {w.source} server "{w.server}": {w.message}
         </li>
       ))}
@@ -68,7 +68,7 @@ function Timeline({ sessionId }: { sessionId: string }) {
       data-testid="timeline"
       role="log"
       aria-label="Conversation"
-      className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto rounded-control bg-surface-muted p-3"
+      className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto rounded-sm bg-bg-elevated p-3"
     >
       {Array.from({ length: count }, (_, index) => (
         // The timeline is append-only, so the index is a stable identity.
@@ -114,16 +114,16 @@ function Composer({ sessionId }: { sessionId: string }) {
         data-testid="session-status"
         data-status={status}
         aria-live="polite"
-        className="text-xs text-text-muted"
+        className="text-size-xs text-text-secondary"
       >
         Status: {status ?? "unknown"}
       </p>
       {(error ?? sessionError) && (
-        <p role="alert" data-testid="session-error" className="text-sm font-medium">
+        <p role="alert" data-testid="session-error" className="text-size-sm font-medium">
           {error ?? sessionError}
         </p>
       )}
-      <label className="flex flex-col gap-1 text-sm">
+      <label className="flex flex-col gap-1 text-size-sm">
         Prompt
         <textarea
           data-testid="prompt-input"
@@ -133,14 +133,14 @@ function Composer({ sessionId }: { sessionId: string }) {
             if (e.key === "Enter" && !e.shiftKey) e.currentTarget.form?.requestSubmit();
           }}
           rows={3}
-          className="rounded-control border border-text-muted bg-surface p-2"
+          className="rounded-sm border border-border-field bg-bg-base p-2"
         />
       </label>
       <div className="flex gap-2">
         <button
           type="submit"
           disabled={streaming || text.trim().length === 0}
-          className="rounded-control bg-accent px-3 py-1 text-surface disabled:opacity-50"
+          className="rounded-sm bg-accent px-3 py-1 text-on-accent disabled:opacity-50"
         >
           Send
         </button>
@@ -148,7 +148,7 @@ function Composer({ sessionId }: { sessionId: string }) {
           type="button"
           onClick={cancel}
           disabled={!streaming}
-          className="rounded-control border border-accent px-3 py-1 disabled:opacity-50"
+          className="rounded-sm border border-accent px-3 py-1 disabled:opacity-50"
         >
           Stop (Esc)
         </button>
@@ -162,7 +162,7 @@ function SessionCwd({ sessionId }: { sessionId: string }) {
   const cwd = useCwd(sessionId);
   if (!cwd) return null;
   return (
-    <code data-testid="session-cwd" className="truncate text-xs">
+    <code data-testid="session-cwd" className="truncate text-size-xs">
       {cwd}
     </code>
   );
@@ -227,19 +227,19 @@ export function SessionView({ sidecar }: { sidecar: SidecarStatus }) {
           data-testid="pick-directory"
           onClick={() => void start()}
           disabled={!ready || readOnly}
-          className="rounded-control bg-accent px-3 py-1 text-surface disabled:opacity-50"
+          className="rounded-sm bg-accent px-3 py-1 text-on-accent disabled:opacity-50"
         >
           {sessionId ? "New session…" : "Pick a directory…"}
         </button>
         {sessionId && <SessionCwd sessionId={sessionId} />}
       </div>
       {lost && (
-        <p role="alert" data-testid="session-lost" className="text-sm font-medium">
+        <p role="alert" data-testid="session-lost" className="text-size-sm font-medium">
           Session lost — start a new one. The sidecar restarted and no longer has this session.
         </p>
       )}
       {(error ?? syncError) && (
-        <p role="alert" className="text-sm font-medium">
+        <p role="alert" className="text-size-sm font-medium">
           {error ?? syncError}
         </p>
       )}
