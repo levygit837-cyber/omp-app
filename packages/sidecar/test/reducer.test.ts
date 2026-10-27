@@ -326,3 +326,85 @@ describe("reduceModel", () => {
     expect(ops).toEqual([{ type: "model.set", model: "x/y" }]);
   });
 });
+
+describe("reduceEvent, retry as a timeline item (synthesized events: a live omp cannot fail on demand)", () => {
+  const items = (events: readonly AgentSessionEvent[], clock?: () => number) =>
+    run(events, start(), clock).viewModel.timeline;
+
+  test("a retry that recovers is one item: attempts, when it retries, how long it took", () => {
+    let t = 1000;
+    const timeline = items([retryStart, retryEnd(true)], () => {
+      const now = t;
+      t += 4000;
+      return now;
+    });
+    expect(timeline).toMatchObject([
+      {
+        kind: "retry",
+        state: "recovered",
+        attempt: 1,
+        maxAttempts: 3,
+        retryAt: 2000,
+        startedAt: 1000,
+        endedAt: 5000,
+        error: "overloaded",
+      },
+    ]);
+  });
+
+  test("a second attempt updates the same item instead of stacking another one", () => {
+    const second: AgentSessionEvent = { ...retryStart, attempt: 2, errorMessage: "still down" };
+    const timeline = items([retryStart, second, retryEnd(true)]);
+    expect(timeline).toHaveLength(1);
+    expect(timeline[0]).toMatchObject({ state: "recovered", attempt: 2, error: "still down" });
+  });
+
+  test("giving up keeps omp's final error on the item", () => {
+    const timeline = items([retryStart, retryEnd(false, "503 Service Unavailable")]);
+    expect(timeline).toMatchObject([
+      { kind: "retry", state: "failed", error: "503 Service Unavailable" },
+    ]);
+  });
+});
+
+describe("reduceEvent, compaction as a timeline item", () => {
+  const compactionStart: AgentSessionEvent = {
+    type: "auto_compaction_start",
+    reason: "threshold",
+    action: "context-full",
+  };
+  const compactionEnd = (patch: Record<string, unknown>): AgentSessionEvent =>
+    ({
+      type: "auto_compaction_end",
+      action: "context-full",
+      aborted: false,
+      willRetry: false,
+      ...patch,
+    }) as AgentSessionEvent;
+  const timelineOf = (events: readonly AgentSessionEvent[]) => run(events).viewModel.timeline;
+
+  test("while it runs, the item is open", () => {
+    expect(timelineOf([compactionStart])).toMatchObject([
+      { kind: "compaction", state: "running", reason: "threshold", action: "context-full" },
+    ]);
+  });
+
+  test("done keeps the summary and the size before", () => {
+    const result = { summary: "long", shortSummary: "short", tokensBefore: 184000 };
+    expect(timelineOf([compactionStart, compactionEnd({ result })])).toMatchObject([
+      { state: "done", summary: "short", tokensBefore: 184000, willRetry: false },
+    ]);
+  });
+
+  test.each([
+    ["skipped", { skipped: true }],
+    ["aborted", { aborted: true }],
+    ["failed", { errorMessage: "summary model unavailable" }],
+  ])("%s is its own state, never `done`", (state, patch) => {
+    expect(timelineOf([compactionStart, compactionEnd(patch)])).toMatchObject([{ state }]);
+  });
+
+  test("an end with no start adds nothing", () => {
+    expect(timelineOf([compactionEnd({})])).toEqual([]);
+  });
+});
