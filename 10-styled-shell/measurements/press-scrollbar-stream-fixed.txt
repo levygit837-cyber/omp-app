@@ -1,0 +1,12 @@
+scenario scrollbar-stream (fixed)
+  setup           frames  315  scrollTop 21074..21347  gap 0..0  scrollTop +273px -0px  writes: hook 10 virtualizer 0
+  following       frames   93  scrollTop 21347..21370  gap 0..0  scrollTop +23px -0px  writes: hook 1 virtualizer 0
+  press           frames   18  scrollTop 21370..21370  gap 0..23  scrollTop +0px -0px  writes: hook 0 virtualizer 0
+  drag            frames   80  scrollTop 18205..21370  gap 23..4430  scrollTop +1771px -4406px  writes: hook 0 virtualizer 19
+  hold            frames  180  scrollTop 18735..18735  gap 4430..4430  scrollTop +0px -0px  writes: hook 0 virtualizer 0
+  release-away    frames    1  scrollTop 18735..18735  gap 4430..4430  scrollTop +0px -0px  writes: hook 0 virtualizer 0
+  after-release   frames  301  scrollTop 18735..18735  gap 4430..4430  scrollTop +0px -0px  writes: hook 0 virtualizer 0
+  press2          frames   81  scrollTop 19257..23397  gap 0..3908  scrollTop +4140px -0px  writes: hook 0 virtualizer 0
+  hold2           frames   72  scrollTop 23397..23397  gap 23..46  scrollTop +0px -0px  writes: hook 0 virtualizer 0
+  release-bottom  frames    1  scrollTop 23397..23397  gap 46..46  scrollTop +0px -0px  writes: hook 1 virtualizer 0
+  after-bottom    frames  300  scrollTop 23443..23560  gap 0..0  scrollTop +117px -0px  writes: hook 5 virtualizer 0

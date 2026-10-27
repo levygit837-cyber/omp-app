@@ -1,0 +1,11 @@
+500 items, open           {"scrollTop":49874,"scrollHeight":50523,"gap":0}
+round 1 Cmd+Up   x1        {"scrollTop":0,"scrollHeight":50523,"gap":49874}
+round 1 Cmd+Down x1        {"scrollTop":49874,"scrollHeight":50523,"gap":0}
+round 2 Cmd+Up   x1        {"scrollTop":0,"scrollHeight":50523,"gap":49874}
+round 2 Cmd+Down x1        {"scrollTop":49874,"scrollHeight":50523,"gap":0}
+round 3 Cmd+Up   x1        {"scrollTop":0,"scrollHeight":50523,"gap":49874}
+round 3 Cmd+Down x1        {"scrollTop":49874,"scrollHeight":50523,"gap":0}
+from the middle           {"scrollTop":52012,"scrollHeight":52661,"gap":0}
+middle, Cmd+Up x1         {"scrollTop":0,"scrollHeight":52661,"gap":52012}
+End x1                    {"scrollTop":52012,"scrollHeight":52661,"gap":0}
+Home x1                   {"scrollTop":0,"scrollHeight":52661,"gap":52012}

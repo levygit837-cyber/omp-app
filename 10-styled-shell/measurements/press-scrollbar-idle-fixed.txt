@@ -1,0 +1,10 @@
+scenario scrollbar-idle (fixed)
+  setup           frames    2  scrollTop 21074..21074  gap 0..0  scrollTop +0px -0px  writes: hook 0 virtualizer 0
+  following       frames  105  scrollTop 21064..21074  gap 0..10  scrollTop +0px -10px  writes: hook 0 virtualizer 0
+  press           frames   17  scrollTop 21064..21064  gap 10..10  scrollTop +0px -0px  writes: hook 0 virtualizer 0
+  drag            frames   77  scrollTop 17968..21064  gap 10..4348  scrollTop +1718px -4337px  writes: hook 0 virtualizer 20
+  hold            frames  181  scrollTop 18445..18445  gap 4348..4348  scrollTop +0px -0px  writes: hook 0 virtualizer 0
+  after-release   frames  302  scrollTop 18445..18445  gap 4348..4348  scrollTop +0px -0px  writes: hook 0 virtualizer 0
+  press2          frames   75  scrollTop 18960..22792  gap 0..3833  scrollTop +3832px -0px  writes: hook 0 virtualizer 0
+  hold2           frames   72  scrollTop 22792..22792  gap 0..0  scrollTop +0px -0px  writes: hook 0 virtualizer 0
+  after-bottom    frames  146  scrollTop 22792..22792  gap 0..0  scrollTop +0px -0px  writes: hook 0 virtualizer 0

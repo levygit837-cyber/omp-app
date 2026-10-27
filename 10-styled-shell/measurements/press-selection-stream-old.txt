@@ -1,0 +1,8 @@
+scenario selection-stream (old)
+  setup           frames  314  scrollTop 21074..21347  gap 0..0  scrollTop +273px -0px  writes: hook 10 virtualizer 0
+  following       frames   74  scrollTop 21347..21370  gap 0..0  scrollTop +23px -0px  writes: hook 1 virtualizer 0
+  press           frames   18  scrollTop 21370..21370  gap 0..0  scrollTop +0px -0px  writes: hook 0 virtualizer 0
+  drag            frames   80  scrollTop 21145..21417  gap 0..272  scrollTop +47px -272px  writes: hook 2 virtualizer 0
+  hold            frames  180  scrollTop 20108..21872  gap 34..1462  scrollTop +6201px -5882px  writes: hook 6 virtualizer 3
+  release-away    frames    1  scrollTop 21430..21430  gap 476..476  scrollTop +0px -0px  writes: hook 0 virtualizer 0
+  after-release   frames  300  scrollTop 21430..22023  gap 0..476  scrollTop +593px -0px  writes: hook 5 virtualizer 0

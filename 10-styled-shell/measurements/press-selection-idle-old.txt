@@ -1,0 +1,7 @@
+scenario selection-idle (old)
+  setup           frames    2  scrollTop 21074..21074  gap 0..0  scrollTop +0px -0px  writes: hook 0 virtualizer 0
+  following       frames   86  scrollTop 21064..21074  gap 0..10  scrollTop +0px -10px  writes: hook 0 virtualizer 0
+  press           frames   18  scrollTop 21064..21064  gap 10..10  scrollTop +0px -0px  writes: hook 0 virtualizer 0
+  drag            frames   80  scrollTop 20792..21064  gap 10..282  scrollTop +0px -272px  writes: hook 0 virtualizer 0
+  hold            frames  180  scrollTop 20082..21460  gap 34..1292  scrollTop +5662px -5916px  writes: hook 5 virtualizer 5
+  after-release   frames  301  scrollTop 20504..20504  gap 952..952  scrollTop +0px -0px  writes: hook 0 virtualizer 0
