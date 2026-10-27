@@ -1,4 +1,10 @@
-import { FolderIcon, IconButton, NewSessionIcon, SidebarLeftIcon, StateMark } from "@omp-app/ui";
+import {
+  FolderIcon,
+  IconButton,
+  NewSessionIcon,
+  SidebarLeftCollapseIcon,
+  StateMark,
+} from "@omp-app/ui";
 import type { Ref } from "react";
 import type { SidecarStatus } from "../shared/bridge";
 import { projectName, sessionMark } from "./format";
@@ -26,7 +32,7 @@ export function SidebarTop({
         aria-expanded={true}
         onClick={onToggle}
       >
-        <SidebarLeftIcon />
+        <SidebarLeftCollapseIcon />
       </IconButton>
       <span className="flex-1" />
       <IconButton
