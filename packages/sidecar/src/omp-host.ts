@@ -66,6 +66,13 @@ export interface OmpHost {
   cancel(sessionId: string): Promise<void>;
   /** Closes the in-memory transport; the AcpAgent disposes itself when it sees the close. */
   close(): Promise<void>;
+  /**
+   * The process-wide global settings every session clones. Opening them touches `agent.db`, so
+   * only call this where a write is allowed.
+   */
+  globalSettings(): Promise<Settings>;
+  /** The settings clone of every open session, for reloading after a config write. */
+  liveSessionSettings(): readonly Settings[];
 }
 
 /** Two cross-wired in-memory streams: what one end writes, the other reads. */
@@ -122,6 +129,15 @@ export async function startOmpHost(options: OmpHostOptions): Promise<OmpHost> {
     built = undefined;
     return session;
   };
+  /**
+   * The settings clone of every open session, by the key ACP registered it under. `cloneForCwd`
+   * copies the global layer, so a config write must reach each clone. The ACP key survives a
+   * move to a new file (see `moved` below), so a moved session keeps being reloaded under it,
+   * and `closeSession` drops the clone with the session.
+   */
+  const liveSettings = new Map<string, Settings>();
+  /** The clone the factory made for a session, until `open` registers both under the key. */
+  const cloneOf = new WeakMap<AgentSession, Settings>();
   const factory: AcpSessionFactory = async (cwd, factoryOptions) => {
     const { settings, authStorage, modelRegistry } = await openContext();
     const sessionSettings = await settings.cloneForCwd(cwd);
@@ -140,6 +156,7 @@ export async function startOmpHost(options: OmpHostOptions): Promise<OmpHost> {
       eventBus: new EventBus(),
       subagentEventBus: new EventBus(),
     });
+    cloneOf.set(session, sessionSettings);
     built = session;
     return { session, setToolUIContext };
   };
@@ -239,6 +256,8 @@ export async function startOmpHost(options: OmpHostOptions): Promise<OmpHost> {
       const key = await call();
       const session = takeBuilt();
       if (!session) return key;
+      const clone = cloneOf.get(session);
+      if (clone) liveSettings.set(key, clone);
       options.onSessionCreated(session);
       followMoves(session, key);
       // The session's own id: it differs from ACP's key when omp moved it while opening.
@@ -247,6 +266,8 @@ export async function startOmpHost(options: OmpHostOptions): Promise<OmpHost> {
 
   return {
     ompVersion,
+    globalSettings: async () => (await openContext()).settings,
+    liveSessionSettings: () => [...liveSettings.values()],
     list: listStoredSessions,
     createSession: (cwd) =>
       open(async () => {
@@ -269,7 +290,9 @@ export async function startOmpHost(options: OmpHostOptions): Promise<OmpHost> {
       }),
     closeSession: (sessionId) =>
       exclusive(async () => {
-        await client.closeSession({ sessionId: keyOf(sessionId) });
+        const key = keyOf(sessionId);
+        await client.closeSession({ sessionId: key });
+        liveSettings.delete(key);
         moved.delete(sessionId);
       }),
     async prompt(sessionId, text) {

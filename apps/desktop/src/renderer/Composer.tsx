@@ -1,7 +1,7 @@
 import { Button, Notice, SendIcon, StateMark, StatusPill, StopIcon } from "@omp-app/ui";
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import type { SidecarStatus } from "../shared/bridge";
-import { composerView, type EnginePhase } from "./composer-state";
+import { composerView, type EnginePhase, keyStopsTurn } from "./composer-state";
 import { modelLabel } from "./format";
 import { COMPOSER_ID, waitingPlaceholder } from "./requests-view";
 import { message } from "./session-controller";
@@ -42,7 +42,7 @@ export function Composer({
   useEffect(() => {
     if (!escStops) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") cancel();
+      if (keyStopsTurn(event.key, field.current?.closest("[inert]") != null)) cancel();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

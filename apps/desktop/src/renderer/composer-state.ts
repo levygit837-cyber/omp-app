@@ -48,3 +48,12 @@ export function composerView({ readOnly, engine, streaming }: ComposerInputs): C
       : "Ask omp to change something…",
   };
 }
+
+/**
+ * Whether a key press stops the running turn. Only Esc does, and not while the input bar sits in
+ * an `inert` subtree: the session view stays mounted under Settings, and the Esc that leaves
+ * Settings must not also cancel what the agent is doing behind it.
+ */
+export function keyStopsTurn(key: string, underInert: boolean): boolean {
+  return key === "Escape" && !underInert;
+}

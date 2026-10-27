@@ -10,6 +10,7 @@ import {
   MenuItem,
   MoreIcon,
   NewSessionIcon,
+  SettingsIcon,
   SidebarLeftCollapseIcon,
   StateMark,
 } from "@omp-app/ui";
@@ -278,26 +279,53 @@ function Project({
   );
 }
 
-/** Engine line and bridge versions: real data, quiet, at the foot of the sidebar. */
-function Footer({ sidecar, versions }: { sidecar: SidecarStatus; versions: string }) {
+/** Settings row, engine line and bridge versions: real data, quiet, at the foot of the sidebar. */
+function Footer({
+  sidecar,
+  versions,
+  settingsOpen,
+  settingsRef,
+  onOpenSettings,
+}: {
+  sidecar: SidecarStatus;
+  versions: string;
+  settingsOpen: boolean;
+  settingsRef: Ref<HTMLButtonElement>;
+  onOpenSettings: () => void;
+}) {
   const state = sidecar.state;
   return (
-    <div className="flex flex-col gap-(--space-4) px-(--space-16) py-(--space-12) font-mono text-size-xs text-text-dim">
-      <p
-        data-testid="sidecar-status"
-        data-state={state}
-        aria-live="polite"
-        className="flex items-center gap-(--space-8)"
-      >
-        <StateMark
-          state={state === "failed" ? "error" : state === "starting" ? "running" : "idle"}
-          decorative
-        />
-        {state === "ready" && `omp ${sidecar.ompVersion} · sidecar ${sidecar.sidecarVersion}`}
-        {state === "starting" && "omp is starting…"}
-        {state === "failed" && "omp is stopped"}
-      </p>
-      <p data-testid="bridge-versions">{versions}</p>
+    <div className="flex flex-col gap-(--space-4) border-t border-border-hairline">
+      <div className="px-(--space-8) pt-(--space-8)">
+        <button
+          ref={settingsRef}
+          type="button"
+          data-testid="open-settings"
+          aria-current={settingsOpen ? "page" : undefined}
+          onClick={onOpenSettings}
+          className={`flex w-full items-center gap-(--space-10) rounded-sm px-(--space-10) py-(--space-8) text-left text-size-md hover:bg-bg-hover ${settingsOpen ? "bg-bg-selected text-text-primary" : "text-text-secondary"}`}
+        >
+          <SettingsIcon />
+          Settings
+        </button>
+      </div>
+      <div className="flex flex-col gap-(--space-4) px-(--space-16) pt-(--space-4) pb-(--space-12) font-mono text-size-xs text-text-dim">
+        <p
+          data-testid="sidecar-status"
+          data-state={state}
+          aria-live="polite"
+          className="flex items-center gap-(--space-8)"
+        >
+          <StateMark
+            state={state === "failed" ? "error" : state === "starting" ? "running" : "idle"}
+            decorative
+          />
+          {state === "ready" && `omp ${sidecar.ompVersion} · sidecar ${sidecar.sidecarVersion}`}
+          {state === "starting" && "omp is starting…"}
+          {state === "failed" && "omp is stopped"}
+        </p>
+        <p data-testid="bridge-versions">{versions}</p>
+      </div>
     </div>
   );
 }
@@ -311,6 +339,9 @@ export function SidebarBody({
   readOnly,
   sidecar,
   versions,
+  settingsOpen,
+  settingsRef,
+  onOpenSettings,
   ...actions
 }: {
   stored: readonly StoredSession[] | null;
@@ -322,6 +353,9 @@ export function SidebarBody({
   readOnly: boolean;
   sidecar: SidecarStatus;
   versions: string;
+  settingsOpen: boolean;
+  settingsRef: Ref<HTMLButtonElement>;
+  onOpenSettings: () => void;
 } & SessionActions) {
   const now = useNow();
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
@@ -389,7 +423,13 @@ export function SidebarBody({
           </p>
         )}
       </nav>
-      <Footer sidecar={sidecar} versions={versions} />
+      <Footer
+        sidecar={sidecar}
+        versions={versions}
+        settingsOpen={settingsOpen}
+        settingsRef={settingsRef}
+        onOpenSettings={onOpenSettings}
+      />
     </>
   );
 }

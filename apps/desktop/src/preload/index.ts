@@ -16,6 +16,12 @@ import {
   SESSION_RESUME,
   SESSION_SUBSCRIBE,
   SESSION_UNSUBSCRIBE,
+  SETTINGS_LIST,
+  SETTINGS_OPEN,
+  SETTINGS_OPEN_FILE,
+  SETTINGS_RESET,
+  SETTINGS_REVEAL,
+  SETTINGS_SET,
   SIDECAR_GET_STATUS,
   SIDECAR_RESTART,
   SIDECAR_STATUS,
@@ -61,6 +67,20 @@ const bridge: OmpBridge = {
       ipcRenderer.on(SESSION_OP, handler);
       return () => {
         ipcRenderer.removeListener(SESSION_OP, handler);
+      };
+    },
+  },
+  settings: {
+    list: (target) => ipcRenderer.invoke(SETTINGS_LIST, target),
+    set: (target, id, value) => ipcRenderer.invoke(SETTINGS_SET, target, id, value),
+    reset: (target, id) => ipcRenderer.invoke(SETTINGS_RESET, target, id),
+    reveal: (target, id) => ipcRenderer.invoke(SETTINGS_REVEAL, target, id),
+    openConfigFile: () => ipcRenderer.invoke(SETTINGS_OPEN_FILE),
+    onOpenRequested: (listener) => {
+      const handler = () => listener();
+      ipcRenderer.on(SETTINGS_OPEN, handler);
+      return () => {
+        ipcRenderer.removeListener(SETTINGS_OPEN, handler);
       };
     },
   },

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { composerView } from "../src/renderer/composer-state";
+import { composerView, keyStopsTurn } from "../src/renderer/composer-state";
 
 describe("composerView", () => {
   test("idle and ready asks for work and can send", () => {
@@ -33,5 +33,20 @@ describe("composerView", () => {
       expect(view).toMatchObject({ kind: "input", canSend: false });
       if (view.kind === "input") expect(view.reason).not.toBeNull();
     }
+  });
+});
+
+describe("keyStopsTurn", () => {
+  test("Esc stops the turn from the session view", () => {
+    expect(keyStopsTurn("Escape", false)).toBe(true);
+  });
+
+  test("Esc that leaves Settings does not stop the turn behind it", () => {
+    expect(keyStopsTurn("Escape", true)).toBe(false);
+  });
+
+  test("no other key stops a turn", () => {
+    expect(keyStopsTurn("Enter", false)).toBe(false);
+    expect(keyStopsTurn("c", false)).toBe(false);
   });
 });
