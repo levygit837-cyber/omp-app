@@ -1,0 +1,5 @@
+Rebased onto #33 and #31 (head 0de0ab0). omp 18.12.6, real ~/.omp, 1440x900, CDP port 9343.
+Two app sessions (cwd /tmp/ev13-live2/a and /tmp/ev13-live2/b), same prompt: both rows show the running arc at once (2 Running marks), a is focused with the merged timeline and the right panel.
+Both finished idle: a had 3 timeline items, b had 2, no pending requests.
+Close then resume of a: same id, items [user, assistant], one warning "Earlier entries are not shown" (reasoning blocks (1)), pending 0.
+Rows of other projects are blurred in the screenshots. The session files of this run were deleted afterwards (only the two -private-tmp-ev13-live2-* dirs).
