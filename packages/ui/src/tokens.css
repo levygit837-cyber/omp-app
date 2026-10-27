@@ -1,11 +1,176 @@
 @import "tailwindcss";
 
-@theme {
-  --color-surface: #ffffff;
-  --color-surface-muted: #f4f4f5;
-  --color-text: #18181b;
-  --color-text-muted: #71717a;
-  --color-accent: #6d5ef5;
-  --font-sans: ui-sans-serif, system-ui, sans-serif;
-  --radius-control: 0.5rem;
+/*
+ * Design tokens. Visual language for the app; design/omp.pen is the exploration
+ * side and the code wins if they diverge (ADR 0003).
+ *
+ * Naming: <group>-<role>[-<variant>], identical to the variable in the .pen, so
+ * `color-bg-base` is `--color-bg-base` here. A rename needs a migration in code;
+ * a value change does not.
+ * Units: Pen numbers are px, except line-height and opacity (unitless), motion
+ * (ms; the sibling offset is deg) and font-weight (CSS number).
+ *
+ * Utilities: colors, fonts, type sizes, weights, tracking, radius and shadows
+ * sit in @theme and generate Tailwind utilities (bg-bg-base, text-size-sm,
+ * rounded-sm, shadow-panel). Space, line height, motion, opacity and structure
+ * have no Tailwind namespace under these names, so they are plain custom
+ * properties on :root, used through var().
+ *
+ * Dark only for now. The light theme is pending: it needs a value for every
+ * color token under :root[data-theme="light"], and the sulfur (state-approval)
+ * and green (diff-add) tones fail 4.5:1 on a light background.
+ */
+
+@theme static {
+  /* Clear the Tailwind defaults for every namespace the design owns, so a
+   * default such as text-sm (14px) can never sit next to text-size-sm (13px). */
+  --color-*: initial;
+  --font-*: initial;
+  --text-*: initial;
+  --tracking-*: initial;
+  --radius-*: initial;
+  --shadow-*: initial;
+  /* Surfaces */
+  --color-bg-base: #100908;
+  --color-bg-sidebar: #0c0605;
+  --color-bg-elevated: #1a100e;
+  --color-bg-user: #2e1a16;
+  --color-bg-hover: #170e0c;
+  --color-bg-selected: #1e1210;
+  /* Text */
+  --color-text-primary: #f1e4da; /* 15.8:1 on bg-base */
+  --color-text-secondary: #b29e93; /* 7.7:1 on bg-base */
+  --color-text-dim: #8f7d74; /* 5.0:1 on bg-base, 4.8:1 on bg-elevated */
+  --color-text-tree: #6e5a52; /* 3.0:1 on bg-base: tree glyphs only, never text */
+  /* Borders and icons */
+  --color-border-hairline: #261513;
+  --color-border-default: #3a201c;
+  --color-border-field: #7a5a50; /* 3.2:1 on bg-base, 3.0:1 on bg-elevated */
+  --color-border-control: #5a3a32;
+  --color-icon-neutral: #b29e93;
+  /* Accent: agent identity and the primary action only */
+  --color-accent: #ff7a3d;
+  --color-on-accent: #100908;
+  --color-on-accent-hint: #4a2a1a;
+  --color-focus-ring: #ff7a3d;
+  /* State: success is silent, so color only marks running, approval and error */
+  --color-state-running: #ff7a3d;
+  --color-state-approval: #f3c24f;
+  --color-state-approval-rule: #f3c24f66;
+  --color-state-approval-border: #6b5222;
+  --color-state-error: #f0605a;
+  --color-state-error-border: #5a2422;
+  --color-state-done: #8f7d74;
+  --color-diff-add: #4fc48a;
+  --color-diff-remove: #f0605a;
+  --color-spinner-track: #2a1a17;
+  /* Elevation */
+  --color-shadow-panel: #000000b0;
+  --color-shadow-menu: #00000099;
+  /* Type families */
+  --font-text: "Instrument Sans", system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+  --default-font-family: var(--font-text);
+  --default-mono-font-family: var(--font-mono);
+  /* Type scale */
+  --text-size-2xs: 11px;
+  --text-size-xs: 12px;
+  --text-size-sm: 13px;
+  --text-size-md: 14px;
+  --text-size-body: 15px;
+  --text-size-lg: 17px;
+  --text-size-display: 28px;
+  /* Weights and tracking */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --tracking-caps: 1px;
+  /* Radius */
+  --radius-xs: 2px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-window: 12px;
+  /* Shadows: the offsets and blurs live in :root */
+  --shadow-panel: 0 var(--shadow-panel-y) var(--shadow-panel-blur) var(--color-shadow-panel);
+  --shadow-menu: 0 var(--shadow-menu-y) var(--shadow-menu-blur) var(--color-shadow-menu);
+}
+
+:root {
+  color-scheme: dark;
+  /* Space scale */
+  --space-2: 2px;
+  --space-4: 4px;
+  --space-6: 6px;
+  --space-8: 8px;
+  --space-10: 10px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-30: 30px;
+  --space-48: 48px;
+  --space-64: 64px;
+  /* Space roles */
+  --space-event-inner: var(--space-8);
+  --space-tool-step: var(--space-6);
+  --space-event: var(--space-20);
+  --space-turn: var(--space-64);
+  --space-icon-phrase: var(--space-10);
+  --space-output-indent: var(--space-30);
+  --space-code-indent: var(--space-20);
+  --space-user-band-x: var(--space-16);
+  --space-user-band-y: var(--space-12);
+  --space-control-x: var(--space-12);
+  /* Line height */
+  --line-height-ui: 1.45;
+  --line-height-prose: 1.55;
+  /* Shadow geometry */
+  --shadow-panel-y: 18px;
+  --shadow-panel-blur: 48px;
+  --shadow-menu-y: 12px;
+  --shadow-menu-blur: 32px;
+  /* Motion */
+  --motion-duration-fast: 120ms;
+  --motion-duration-base: 160ms;
+  --motion-duration-slow: 200ms;
+  --motion-spinner-cycle: 1200ms;
+  --motion-spinner-cycle-slow: 2400ms;
+  --motion-spinner-slow-after: 60000ms;
+  --motion-timer-show-after: 10000ms;
+  --motion-spinner-sibling-offset: 70deg;
+  --motion-approval-breath: 1600ms;
+  --motion-thinking-frame: 120ms;
+  --motion-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --motion-ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --motion-ease-breath: cubic-bezier(0.37, 0, 0.63, 1);
+  --motion-ease-spin: linear;
+  /* Opacity */
+  --opacity-ghost: 0.35;
+  --opacity-disabled: 0.5;
+  --opacity-pulse-min: 0.55;
+  /* Structure */
+  --layout-sidebar-left: 264px;
+  --layout-sidebar-right: 320px;
+  --layout-chat-column: 760px;
+  --layout-user-band-max: 560px;
+  --layout-bar-height: 44px;
+  --layout-indicator-height: 56px;
+  --size-tool-row: 24px;
+  --size-icon-tool: 20px;
+  --size-icon-ui: 16px;
+  --size-mark: 14px;
+  --size-control: 28px;
+  --size-icon-stroke: 1.5px;
+  --size-focus-ring: 2px;
+}
+
+/* Transitions drop to a hard cut. Anything that animates (spinner, approval
+ * breath, job pulse) must also stop moving under this query when it is added. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-duration-fast: 0ms;
+    --motion-duration-base: 0ms;
+    --motion-duration-slow: 0ms;
+  }
 }

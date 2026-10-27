@@ -35,4 +35,5 @@ The `docs/` folder is local-only and written in pt-BR. Glossary terms below carr
 - **Research per surface** (ACP, SDK, RPC, gaps, management): `docs/research/`, starting with `01-surfaces.md`.
 - **What was measured by running**: `docs/spike.md`. Test sidecar code: `spike/`.
 - **Decisions**: `docs/adr/`. Patches proposed to omp: `docs/patches.md`.
+- **Visual design**: `design/omp.pen` (exploration, edited live in Pen) and `design/preview/` (exported screens). The tokens live in `packages/ui/src/tokens.css`, with the same names as the Pen variables. Code wins if they diverge.
 - **Full docs index**: `docs/README.md`.
