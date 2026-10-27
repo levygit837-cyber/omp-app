@@ -52,6 +52,23 @@ describe("attachSession", () => {
     log.mockRestore();
   });
 
+  test("a throw while withdrawing requests is logged, and the context meter is still updated", () => {
+    const store = new SessionStore();
+    const requests = {
+      agentEvent: () => {
+        throw new Error("registry bug");
+      },
+    };
+    const log = spyOn(console, "error").mockImplementation(() => {});
+    const { session, emit } = fakeSession();
+    attachSession(store, session, requests);
+    expect(() => emit(messageEnd)).not.toThrow();
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(String(log.mock.calls[0]?.[0])).toContain("request withdrawal on message_end");
+    expect(store.snapshot("s").snapshot.context).toMatchObject({ tokens: 500 });
+    log.mockRestore();
+  });
+
   test("an event that does not change the context size does not read it", () => {
     const store = new SessionStore();
     const { session, emit } = fakeSession();

@@ -64,6 +64,9 @@ function Body({ sessionId, item }: { sessionId: string; item: Item }) {
       return <RetryLine sessionId={sessionId} item={item} />;
     case "decision":
       return <DecisionLine item={item} />;
+    default:
+      // A new item kind without a case here fails the typecheck instead of rendering nothing.
+      return item satisfies never;
   }
 }
 
