@@ -25,6 +25,13 @@ describe("format", () => {
     expect(long.endsWith("…")).toBe(true);
   });
 
+  test("sessionTitle never cuts an emoji in half", () => {
+    const title = sessionTitle(`${"a".repeat(46)}😀 tail`);
+    expect(title).toBe(`${"a".repeat(46)}😀…`);
+    expect(title).not.toMatch(/[\ud800-\udbff](?![\udc00-\udfff])/);
+    expect(Array.from(title).length).toBe(48);
+  });
+
   test("modelLabel drops the provider", () => {
     expect(modelLabel("anthropic/claude-opus-5-5")).toBe("claude-opus-5-5");
     expect(modelLabel("local")).toBe("local");

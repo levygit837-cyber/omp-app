@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import type { SidecarStatus } from "../shared/bridge";
 import { type EngineTrack, TIMER_SHOW_AFTER_MS, useElapsed, useRunStart } from "./engine";
 import { clock } from "./format";
+import { Shortcut } from "./Shortcut";
 
 function Tab({ children, label }: { children: ReactNode; label?: string }) {
   return (
@@ -43,7 +44,7 @@ export function EngineSlot({
         <span>omp engine stopped</span>
         <span className="flex gap-(--space-4)">
           <Button onClick={onRestart}>
-            Restart <kbd className="font-mono text-size-2xs text-text-dim">⌘R</kbd>
+            Restart <Shortcut className="text-text-dim">⌘R</Shortcut>
           </Button>
         </span>
       </Tab>

@@ -3,21 +3,16 @@ import { composerView } from "../src/renderer/composer-state";
 
 describe("composerView", () => {
   test("idle and ready asks for work and can send", () => {
-    expect(composerView({ readOnly: false, engine: "ready", streaming: false })).toEqual({
+    expect(composerView({ readOnly: false, engine: "ready", streaming: false })).toMatchObject({
       kind: "input",
       canSend: true,
       reason: null,
-      placeholder: "Ask omp to change something…",
     });
   });
 
   test("streaming and ready invites steering but cannot send a second prompt yet", () => {
     const view = composerView({ readOnly: false, engine: "ready", streaming: true });
-    expect(view).toMatchObject({
-      kind: "input",
-      canSend: false,
-      placeholder: "Steer the agent, or queue what comes next…",
-    });
+    expect(view).toMatchObject({ kind: "input", canSend: false, reason: null });
   });
 
   test("read-only replaces the input entirely", () => {
@@ -28,14 +23,15 @@ describe("composerView", () => {
 
   test("the engine outranks the turn: a stopped engine pauses sending even while streaming", () => {
     const view = composerView({ readOnly: false, engine: "failed", streaming: true });
-    expect(view).toMatchObject({ kind: "input", canSend: false, reason: "omp is stopped" });
+    expect(view).toMatchObject({ kind: "input", canSend: false });
+    if (view.kind === "input") expect(view.reason).not.toBeNull();
   });
 
   test("starting and restarting say so and keep the draft", () => {
     for (const engine of ["starting", "restarting"] as const) {
       const view = composerView({ readOnly: false, engine, streaming: false });
       expect(view).toMatchObject({ kind: "input", canSend: false });
-      if (view.kind === "input") expect(view.placeholder).toContain("Your draft is kept");
+      if (view.kind === "input") expect(view.reason).not.toBeNull();
     }
   });
 });

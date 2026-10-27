@@ -3,6 +3,7 @@ import { useState } from "react";
 import type { SidecarStatus } from "../shared/bridge";
 import { type EngineTrack, useElapsed } from "./engine";
 import { clock } from "./format";
+import { Shortcut } from "./Shortcut";
 
 /** Centred column of the empty and engine states: no session to show, so no timeline. */
 function Column({ children }: { children: React.ReactNode }) {
@@ -13,10 +14,6 @@ function Column({ children }: { children: React.ReactNode }) {
       </div>
     </div>
   );
-}
-
-function Shortcut({ children }: { children: string }) {
-  return <kbd className="font-mono text-size-2xs text-on-accent-hint">{children}</kbd>;
 }
 
 function EngineStarting({ track }: { track: EngineTrack }) {
@@ -75,7 +72,7 @@ function EngineFailed({
       </div>
       <div className="flex gap-(--space-8) pl-(--space-output-indent)">
         <Button variant="primary" onClick={onRestart} data-testid="restart-engine">
-          Restart omp <Shortcut>⌘R</Shortcut>
+          Restart omp <Shortcut className="text-on-accent-hint">⌘R</Shortcut>
         </Button>
         <Button onClick={copy} disabled={log.length === 0}>
           {copied ? "Copied" : "Copy log"}
@@ -141,8 +138,8 @@ function LostBoundary({ onOpen, disabled }: { onOpen: () => void; disabled: bool
         <hr className="h-px flex-1 border-0 bg-state-error-border" />
       </div>
       <div>
-        <Button variant="primary" onClick={onOpen} disabled={disabled}>
-          Open folder… <Shortcut>⌘O</Shortcut>
+        <Button variant="primary" onClick={onOpen} disabled={disabled} aria-keyshortcuts="Meta+O">
+          Open folder…
         </Button>
       </div>
     </div>
@@ -165,9 +162,15 @@ function FirstUse({
         omp works inside a project folder: it reads, edits and runs code there.
       </p>
       <div className="pt-(--space-6)">
-        <Button variant="primary" onClick={onOpen} disabled={disabled} data-testid="open-folder">
+        <Button
+          variant="primary"
+          onClick={onOpen}
+          disabled={disabled}
+          aria-keyshortcuts="Meta+O"
+          data-testid="open-folder"
+        >
           <FolderIcon />
-          Open folder… <Shortcut>⌘O</Shortcut>
+          Open folder…
         </Button>
       </div>
       {hint && <p className="text-size-sm text-text-dim">{hint}</p>}
@@ -208,7 +211,7 @@ export function Stage(props: StageProps) {
   }
   return (
     <Column>
-      {track.back && (
+      {track.back && !lost && (
         <p role="status" className="flex items-center gap-(--space-8) text-size-md">
           <StateMark state="idle" decorative />
           omp engine is back

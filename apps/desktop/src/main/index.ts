@@ -91,8 +91,8 @@ function createWindow(): void {
     // Below this the three columns of the design no longer fit.
     minWidth: 960,
     minHeight: 600,
-    // Matches `color-bg-base`, so the window never flashes white before the renderer paints.
-    // The main process cannot read the CSS tokens; keep the two in step.
+    // Same value as `--color-bg-base` in packages/ui/src/tokens.css, so the window never flashes
+    // white before the renderer paints. Main cannot read CSS: change both together.
     backgroundColor: "#100908",
     webPreferences: {
       preload: join(import.meta.dirname, "../preload/index.cjs"),

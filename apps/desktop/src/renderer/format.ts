@@ -23,7 +23,14 @@ const TITLE_MAX = 48;
 export function sessionTitle(firstPrompt: string | undefined): string {
   const line = firstPrompt?.trim().split(/\r?\n/, 1)[0]?.replace(/\s+/g, " ") ?? "";
   if (line.length === 0) return NEW_SESSION_TITLE;
-  return line.length > TITLE_MAX ? `${line.slice(0, TITLE_MAX - 1).trimEnd()}…` : line;
+  // Code points, not UTF-16 units: a cut must not split an emoji in two.
+  const points = Array.from(line);
+  return points.length > TITLE_MAX
+    ? `${points
+        .slice(0, TITLE_MAX - 1)
+        .join("")
+        .trimEnd()}…`
+    : line;
 }
 
 /** `provider/id` shown as the id alone, as in the design. Null when the session has no model. */
