@@ -140,7 +140,7 @@ function Composer({ sessionId }: { sessionId: string }) {
         <button
           type="submit"
           disabled={streaming || text.trim().length === 0}
-          className="rounded-sm bg-accent px-3 py-1 text-on-accent disabled:opacity-50"
+          className="rounded-sm bg-accent px-3 py-1 text-on-accent disabled:opacity-(--opacity-disabled)"
         >
           Send
         </button>
@@ -148,7 +148,7 @@ function Composer({ sessionId }: { sessionId: string }) {
           type="button"
           onClick={cancel}
           disabled={!streaming}
-          className="rounded-sm border border-accent px-3 py-1 disabled:opacity-50"
+          className="rounded-sm border border-accent px-3 py-1 disabled:opacity-(--opacity-disabled)"
         >
           Stop (Esc)
         </button>
@@ -227,7 +227,7 @@ export function SessionView({ sidecar }: { sidecar: SidecarStatus }) {
           data-testid="pick-directory"
           onClick={() => void start()}
           disabled={!ready || readOnly}
-          className="rounded-sm bg-accent px-3 py-1 text-on-accent disabled:opacity-50"
+          className="rounded-sm bg-accent px-3 py-1 text-on-accent disabled:opacity-(--opacity-disabled)"
         >
           {sessionId ? "New session…" : "Pick a directory…"}
         </button>
