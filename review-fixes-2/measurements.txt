@@ -1,0 +1,15 @@
+Fake sidecar, 1440x900, CDP on 9344. status = [data-testid=session-status] data-status.
+
+E (FAKE_HOLD=1, a turn streaming and held): Settings opened from the footer button, then ONE Escape.
+  with the guard (Composer.tsx: closest("[inert]")):
+    Settings open:        settings=true  status=streaming focus=H1
+    after one Esc:        settings=false status=streaming        <- left Settings, turn kept going
+    Esc in session view:  settings=false status=idle             <- still cancels
+  control, guard disabled (keyStopsTurn(key, false)), same script:
+    after one Esc:        settings=false status=idle             <- the turn was cancelled: the bug
+
+F (FAKE_REQUEST=permission): Settings opened first, then the fake raised the permission.
+  announcer before: "Assistant is responding"
+  announcer after:  "Waiting for your approval: rm -rf node_modules/.cache && bun install"
+  announcer aria-live=polite, inside [inert] = false; session <main> inside [inert] = true;
+  settings screen still open; sidebar row mark (data-mark) = approval
