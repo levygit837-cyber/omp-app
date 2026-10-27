@@ -69,7 +69,7 @@ export function Composer({
   return (
     <form
       onSubmit={send}
-      className="flex w-(--layout-composer) max-w-full flex-col gap-(--space-12) rounded-lg border border-border-hairline bg-bg-elevated px-(--space-18) pt-(--space-14) pb-(--space-12) focus-within:border-border-field"
+      className="flex w-(--layout-composer) max-w-full flex-col gap-(--space-12) rounded-lg border border-border-hairline bg-bg-elevated px-(--space-18) pt-(--space-14) pb-(--space-12) has-[textarea:focus-visible]:border-border-field has-[textarea:focus-visible]:outline-(length:--size-focus-ring) has-[textarea:focus-visible]:outline-focus-ring has-[textarea:focus-visible]:outline-solid has-[textarea:focus-visible]:outline-offset-(--space-2)"
     >
       {error && (
         <p role="alert" className="text-size-sm text-state-error">

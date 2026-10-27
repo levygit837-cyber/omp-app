@@ -116,6 +116,11 @@ export function SidebarBody({
           PROJECTS
         </p>
         {sessionId && <Project sessionId={sessionId} />}
+        {!sessionId && sidecar.state !== "ready" && (
+          <p className="px-(--space-8) pt-(--space-4) text-size-sm text-text-dim">
+            Projects load from omp. They come back when it’s running.
+          </p>
+        )}
       </nav>
       <Footer sidecar={sidecar} versions={versions} />
     </>
