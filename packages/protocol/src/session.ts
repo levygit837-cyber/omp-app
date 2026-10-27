@@ -65,14 +65,21 @@ export type ToolCallPatch = Partial<Omit<ToolCall, "toolCallId">>;
 
 /**
  * A non-blocking problem the session carries on despite. `source` says who raised it, so a
- * later ticket can add kinds (e.g. tool calls) without reinterpreting this one.
+ * later ticket can add kinds (e.g. tool calls) without reinterpreting the others.
  */
-export interface SessionWarning {
-  readonly source: "mcp";
-  /** Name of the MCP server, as written in `mcp.json`. */
-  readonly server: string;
-  readonly message: string;
-}
+export type SessionWarning =
+  | {
+      readonly source: "mcp";
+      /** Name of the MCP server, as written in `mcp.json`. */
+      readonly server: string;
+      readonly message: string;
+    }
+  | {
+      /** The sidecar noting something about the session itself (what was left out of its history, a move to a new file). */
+      readonly source: "session";
+      readonly title: string;
+      readonly message: string;
+    };
 
 export interface SessionViewModel {
   readonly id: string;
@@ -141,7 +148,13 @@ export type SessionOp =
       readonly type: "request.settle";
       readonly requestId: string;
       readonly item?: DecisionItem;
-    };
+    }
+  /**
+   * The session now lives under another id: another omp process owns its file, so omp keeps
+   * saving to a new one. This op is delivered under the old id; every later op uses `id`, and
+   * `seq` carries on. Applying it sets `vm.id`.
+   */
+  | { readonly type: "session.moved"; readonly id: string };
 
 /** Full state of a session at `seq`: the number of ops applied since it was created. */
 export interface SessionSnapshot {
@@ -252,18 +265,17 @@ export function applyOp(vm: SessionViewModel, op: SessionOp): SessionViewModel {
       const pending = vm.pending.filter((r) => r.id !== op.requestId);
       return op.item ? { ...vm, pending, timeline: [...vm.timeline, op.item] } : { ...vm, pending };
     }
+    case "session.moved":
+      return { ...vm, id: op.id };
     default:
       return vm;
   }
 }
 
 function isWarning(v: unknown): v is SessionWarning {
-  return (
-    isRecord(v) &&
-    v.source === "mcp" &&
-    typeof v.server === "string" &&
-    typeof v.message === "string"
-  );
+  if (!isRecord(v) || typeof v.message !== "string") return false;
+  if (v.source === "mcp") return typeof v.server === "string";
+  return v.source === "session" && typeof v.title === "string";
 }
 
 function isItem(v: unknown): v is Item {

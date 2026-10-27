@@ -6,10 +6,14 @@ import {
   SESSION_ANSWER_ASK,
   SESSION_ANSWER_PERMISSION,
   SESSION_CANCEL,
+  SESSION_CLOSE,
   SESSION_CREATE,
+  SESSION_FORK,
+  SESSION_LIST,
   SESSION_OP,
   SESSION_PICK_DIRECTORY,
   SESSION_PROMPT,
+  SESSION_RESUME,
   SESSION_SUBSCRIBE,
   SESSION_UNSUBSCRIBE,
   SIDECAR_GET_STATUS,
@@ -48,6 +52,10 @@ const bridge: OmpBridge = {
       ipcRenderer.invoke(SESSION_ANSWER_PERMISSION, sessionId, requestId, optionId),
     answerAsk: (sessionId, requestId, action, content) =>
       ipcRenderer.invoke(SESSION_ANSWER_ASK, sessionId, requestId, action, content),
+    list: () => ipcRenderer.invoke(SESSION_LIST),
+    resume: (sessionId) => ipcRenderer.invoke(SESSION_RESUME, sessionId),
+    fork: (sessionId) => ipcRenderer.invoke(SESSION_FORK, sessionId),
+    close: (sessionId) => ipcRenderer.invoke(SESSION_CLOSE, sessionId),
     onOp: (listener) => {
       const handler = (_event: Electron.IpcRendererEvent, op: SessionOpEvent) => listener(op);
       ipcRenderer.on(SESSION_OP, handler);

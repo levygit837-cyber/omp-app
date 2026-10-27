@@ -168,6 +168,8 @@
    * it scrolls there, so the choices and buttons below it stay on screen. */
   --layout-band-message-max: 16svh;
   --layout-empty-column: 560px;
+  /* Context menu width (Pen QTqk0: 248 wide, items 28 high = --size-control). */
+  --layout-menu: 248px;
   /* Where the native traffic lights end, so the sidebar toggle sits at the same x open or closed */
   --layout-traffic-lights: 78px;
   --layout-indicator-height: 56px;

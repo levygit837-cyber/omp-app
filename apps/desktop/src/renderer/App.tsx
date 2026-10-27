@@ -1,13 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { SidecarStatus } from "../shared/bridge";
+import { ActionErrorNotice } from "./ActionError";
 import { enginePhase, useEngine } from "./engine";
+import { buildRows, recentFolders } from "./projects";
 import { RightPanel, RightPanelToggle } from "./right-panel/RightPanel";
 import { useRightPanel } from "./right-panel/use-right-panel";
 import { SessionPane } from "./SessionPane";
 import { SidebarBody, SidebarTop } from "./Sidebar";
 import { Stage } from "./Stage";
 import { useSessionController } from "./session-controller";
-import { useSyncError } from "./session-hooks";
+import { useOpenCwds, useSyncError } from "./session-hooks";
 import { EngineContext } from "./shown-status";
 import { TabBar } from "./TabBar";
 
@@ -23,6 +25,9 @@ function useSidecarStatus(): SidecarStatus {
 }
 
 const restart = () => void window.omp.sidecar.restart();
+
+/** How many recent folders the empty state offers (Pen UweVm, frame A). */
+const RECENT_FOLDERS = 3;
 
 export function App() {
   const { electron, chrome } = window.omp.versions;
@@ -48,7 +53,8 @@ export function App() {
   }, [sidebarOpen]);
   const right = useRightPanel();
   const [readOnlyDismissed, setReadOnlyDismissed] = useState(false);
-  const { sessionId } = controller;
+  const sessionId = controller.focused;
+  const openCwds = useOpenCwds(controller.open);
   const ready = sidecar.state === "ready";
   const readOnly = ready && sidecar.mode === "read_only";
   const canOpen = ready && !readOnly;
@@ -70,7 +76,10 @@ export function App() {
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  const stageError = controller.error ?? (sessionId ? null : syncError);
+  const recent = useMemo(
+    () => recentFolders(buildRows(controller.stored ?? [], new Map()), RECENT_FOLDERS),
+    [controller.stored],
+  );
 
   return (
     <EngineContext.Provider value={engine}>
@@ -87,9 +96,17 @@ export function App() {
               newDisabled={!canOpen}
             />
             <SidebarBody
-              sessionId={sessionId}
+              stored={controller.stored}
+              listError={controller.listError}
+              open={controller.open}
+              openCwds={openCwds}
+              focused={sessionId}
+              readOnly={readOnly}
               sidecar={sidecar}
               versions={`electron ${electron} · chrome ${chrome}`}
+              onSelect={(id) => void controller.select(id)}
+              onFork={(id) => void controller.fork(id)}
+              onClose={(id) => void controller.close(id)}
             />
           </aside>
         )}
@@ -110,8 +127,12 @@ export function App() {
               ) : null
             }
           />
+          {controller.error && (
+            <ActionErrorNotice error={controller.error} onDismiss={controller.dismissError} />
+          )}
           {sessionId ? (
             <SessionPane
+              key={sessionId}
               sessionId={sessionId}
               sidecar={sidecar}
               track={track}
@@ -123,10 +144,13 @@ export function App() {
               sidecar={sidecar}
               track={track}
               lost={controller.lost}
-              error={stageError}
+              restoring={controller.restoring}
+              error={sessionId ? null : syncError}
+              recent={recent}
               readOnlyDismissed={readOnlyDismissed}
               onDismissReadOnly={() => setReadOnlyDismissed(true)}
               onOpen={open}
+              onOpenFolder={(cwd) => void controller.startIn(cwd)}
               onRestart={restart}
             />
           )}

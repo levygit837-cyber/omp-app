@@ -11,7 +11,8 @@ function fakeSession() {
   let listener: ((event: AgentSessionEvent) => void) | undefined;
   const session = {
     sessionId: "s",
-    sessionManager: { getCwd: () => "/w" },
+    sessionManager: { getCwd: () => "/w", onPersistenceNotice: () => () => {} },
+    buildTranscriptSessionContext: () => ({ messages: [] }),
     model: { provider: "p", id: "m", api: "anthropic-messages", input: ["text"], compat: {} },
     settings: Settings.isolated(),
     getContextUsage: () => ({ tokens: 500, contextWindow: 10_000, percent: 5 }),

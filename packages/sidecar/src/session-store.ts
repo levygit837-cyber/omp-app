@@ -34,6 +34,8 @@ export class SessionStore {
   constructor(now: () => number = Date.now) {
     this.#now = now;
   }
+  /** Ids a session left behind when omp moved it, mapped to the id it lives under now. */
+  readonly #moved = new Map<string, string>();
 
   /** Registers a session. Ops that happen later are numbered from 1. */
   create(viewModel: SessionViewModel): void {
@@ -130,6 +132,36 @@ export class SessionStore {
 
   unsubscribe(sessionId: string, key: unknown): void {
     this.#sessions.get(sessionId)?.sinks.delete(key);
+  }
+
+  /**
+   * The session keeps going under another id (omp moved it to a new file because another process
+   * owns the old one). Subscribers get a `session.moved` op under the OLD id, numbered like any
+   * other op, and then stay subscribed: every later op arrives under `newId` with `seq` carrying
+   * on. The old id is unknown from here on.
+   */
+  rekey(oldId: string, newId: string): void {
+    if (oldId === newId) return;
+    if (this.#sessions.has(newId)) throw new Error(`session already exists: ${newId}`);
+    const entry = this.#entry(oldId);
+    const op: SessionOp = { type: "session.moved", id: newId };
+    this.#commit(oldId, entry, { viewModel: applyOp(entry.viewModel, op), ops: [op] });
+    this.#sessions.delete(oldId);
+    this.#sessions.set(newId, entry);
+    this.#moved.set(oldId, newId);
+  }
+
+  /** The id a session answers to now: itself, or where it moved to (following repeated moves). */
+  current(sessionId: string): string {
+    let id = sessionId;
+    for (let next = this.#moved.get(id); next !== undefined; next = this.#moved.get(id)) id = next;
+    return id;
+  }
+
+  /** Forgets a closed session and its subscribers. Later requests for it are `unknown session`. */
+  remove(sessionId: string): void {
+    this.#sessions.delete(sessionId);
+    for (const [old, now] of this.#moved) if (now === sessionId) this.#moved.delete(old);
   }
 
   /** Drops every subscription of `key`, e.g. when its connection closes. */

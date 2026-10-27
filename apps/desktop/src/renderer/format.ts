@@ -55,3 +55,19 @@ export function sessionMark(status: SessionStatus | undefined, waiting = false):
   if (status === "failed") return "error";
   return "idle";
 }
+
+const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+
+/** How long ago `modified` was, in the shortest unit that fits: now, 5m, 3h, 2d, 3w, 8mo, 2y. */
+export function relativeTime(modified: number, now: number): string {
+  const age = Math.max(0, now - modified);
+  if (age < MINUTE) return "now";
+  if (age < HOUR) return `${Math.floor(age / MINUTE)}m`;
+  if (age < DAY) return `${Math.floor(age / HOUR)}h`;
+  if (age < 7 * DAY) return `${Math.floor(age / DAY)}d`;
+  if (age < 30 * DAY) return `${Math.floor(age / (7 * DAY))}w`;
+  if (age < 365 * DAY) return `${Math.floor(age / (30 * DAY))}mo`;
+  return `${Math.floor(age / (365 * DAY))}y`;
+}

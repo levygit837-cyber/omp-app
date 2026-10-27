@@ -1,4 +1,10 @@
-import type { AskAction, AskContent, SessionOpEvent, SessionSnapshot } from "@omp-app/protocol";
+import type {
+  AskAction,
+  AskContent,
+  SessionOpEvent,
+  SessionSnapshot,
+  StoredSession,
+} from "@omp-app/protocol";
 
 /** Where the sidecar is in its lifecycle, as the window sees it. */
 export type SidecarStatus =
@@ -52,6 +58,14 @@ export type OmpBridge = {
       action: AskAction,
       content?: AskContent,
     ): Promise<void>;
+    /** Sessions on disk, as the CLI picker lists them, newest first. Works in read-only mode. */
+    list(): Promise<readonly StoredSession[]>;
+    /** Opens a stored session with its full history; resolves with its id. Rejects in read-only mode. */
+    resume(sessionId: string): Promise<string>;
+    /** Opens a copy of a stored session as it is on disk now; resolves with the copy's id. */
+    fork(sessionId: string): Promise<string>;
+    /** Closes an open session in the sidecar. The session file stays on disk. */
+    close(sessionId: string): Promise<void>;
     /** Calls `listener` for every op of every subscribed session. Returns the unsubscribe function. */
     onOp(listener: (event: SessionOpEvent) => void): () => void;
   };

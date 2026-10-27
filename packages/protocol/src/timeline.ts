@@ -188,8 +188,10 @@ export interface CompactionItem {
   readonly kind: "compaction";
   readonly id: string;
   readonly state: CompactionState;
-  readonly reason: "threshold" | "overflow" | "idle" | "incomplete";
-  readonly action: "context-full" | "remote" | "handoff" | "shake" | "snapcompact";
+  /** Absent on a compaction rebuilt from a stored session: omp does not keep why it ran. */
+  readonly reason?: "threshold" | "overflow" | "idle" | "incomplete";
+  /** Absent when a stored session does not say how it ran (older omp). */
+  readonly action?: "context-full" | "remote" | "handoff" | "shake" | "snapcompact";
   readonly startedAt: number;
   readonly endedAt?: number;
   readonly tokensBefore?: number;
@@ -399,8 +401,8 @@ export function isTimelineItem(
     case "compaction":
       return (
         isString(v.state) &&
-        isString(v.reason) &&
-        isString(v.action) &&
+        optString(v.reason) &&
+        optString(v.action) &&
         isNumber(v.startedAt) &&
         optNumber(v.endedAt) &&
         optNumber(v.tokensBefore) &&

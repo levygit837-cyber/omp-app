@@ -3,10 +3,12 @@
  * Pure types and codecs: no runtime dependencies, safe to import from any package.
  */
 
+import { isSessionListResult, type SessionListResult } from "./catalog";
 import { isRecord } from "./guards";
 import type { AskAction, AskContent } from "./requests";
 import { isSessionSnapshot, type SessionOpEvent, type SessionSnapshot } from "./session";
 
+export * from "./catalog";
 export * from "./requests";
 export * from "./session";
 export * from "./timeline";
@@ -138,6 +140,17 @@ export interface Methods {
     };
     result: null;
   };
+  /** Every session on disk the CLI picker would list, across projects. Reads only. */
+  "session.list": { params: undefined; result: SessionListResult };
+  /** Opens a stored session with its full history. Already open: returns the same id. */
+  "session.resume": { params: { readonly sessionId: string }; result: SessionCreateResult };
+  /**
+   * Copies the whole stored session, up to its current end, into a new session and opens it.
+   * Fails while the source is running a turn: omp refuses it (acp-agent.ts:1775, [V]).
+   */
+  "session.fork": { params: { readonly sessionId: string }; result: SessionCreateResult };
+  /** Closes an open session (a running turn stops). The session file stays on disk. */
+  "session.close": { params: { readonly sessionId: string }; result: null };
 }
 
 export interface SessionCreateResult {
@@ -235,6 +248,11 @@ export const methodWrites: { [M in MethodName]: boolean } = {
   // have a pending request anyway because `session.create` and `session.prompt` are refused.
   "session.answerPermission": false,
   "session.answerAsk": false,
+  "session.list": false,
+  "session.resume": true,
+  "session.fork": true,
+  // Frees memory and stops a turn; nothing in the shared database changes.
+  "session.close": false,
 };
 
 export function isDebugWriteResult(v: unknown): v is DebugWriteResult {
@@ -259,6 +277,10 @@ export const resultGuards: { [M in MethodName]: (v: unknown) => v is Methods[M][
   "session.unsubscribe": isNull,
   "session.answerPermission": isNull,
   "session.answerAsk": isNull,
+  "session.list": isSessionListResult,
+  "session.resume": isSessionCreateResult,
+  "session.fork": isSessionCreateResult,
+  "session.close": isNull,
 };
 
 /** A request that failed: the sidecar answered with an error, or the reply was malformed. */

@@ -11,6 +11,14 @@ import { SessionStore } from "../src/session-store";
 
 const SID = "s1";
 
+/** The lifecycle members of `SessionControl` that these tests never reach. */
+const idle = {
+  list: async () => [],
+  resumeSession: async (id: string) => id,
+  forkSession: async (id: string) => id,
+  closeSession: async () => {},
+};
+
 function setup() {
   const store = new SessionStore();
   store.create(emptyViewModel({ id: SID, cwd: "/work", model: null }));
@@ -167,6 +175,7 @@ describe("permission requests", () => {
     const cancelled: string[] = [];
     const handlers = sessionHandlers(
       {
+        ...idle,
         createSession: async () => SID,
         prompt: async () => "end_turn",
         cancel: async (id) => void cancelled.push(id),
@@ -242,7 +251,12 @@ describe("permission requests", () => {
     // The sidecar restarted: new store, new registry, the session is gone.
     const reborn = new SessionStore();
     const handlers = sessionHandlers(
-      { createSession: async () => SID, prompt: async () => "end_turn", cancel: async () => {} },
+      {
+        ...idle,
+        createSession: async () => SID,
+        prompt: async () => "end_turn",
+        cancel: async () => {},
+      },
       reborn,
       new RequestRegistry(reborn),
     );
@@ -500,7 +514,8 @@ describe("the session bridge", () => {
     const session = {
       sessionId: SID,
       model: undefined,
-      sessionManager: { getCwd: () => "/work" },
+      sessionManager: { getCwd: () => "/work", onPersistenceNotice: () => () => {} },
+      buildTranscriptSessionContext: () => ({ messages: [] }),
       subscribe: (listener: (event: AgentSessionEvent) => void) => {
         emit = listener;
         return () => {};
@@ -551,5 +566,66 @@ describe("view model ops", () => {
     const once = applyOp(vm, { type: "request.add", request });
     expect(applyOp(once, { type: "request.add", request })).toBe(once);
     expect(applyOp(once, { type: "request.settle", requestId: "nope" })).toBe(once);
+  });
+});
+
+describe("a session that moved to a new id", () => {
+  // ACP keeps calling the session by the id it was registered with, so omp's requests still
+  // carry the old one after the store re-keyed it.
+  const NEW = "s2";
+  const pendingOfNew = (store: SessionStore) => store.snapshot(NEW).snapshot.pending;
+
+  test("a permission raised under the old id lands in the new id's pending and is answered under either id", async () => {
+    const { store, registry } = setup();
+    store.rekey(SID, NEW);
+
+    const first = registry.permission(bash("ls", "tc-a"));
+    const second = registry.permission(bash("pwd", "tc-b"));
+    const [a, b] = pendingOfNew(store);
+    expect(pendingOfNew(store)).toHaveLength(2);
+    expect(a).toMatchObject({ kind: "permission", toolCallId: "tc-a" });
+
+    registry.answerPermission(SID, must(a).id, "allow_once");
+    registry.answerPermission(NEW, must(b).id, "reject_once");
+    expect(await first).toEqual({ outcome: { outcome: "selected", optionId: "allow_once" } });
+    expect(await second).toEqual({ outcome: { outcome: "selected", optionId: "reject_once" } });
+    expect(pendingOfNew(store)).toEqual([]);
+    expect(store.snapshot(NEW).snapshot.timeline.map((i) => i.kind)).toEqual([
+      "decision",
+      "decision",
+    ]);
+  });
+
+  test("an ask raised under the old id lands in the new id's pending and is answered under either id", async () => {
+    const { store, registry } = setup();
+    store.rekey(SID, NEW);
+
+    const answer = registry.elicitation(form("Pick", { q0: { type: "boolean" } }, ["q0"]));
+    const [request] = pendingOfNew(store);
+    expect(request).toMatchObject({ kind: "ask", message: "Pick" });
+
+    registry.answerAsk(SID, must(request).id, "accept", { q0: true });
+    expect(await answer).toEqual({ action: "accept", content: { q0: true } });
+    expect(pendingOfNew(store)).toEqual([]);
+
+    const again = registry.elicitation(form("Again", { q0: { type: "boolean" } }, ["q0"]));
+    registry.answerAsk(NEW, must(pendingOfNew(store)[0]).id, "decline", undefined);
+    expect(await again).toEqual({ action: "decline" });
+  });
+
+  test("a request raised before the move is answered under the new id, and cancel reaches it", async () => {
+    const { store, registry } = setup();
+    const before = registry.permission(bash("ls", "tc-a"));
+    const id = must(pendingOf(store)[0]).id;
+    store.rekey(SID, NEW);
+    expect(pendingOfNew(store)).toHaveLength(1);
+
+    registry.answerPermission(NEW, id, "allow_once");
+    expect(await before).toEqual({ outcome: { outcome: "selected", optionId: "allow_once" } });
+
+    const open = registry.permission(bash("pwd", "tc-b"));
+    registry.dismissSession(NEW);
+    expect(await open).toEqual({ outcome: { outcome: "cancelled" } });
+    expect(pendingOfNew(store)).toEqual([]);
   });
 });

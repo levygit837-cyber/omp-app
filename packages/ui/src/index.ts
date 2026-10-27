@@ -58,6 +58,7 @@ export { type LanguageId, parseFenceInfo, resolveLanguage } from "./languages";
 export { type SafeLink, safeLinkUrl } from "./links";
 export type { MarkdownProps } from "./markdown";
 export { Markdown } from "./markdown-lazy";
+export { Menu, type MenuAnchor, MenuItem, type MenuProps } from "./menu";
 export { Notice, type NoticeProps } from "./notice";
 export { type MarkState, StateMark, type StateMarkProps } from "./state-mark";
 export { StatusPill } from "./status-pill";

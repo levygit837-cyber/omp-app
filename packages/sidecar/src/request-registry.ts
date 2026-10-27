@@ -107,7 +107,7 @@ export class RequestRegistry implements RequestAnswers {
     signal?: AbortSignal,
   ): Promise<RequestPermissionResponse> {
     const options = params.options.filter((o) => KINDS[o.kind]) as PermissionOption[];
-    if (!this.#store.has(params.sessionId) || options.length === 0 || signal?.aborted) {
+    if (!this.#store.has(this.#id(params.sessionId)) || options.length === 0 || signal?.aborted) {
       return Promise.resolve({ outcome: { outcome: "cancelled" } });
     }
     const requestId = `req-${++this.#next}`;
@@ -143,14 +143,14 @@ export class RequestRegistry implements RequestAnswers {
         ),
       cleanup: () => signal?.removeEventListener("abort", withdraw),
     });
-    this.#store.addRequest(params.sessionId, request);
+    this.#store.addRequest(this.#id(params.sessionId), request);
     return promise;
   }
 
   /** `elicitation/create`: resolves with the filled form, or a decline. */
   elicitation(params: CreateElicitationRequest): Promise<CreateElicitationResponse> {
     const decline: CreateElicitationResponse = { action: "decline" };
-    if (!this.#store.has(params.sessionId)) return Promise.resolve({ action: "cancel" });
+    if (!this.#store.has(this.#id(params.sessionId))) return Promise.resolve({ action: "cancel" });
     const schema = "requestedSchema" in params ? params.requestedSchema : undefined;
     const fields = params.mode === "form" && schema ? fieldsOf(schema) : undefined;
     if (!fields) {
@@ -176,7 +176,7 @@ export class RequestRegistry implements RequestAnswers {
         ),
       cleanup: () => {},
     });
-    this.#store.addRequest(params.sessionId, {
+    this.#store.addRequest(this.#id(params.sessionId), {
       kind: "ask",
       id: requestId,
       message: params.message,
@@ -194,7 +194,7 @@ export class RequestRegistry implements RequestAnswers {
       throw new Error(`not an offered option: ${optionId}`);
     }
     held.cleanup();
-    this.#store.settleRequest(sessionId, requestId, {
+    this.#store.settleRequest(this.#id(sessionId), requestId, {
       outcome: decisionForPermission(option.kind),
       subject: held.subject,
       ...(held.toolKind ? { toolKind: held.toolKind } : {}),
@@ -220,7 +220,7 @@ export class RequestRegistry implements RequestAnswers {
     }
     held.cleanup();
     const detail = checked ? summarize(held.fields ?? [], checked) : "";
-    this.#store.settleRequest(sessionId, requestId, {
+    this.#store.settleRequest(this.#id(sessionId), requestId, {
       outcome: action === "accept" ? "answered" : "cancelled",
       subject: held.subject,
       ...(detail ? { detail } : {}),
@@ -230,7 +230,7 @@ export class RequestRegistry implements RequestAnswers {
 
   dismissSession(sessionId: string): void {
     for (const held of [...this.#held.values()]) {
-      if (held.sessionId === sessionId) this.#withdraw(held.requestId);
+      if (this.#id(held.sessionId) === this.#id(sessionId)) this.#withdraw(held.requestId);
     }
   }
 
@@ -240,7 +240,7 @@ export class RequestRegistry implements RequestAnswers {
       this.dismissSession(sessionId);
     } else if (event.type === "tool_execution_end") {
       for (const held of [...this.#held.values()]) {
-        if (held.sessionId !== sessionId) continue;
+        if (this.#id(held.sessionId) !== this.#id(sessionId)) continue;
         // An ask form carries no tool call id: the `ask` tool ending closes its forms.
         if (held.toolCallId === event.toolCallId || (held.fields && event.toolName === "ask")) {
           this.#withdraw(held.requestId);
@@ -252,7 +252,7 @@ export class RequestRegistry implements RequestAnswers {
   #take(sessionId: string, requestId: string, kind: Held["kind"]): Held {
     const held = this.#held.get(requestId);
     // Another session's id, or the other kind of request, is not this caller's to answer.
-    if (!held || held.sessionId !== sessionId || held.kind !== kind) {
+    if (!held || this.#id(held.sessionId) !== this.#id(sessionId) || held.kind !== kind) {
       throw new Error(`${STALE_REQUEST_MESSAGE}: ${requestId}`);
     }
     this.#held.delete(requestId);
@@ -265,7 +265,16 @@ export class RequestRegistry implements RequestAnswers {
     if (!held) return;
     this.#held.delete(requestId);
     held.cleanup();
-    this.#store.settleRequest(held.sessionId, requestId);
+    this.#store.settleRequest(this.#id(held.sessionId), requestId);
     held.respond({ kind: "withdrawn" });
+  }
+
+  /**
+   * The id a session answers to now. A request keeps the id ACP raised it under; when omp moved
+   * the session to a new file (`SessionStore.rekey`) that id is the old one, and the session's
+   * ops, answers and withdrawals all belong to the new one.
+   */
+  #id(sessionId: string): string {
+    return this.#store.current(sessionId);
   }
 }

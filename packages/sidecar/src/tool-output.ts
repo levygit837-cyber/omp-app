@@ -18,7 +18,7 @@ import type {
   ToolOutput,
 } from "@omp-app/protocol";
 
-const isRecord = (v: unknown): v is Record<string, unknown> =>
+export const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
 /** Rows of one file's diff kept on the wire; the rest is counted in `rowsOmitted`. */

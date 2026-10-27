@@ -24,13 +24,25 @@ export interface SessionReplicas {
   readonly store: StoreApi<SessionsState>;
   /**
    * Subscribes to a session and replaces any local state with its snapshot. Safe to call again
-   * (window reload, reconnect): the snapshot wins. Resolves once the replica is in the store.
+   * (window reload, reconnect): the snapshot wins. Resolves, once the replica is in the store,
+   * with the id it is under: the one asked for, or its successor when the session had moved.
    * Rejects with {@link SessionLostError} when the sidecar does not know the session (it was
    * restarted since); the replica is then gone from the store.
    */
-  open(sessionId: string): Promise<void>;
+  open(sessionId: string): Promise<string>;
+  /**
+   * Calls `listener(from, to)` when a session moved to a new id: omp keeps saving it to a new
+   * file because another process owns the old one. The replica is already under `to`.
+   */
+  onMoved(listener: (from: string, to: string) => void): () => void;
   /** Drops the replica and stops the op stream for the session. */
   close(sessionId: string): Promise<void>;
+  /**
+   * Forgets every pending request of every replica. A request lives in the sidecar process that
+   * made it, so when that process is gone nobody can answer it; the next snapshot of a session
+   * brings back whatever is really waiting.
+   */
+  clearPending(): void;
   /** Feed every `session.op` event here, in arrival order. */
   receive(event: SessionOpEvent): void;
 }
@@ -79,6 +91,7 @@ export function createSessionReplicas(api: SessionApi, schedule: FrameScheduler)
   const store = createStore<SessionsState>(() => ({ sessions: {}, error: null }));
   const tracking = new Map<string, Tracking>();
   const dirty = new Set<string>();
+  const moveListeners = new Set<(from: string, to: string) => void>();
   let frameRequested = false;
 
   const setSession = (sessionId: string, vm: SessionViewModel) =>
@@ -92,6 +105,20 @@ export function createSessionReplicas(api: SessionApi, schedule: FrameScheduler)
       const { [sessionId]: _dropped, ...rest } = state.sessions;
       return { sessions: rest };
     });
+  }
+
+  /** The session lives under another id from now on: its replica and tracking follow. */
+  function moveTo(from: string, to: string): void {
+    const t = tracking.get(from);
+    if (!t || from === to) return;
+    tracking.delete(from);
+    tracking.set(to, t);
+    if (dirty.delete(from)) dirty.add(to);
+    store.setState((state) => {
+      const { [from]: vm, ...rest } = state.sessions;
+      return vm ? { sessions: { ...rest, [to]: vm } } : state;
+    });
+    for (const listener of moveListeners) listener(from, to);
   }
 
   function apply(sessionId: string, ops: readonly SessionOp[]): void {
@@ -146,6 +173,8 @@ export function createSessionReplicas(api: SessionApi, schedule: FrameScheduler)
         t.held = null;
         t.seq = snapshot.seq;
         setSession(sessionId, snapshot.snapshot);
+        // Asked for an id the session left behind: the sidecar answers with the current one.
+        moveTo(sessionId, snapshot.snapshot.id);
         for (const event of heldEvents.sort((a, b) => a.seq - b.seq)) receive(event);
       },
       (error: unknown) => {
@@ -187,23 +216,42 @@ export function createSessionReplicas(api: SessionApi, schedule: FrameScheduler)
     }
     flush(event.sessionId);
     apply(event.sessionId, [event.op]);
+    if (event.op.type === "session.moved") moveTo(event.sessionId, event.op.id);
   }
 
-  function open(sessionId: string): Promise<void> {
+  function open(sessionId: string): Promise<string> {
     let t = tracking.get(sessionId);
     if (!t) {
       t = { seq: 0, pending: [], held: null, inflight: null };
       tracking.set(sessionId, t);
     }
-    return resync(sessionId, t, t.held ?? []);
+    return resync(sessionId, t, t.held ?? []).then(() => {
+      // Under the id it moved to, if it did.
+      for (const [id, tracked] of tracking) if (tracked === t) return id;
+      return sessionId;
+    });
   }
 
   return {
     store,
     open,
+    onMoved(listener) {
+      moveListeners.add(listener);
+      return () => moveListeners.delete(listener);
+    },
     async close(sessionId) {
       drop(sessionId);
       await api.unsubscribe(sessionId);
+    },
+    clearPending() {
+      store.setState((state) => ({
+        sessions: Object.fromEntries(
+          Object.entries(state.sessions).map(([id, vm]) => [
+            id,
+            vm.pending.length === 0 ? vm : { ...vm, pending: [] },
+          ]),
+        ),
+      }));
     },
     receive,
   };

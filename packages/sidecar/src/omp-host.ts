@@ -1,3 +1,4 @@
+import { stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
@@ -12,18 +13,21 @@ import { ensureTheme } from "@oh-my-pi/pi-tui/theme";
 import {
   type AnyMessage,
   ClientSideConnection,
+  type McpServer,
   PROTOCOL_VERSION,
   type Stream,
 } from "@oh-my-pi/pi-utils/acp";
+import type { StoredSession } from "@omp-app/protocol";
 import { parseMcpFailure, resolveMcpServers } from "./mcp-config";
 import type { RequestRegistry } from "./request-registry";
+import { findStoredSession, listStoredSessions } from "./session-catalog";
 
 export interface OmpHostOptions {
   /** Holds what the agent is blocked on (permissions, ask forms) until a person answers. */
   readonly requests: Pick<RequestRegistry, "permission" | "elicitation">;
   /**
-   * Called inside session creation, before `createSession` resolves and before any prompt can
-   * run, so a subscriber never misses the first event.
+   * Called once per opened session (new, resumed or forked) before the call that opened it
+   * resolves and before any prompt can run, so a subscriber never misses the first event.
    */
   readonly onSessionCreated: (session: AgentSession) => void;
   /** An MCP server failed to connect for this session. The session carries on without it. */
@@ -39,8 +43,19 @@ export interface OmpHostOptions {
 export interface OmpHost {
   /** Version reported by the hosted omp in its ACP `initialize` response. */
   readonly ompVersion: string;
+  /** Sessions on disk, as the CLI picker lists them. Never touches `agent.db`. */
+  list(): Promise<StoredSession[]>;
   /** Creates a file-backed session in the shared omp session directory; returns its id. */
   createSession(cwd: string): Promise<string>;
+  /**
+   * Opens a stored session with its history. Fails with `folder no longer exists: <path>` when
+   * the session's folder is gone: omp would open it anyway and run in a path that is not there.
+   */
+  resumeSession(sessionId: string): Promise<string>;
+  /** Opens a copy of a stored session, as it is on disk now; returns the copy's id. Same folder rule. */
+  forkSession(sessionId: string): Promise<string>;
+  /** Disposes the in-memory session (stopping a running turn). The file stays on disk. */
+  closeSession(sessionId: string): Promise<void>;
   /** Resolves when the turn ends (answered, cancelled or failed) with ACP's stop reason. */
   prompt(sessionId: string, text: string): Promise<string>;
   /**
@@ -99,6 +114,14 @@ export async function startOmpHost(options: OmpHostOptions): Promise<OmpHost> {
     return context;
   };
 
+  /** The session the factory built during the current `open` call. */
+  let built: AgentSession | undefined;
+  /** Reads and clears {@link built}. A function, so TypeScript sees the factory's write. */
+  const takeBuilt = (): AgentSession | undefined => {
+    const session = built;
+    built = undefined;
+    return session;
+  };
   const factory: AcpSessionFactory = async (cwd, factoryOptions) => {
     const { settings, authStorage, modelRegistry } = await openContext();
     const sessionSettings = await settings.cloneForCwd(cwd);
@@ -117,8 +140,28 @@ export async function startOmpHost(options: OmpHostOptions): Promise<OmpHost> {
       eventBus: new EventBus(),
       subagentEventBus: new EventBus(),
     });
-    options.onSessionCreated(session);
+    built = session;
     return { session, setToolUIContext };
+  };
+
+  /** Folder and MCP servers a stored session needs to be opened (ACP wants both with the id). */
+  const storedSessionContext = async (
+    sessionId: string,
+  ): Promise<{ cwd: string; mcpServers: McpServer[] }> => {
+    const stored = await findStoredSession(sessionId);
+    if (!stored) throw new Error(`session not found: ${sessionId}`);
+    if (
+      !(await stat(stored.cwd).then(
+        (info) => info.isDirectory(),
+        () => false,
+      ))
+    )
+      throw new Error(`folder no longer exists: ${stored.cwd}`);
+    const { settings } = await openContext();
+    return {
+      cwd: stored.cwd,
+      mcpServers: await resolveMcpServers(stored.cwd, await settings.cloneForCwd(stored.cwd)),
+    };
   };
 
   const transport = createMemoryTransport();
@@ -151,20 +194,92 @@ export async function startOmpHost(options: OmpHostOptions): Promise<OmpHost> {
   const ompVersion = init.agentInfo?.version;
   if (!ompVersion) throw new Error("omp ACP initialize returned no agentInfo.version");
 
+  /**
+   * ACP keeps a session under the id it was registered with. When omp moves a session to a new
+   * file (another process owns the old one) the session gets a new id, but ACP's key stays: this
+   * maps the current id to that key for the sessions that moved.
+   */
+  const moved = new Map<string, string>();
+  const keyOf = (sessionId: string): string => moved.get(sessionId) ?? sessionId;
+  const followMoves = (session: AgentSession, key: string): void => {
+    let current = session.sessionId;
+    // A move that already happened (omp replays past notices on subscribe) shows as an id that
+    // differs from ACP's key.
+    if (current !== key) moved.set(current, key);
+    session.sessionManager.onPersistenceNotice(() => {
+      const next = session.sessionId;
+      if (next === current) return;
+      moved.delete(current);
+      moved.set(next, key);
+      current = next;
+    });
+  };
+
+  /**
+   * Everything that changes which sessions are open runs one at a time, in call order: opening
+   * relies on "the session the factory just built" being unambiguous, and a close must not
+   * interleave with a resume of the same session.
+   */
+  let queue: Promise<unknown> = Promise.resolve();
+  const exclusive = <T>(run: () => Promise<T>): Promise<T> => {
+    const next = queue.then(run);
+    queue = next.catch(() => {});
+    return next;
+  };
+
+  /**
+   * Runs one ACP call that may build a session and registers that session once its final id
+   * is known. Resume and fork build a blank session in the factory and then switch it to the
+   * stored file, which changes its id, so registering from the factory would use the wrong
+   * one. No prompt can reach a session before this returns its id, so no event is missed.
+   */
+  const open = (call: () => Promise<string>): Promise<string> =>
+    exclusive(async () => {
+      takeBuilt();
+      const key = await call();
+      const session = takeBuilt();
+      if (!session) return key;
+      options.onSessionCreated(session);
+      followMoves(session, key);
+      // The session's own id: it differs from ACP's key when omp moved it while opening.
+      return session.sessionId;
+    });
+
   return {
     ompVersion,
-    async createSession(cwd) {
-      // omp ignores MCP config on disk in ACP sessions; the servers travel in the request.
-      const { settings } = await openContext();
-      const mcpServers = await resolveMcpServers(cwd, await settings.cloneForCwd(cwd));
-      const created = await client.newSession({ cwd, mcpServers });
-      return created.sessionId;
-    },
+    list: listStoredSessions,
+    createSession: (cwd) =>
+      open(async () => {
+        // omp ignores MCP config on disk in ACP sessions; the servers travel in the request.
+        const { settings } = await openContext();
+        const mcpServers = await resolveMcpServers(cwd, await settings.cloneForCwd(cwd));
+        return (await client.newSession({ cwd, mcpServers })).sessionId;
+      }),
+    resumeSession: (sessionId) =>
+      open(async () => {
+        const { cwd, mcpServers } = await storedSessionContext(sessionId);
+        // ACP registers a resumed session under the id it was asked for.
+        await client.resumeSession({ sessionId, cwd, mcpServers });
+        return sessionId;
+      }),
+    forkSession: (sessionId) =>
+      open(async () => {
+        const { cwd, mcpServers } = await storedSessionContext(sessionId);
+        return (await client.unstable_forkSession({ sessionId, cwd, mcpServers })).sessionId;
+      }),
+    closeSession: (sessionId) =>
+      exclusive(async () => {
+        await client.closeSession({ sessionId: keyOf(sessionId) });
+        moved.delete(sessionId);
+      }),
     async prompt(sessionId, text) {
-      const result = await client.prompt({ sessionId, prompt: [{ type: "text", text }] });
+      const result = await client.prompt({
+        sessionId: keyOf(sessionId),
+        prompt: [{ type: "text", text }],
+      });
       return result.stopReason;
     },
-    cancel: (sessionId) => client.cancel({ sessionId }),
+    cancel: (sessionId) => client.cancel({ sessionId: keyOf(sessionId) }),
     close: async () => {
       await transport.client.writable.close().catch(() => {});
     },
