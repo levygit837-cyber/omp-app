@@ -1,5 +1,6 @@
 import type { Item, SessionStatus, SessionWarning } from "@omp-app/protocol";
 import { useStore } from "zustand";
+import { sessionTitle } from "./format";
 import { createSessionReplicas, type SessionsState } from "./session-store";
 
 /** The window's replicas, fed by the bridge. */
@@ -27,3 +28,13 @@ export const useSessionError = (sessionId: string): string | undefined =>
 export const useSyncError = (): string | null => select((s) => s.error);
 export const useWarnings = (sessionId: string): readonly SessionWarning[] | undefined =>
   select((s) => s.sessions[sessionId]?.warnings);
+export const useItemKind = (sessionId: string, index: number): Item["kind"] | undefined =>
+  select((s) => s.sessions[sessionId]?.timeline[index]?.kind);
+export const useModel = (sessionId: string | null): string | null | undefined =>
+  select((s) => (sessionId ? s.sessions[sessionId]?.model : undefined));
+/** The first prompt stands in for a title until sessions carry one. A string, so it is stable. */
+export const useSessionTitle = (sessionId: string): string =>
+  select((s) => {
+    const first = s.sessions[sessionId]?.timeline.find((item) => item.kind === "user");
+    return sessionTitle(first?.text);
+  });
