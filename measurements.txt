@@ -1,0 +1,8 @@
+Measured in the real Electron app (1440x900, page in front), temp agent dir, 419 registry settings.
+Date: 2026-10-27. Debug port 9344.
+
+settings.list over IPC (project scope): 18 ms, 419 entries.
+First render (click on "Settings" to 44 controls painted): 24 ms.
+Section switch (Tools = 73 controls, the largest tab): 10-17 ms, one frame.
+Scope switch Global <-> Project: 18-23 ms.
+Window DOM: 1232 nodes with the Tools tab open (only the active section is rendered).
