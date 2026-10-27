@@ -1,0 +1,5 @@
+Built app (file://), CDP Network.setBlockedURLs ["*markdown-C0cHYyAy.js"] before the reload (the markdown chunk cannot load).
+Network.loadingFailed: 4 (all the blocked markdown chunk, blockedReason=inspector)
+Runtime.exceptionThrown / console error / Log error: none
+#root children: 1 (the window renders)
+Reply rendered as plain text: "A reply with **bold** text." in a <p>; <strong> elements: 0
