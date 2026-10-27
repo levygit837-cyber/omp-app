@@ -1,0 +1,12 @@
+initial {"logNodes":37,"rows":10,"scrollHeight":50523,"clientHeight":649,"scrollTop":49874,"bodyNodes":100,"role":"log","live":null}
+scroll {"frames":122,"totalMs":1014,"medianMs":8.3,"p95Ms":9.9,"maxMs":15.1}
+  ScriptDuration 0.0697
+  LayoutDuration 0.0582
+  RecalcStyleDuration 0.0158
+  TaskDuration 0.1995
+  LayoutCount 153
+  RecalcStyleCount 153
+  Nodes 5903
+after scroll {"logNodes":76,"rows":21,"scrollHeight":90896,"clientHeight":649,"scrollTop":49874,"bodyNodes":139,"role":"log","live":null}
+follow while streaming (gap to bottom px) 0 {"gap":0,"sh":91120}
+scrolled up, still streaming: scrollTop 89873 -> 89873 (not yanked)

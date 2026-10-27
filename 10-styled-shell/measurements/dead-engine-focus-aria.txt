@@ -1,0 +1,11 @@
+C: bridge-only prompt, +800ms gap 0
+C: bridge-only prompt, +1500ms gap 0
+C: bridge-only prompt, +2500ms gap 0
+2: before kill status streaming
+2: engine failed -> status idle | carets 0 | spinners 0 | Stop present false
+2: Esc alerts: []
+3: Tab 1 -> button "Hide sidebar"
+3: Enter on Hide sidebar -> sidebar present false | focus button "Show sidebar"
+3: Enter on Show sidebar -> sidebar present true | focus button "Hide sidebar"
+3: Tab -> button "New session"
+4: live attrs {"role":"log","label":"Conversation","rowsLive":"off","announcer":"polite","statusLive":null}

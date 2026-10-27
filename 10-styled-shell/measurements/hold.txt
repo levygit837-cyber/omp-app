@@ -1,0 +1,4 @@
+streaming, following: {"top":21300,"sh":21947,"gap":0}
+after wheel up 600: {"top":20700,"sh":21970,"gap":623}
+2 s later         : {"top":20700,"sh":22110,"gap":763} -> position held while content grew
+End, still streaming: {"top":21556,"sh":22203,"gap":0}
