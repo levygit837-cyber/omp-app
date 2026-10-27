@@ -119,10 +119,13 @@ export function buildTranscript(messages: readonly TranscriptMessage[]): Transcr
   };
   let model: string | null = null;
 
+  /** Ids of the lines made from a command the person ran with `!`; the agent's calls never join them. */
+  const ownRuns = new Set<string>();
+
   /** Adds a call to the tool item that ends the timeline when the live reducer would. */
   const addCall = (tool: string, intent: string | undefined, call: ToolCall): void => {
     const last = items.at(-1);
-    if (last?.kind === "tool" && joinsItem(last, tool, intent)) {
+    if (last?.kind === "tool" && !ownRuns.has(last.id) && joinsItem(last, tool, intent)) {
       items[items.length - 1] = { ...last, calls: [...last.calls, call] };
       return;
     }
@@ -243,9 +246,11 @@ export function buildTranscript(messages: readonly TranscriptMessage[]): Transcr
           ),
           command,
         );
+        const id = `i${items.length}`;
+        ownRuns.add(id);
         items.push({
           kind: "tool",
-          id: `i${items.length}`,
+          id,
           tool: "bash",
           calls: [
             {

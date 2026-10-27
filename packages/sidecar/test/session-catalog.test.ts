@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, setDefaultTimeout, test } from "bun:test";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { resetSettingsForTest } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { setAgentDir } from "@oh-my-pi/pi-utils";
 import { type OmpHost, startOmpHost } from "../src/omp-host";
@@ -77,6 +78,8 @@ beforeAll(async () => {
   // A key makes the bundled openai models restorable. Nothing here ever calls the API.
   process.env.OPENAI_API_KEY = "sk-test-not-a-real-key";
   setAgentDir(agentDir);
+  // Settings are a process-wide singleton: this file needs its own agent dir, not the first one loaded.
+  resetSettingsForTest();
   host = await startOmpHost({
     requests,
     onSessionCreated: (session) => attachSession(store, session, requests),
@@ -86,6 +89,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await host?.close();
+  resetSettingsForTest();
   for (const [key, value] of Object.entries(savedEnv)) {
     if (value === undefined) delete process.env[key];
     else process.env[key] = value;

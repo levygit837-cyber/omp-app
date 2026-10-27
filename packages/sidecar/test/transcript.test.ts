@@ -190,6 +190,48 @@ test("tool calls, shell commands and compactions of a real stored session become
   });
 });
 
+const agentBash = (id: string, command: string) => ({
+  role: "assistant",
+  provider: "p",
+  model: "m1",
+  content: [{ type: "toolCall", id, name: "bash", arguments: { command } }],
+});
+const ranByPerson = (command: string) => ({
+  role: "bashExecution",
+  command,
+  output: "",
+  cancelled: false,
+  exitCode: 0,
+  timestamp: 5,
+});
+
+test("a command the person ran with ! and the agent's next bash call are two lines", () => {
+  const { items } = buildTranscript([
+    ranByPerson("ls"),
+    agentBash("t1", "pwd"),
+    { role: "toolResult", toolCallId: "t1", toolName: "bash", content: [], isError: false },
+  ] as never);
+  expect(items.map((i) => (i.kind === "tool" ? i.calls.map((c) => c.target) : i.kind))).toEqual([
+    ["ls"],
+    ["pwd"],
+  ]);
+});
+
+test("the agent's bash call and the command the person ran next are two lines", () => {
+  const { items } = buildTranscript([agentBash("t1", "pwd"), ranByPerson("ls")] as never);
+  expect(items.map((i) => (i.kind === "tool" ? i.calls.map((c) => c.target) : i.kind))).toEqual([
+    ["pwd"],
+    ["ls"],
+  ]);
+});
+
+test("two agent bash calls in a row still share one line, as they do live", () => {
+  const { items } = buildTranscript([agentBash("t1", "a"), agentBash("t2", "b")] as never);
+  expect(items).toHaveLength(1);
+  expect(items[0]).toMatchObject({ kind: "tool", tool: "bash" });
+  expect(items[0]?.kind === "tool" && items[0].calls).toHaveLength(2);
+});
+
 test("a role omp adds later is counted under its own name", () => {
   expect(buildTranscript([{ role: "mystery", content: 1 }])).toEqual({
     items: [],

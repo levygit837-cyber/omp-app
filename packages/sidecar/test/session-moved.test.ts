@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, setDefaultTimeout, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { resetSettingsForTest } from "@oh-my-pi/pi-coding-agent/config/settings";
 import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { setAgentDir } from "@oh-my-pi/pi-utils";
 import type { SessionOpEvent } from "@omp-app/protocol";
@@ -9,11 +10,16 @@ import { type OmpHost, startOmpHost } from "../src/omp-host";
 import { RequestRegistry } from "../src/request-registry";
 import { attachSession } from "../src/session-bridge";
 import { SessionStore } from "../src/session-store";
+import { registerEchoModel, startEchoModel, useEchoModel } from "./fixtures/echo-model";
 
 setDefaultTimeout(60_000);
 
 let root: string;
 let host: OmpHost;
+let model: ReturnType<typeof startEchoModel>;
+/** The turn of the test stays inside the model call until it is released. */
+const inModel = Promise.withResolvers<void>();
+const release = Promise.withResolvers<void>();
 const store = new SessionStore();
 const requests = new RequestRegistry(store);
 const sessions: AgentSession[] = [];
@@ -30,7 +36,14 @@ beforeAll(async () => {
   process.env.HOME = join(root, "home");
   process.env.PI_CODING_AGENT_DIR = agentDir;
   process.env.OPENAI_API_KEY = "sk-test-not-a-real-key";
+  model = startEchoModel(async () => {
+    inModel.resolve();
+    await release.promise;
+  });
+  registerEchoModel(agentDir, model.port);
   setAgentDir(agentDir);
+  // Settings are a process-wide singleton: this file needs its own agent dir, not the first one loaded.
+  resetSettingsForTest();
   host = await startOmpHost({
     requests,
     onSessionCreated: (session) => {
@@ -41,7 +54,11 @@ beforeAll(async () => {
   });
 });
 
-afterAll(() => {
+afterAll(async () => {
+  release.resolve();
+  model?.stop(true);
+  await host?.close();
+  resetSettingsForTest();
   for (const [key, value] of Object.entries(savedEnv)) {
     if (value === undefined) delete process.env[key];
     else process.env[key] = value;
@@ -81,6 +98,8 @@ test("a session another live process holds moves to a new id; the app follows an
     const events: SessionOpEvent[] = [];
     store.subscribe(held.id, "test", (event) => events.push(event));
 
+    await useEchoModel(sessions.at(-1) as AgentSession);
+
     // The app's first write: omp sees the other process owns the file and moves off it.
     const session = sessions.at(-1) as AgentSession;
     session.sessionManager.appendMessage({ role: "user", content: "from the app", timestamp: 3 });
@@ -108,8 +127,18 @@ test("a session another live process holds moves to a new id; the app follows an
     expect(listed).toContain(movedTo);
     expect(listed).toContain(held.id);
 
-    // ACP still keys the session by the old id; the host maps the new one to it.
+    // ACP still keys the session by the old id; the host maps the new one to it, so a prompt, a
+    // cancel and a close under the new id reach the same session.
+    const turn = host.prompt(movedTo, "after the move");
+    // A prompt that cannot reach the session rejects here instead of waiting for a model call.
+    await Promise.race([inModel.promise, turn]);
+    expect(store.snapshot(movedTo).snapshot.status).toBe("streaming");
+    await host.cancel(movedTo);
+    expect(await turn).toBe("cancelled");
+    release.resolve();
+    expect(session.isDisposed).toBe(false);
     await host.closeSession(movedTo);
+    expect(session.isDisposed).toBe(true);
     store.remove(movedTo);
     expect(store.has(movedTo)).toBe(false);
   } finally {

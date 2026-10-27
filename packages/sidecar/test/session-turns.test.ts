@@ -1,19 +1,21 @@
 import { afterAll, beforeAll, expect, setDefaultTimeout, test } from "bun:test";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { resetSettingsForTest } from "@oh-my-pi/pi-coding-agent/config/settings";
 import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { setAgentDir } from "@oh-my-pi/pi-utils";
 import { type OmpHost, startOmpHost } from "../src/omp-host";
 import { RequestRegistry } from "../src/request-registry";
 import { attachSession } from "../src/session-bridge";
 import { SessionStore } from "../src/session-store";
+import { registerEchoModel, startEchoModel, useEchoModel } from "./fixtures/echo-model";
 
 setDefaultTimeout(60_000);
 
 let root: string;
 let host: OmpHost;
-let model: ReturnType<typeof Bun.serve>;
+let model: ReturnType<typeof startEchoModel>;
 const store = new SessionStore();
 const requests = new RequestRegistry(store);
 const sessions: AgentSession[] = [];
@@ -27,43 +29,6 @@ const savedEnv = {
 const bothAsked = Promise.withResolvers<void>();
 let asked = 0;
 
-/** An OpenAI-compatible endpoint that echoes the last user message back, streamed in two chunks. */
-function startModel() {
-  return Bun.serve({
-    port: 0,
-    async fetch(request) {
-      const body = (await request.json()) as {
-        messages: { role: string; content: unknown }[];
-      };
-      const last = body.messages.filter((m) => m.role === "user").at(-1);
-      // omp sends the content as parts, with a system reminder before the prompt.
-      const parts = Array.isArray(last?.content)
-        ? (last.content as { type: string; text?: string }[])
-        : [{ type: "text", text: String(last?.content) }];
-      const text = parts.filter((part) => part.type === "text").at(-1)?.text ?? "";
-      if (++asked === 2) bothAsked.resolve();
-      await bothAsked.promise;
-      const chunk = (delta: object, finish: string | null = null) =>
-        `data: ${JSON.stringify({
-          id: "c1",
-          object: "chat.completion.chunk",
-          created: 1,
-          model: "echo",
-          choices: [{ index: 0, delta, finish_reason: finish }],
-        })}\n\n`;
-      const half = Math.ceil(text.length / 2);
-      const stream = [
-        chunk({ role: "assistant", content: "" }),
-        chunk({ content: `echo ${text.slice(0, half)}` }),
-        chunk({ content: text.slice(half) }),
-        chunk({}, "stop"),
-        "data: [DONE]\n\n",
-      ].join("");
-      return new Response(stream, { headers: { "content-type": "text/event-stream" } });
-    },
-  });
-}
-
 beforeAll(async () => {
   root = realpathSync(mkdtempSync(join(tmpdir(), "omp-app-turns-")));
   const agentDir = join(root, "home", ".omp", "agent");
@@ -71,24 +36,14 @@ beforeAll(async () => {
   process.env.HOME = join(root, "home");
   process.env.PI_CODING_AGENT_DIR = agentDir;
   process.env.OPENAI_API_KEY = "sk-test-not-a-real-key";
-  model = startModel();
-  // The local server is a custom provider of the throwaway agent dir. Settings are a process-wide
-  // singleton that another test file may have loaded first, so each session picks the model itself.
-  writeFileSync(
-    join(agentDir, "models.yml"),
-    [
-      "providers:",
-      "  local-echo:",
-      `    baseUrl: http://127.0.0.1:${model.port}/v1`,
-      "    apiKey: sk-test-not-a-real-key",
-      "    api: openai-completions",
-      "    models:",
-      "      - id: echo",
-      "        name: Echo",
-      "",
-    ].join("\n"),
-  );
+  model = startEchoModel(() => {
+    if (++asked === 2) bothAsked.resolve();
+    return bothAsked.promise;
+  });
+  registerEchoModel(agentDir, model.port);
   setAgentDir(agentDir);
+  // Settings are a process-wide singleton: this file needs its own agent dir, not the first one loaded.
+  resetSettingsForTest();
   host = await startOmpHost({
     requests,
     onSessionCreated: (session) => {
@@ -102,6 +57,7 @@ beforeAll(async () => {
 afterAll(async () => {
   model?.stop(true);
   await host?.close();
+  resetSettingsForTest();
   for (const [key, value] of Object.entries(savedEnv)) {
     if (value === undefined) delete process.env[key];
     else process.env[key] = value;
@@ -118,9 +74,7 @@ test("two real sessions run a turn each at the same time and keep their own time
   const [a, b] = await Promise.all(dirs.map((dir) => host.createSession(dir)));
   expect(a).not.toBe(b);
   for (const session of sessions.slice(-2)) {
-    const echo = session.modelRegistry.find("local-echo", "echo");
-    if (!echo) throw new Error("the local model is not in the registry");
-    await session.setModel(echo, "default", { persist: false });
+    await useEchoModel(session);
   }
 
   // Prompt one, then the other: neither can finish until both are inside the model call.

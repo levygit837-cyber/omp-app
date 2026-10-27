@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, setDefaultTimeout, test } from "bun:test";
 import { copyFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { resetSettingsForTest } from "@oh-my-pi/pi-coding-agent/config/settings";
 import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { setAgentDir } from "@oh-my-pi/pi-utils";
 import { type OmpHost, startOmpHost } from "../src/omp-host";
@@ -62,6 +63,8 @@ beforeAll(async () => {
     disabledServers: ["denied"],
   });
   const requests = new RequestRegistry(store);
+  // Settings are a process-wide singleton: this file needs its own agent dir, not the first one loaded.
+  resetSettingsForTest();
   host = await startOmpHost({
     requests,
     onSessionCreated: (session) => {
@@ -75,6 +78,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await host?.close();
+  resetSettingsForTest();
   for (const [key, value] of Object.entries(savedEnv)) {
     if (value === undefined) delete process.env[key];
     else process.env[key] = value;
