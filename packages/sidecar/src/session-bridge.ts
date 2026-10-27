@@ -7,12 +7,12 @@ const modelOf = (session: AgentSession): string | null =>
   session.model ? `${session.model.provider}/${session.model.id}` : null;
 
 /** The context size changes when a reply lands, the history is compacted or the model changes. */
-const CONTEXT_EVENTS: Record<string, true> = {
-  message_end: true,
-  agent_end: true,
-  auto_compaction_end: true,
-  model_changed: true,
-};
+const CONTEXT_EVENTS: ReadonlySet<string> = new Set([
+  "message_end",
+  "agent_end",
+  "auto_compaction_end",
+  "model_changed",
+]);
 
 /** A bug in one step must not take the agent run down, nor skip the steps after it. */
 function guarded(type: string, step: () => void): void {
@@ -40,7 +40,7 @@ export function attachSession(store: SessionStore, session: AgentSession): void 
       if (event.type === "model_changed") store.setModel(id, modelOf(session));
       else store.dispatch(id, event);
     });
-    if (CONTEXT_EVENTS[event.type] === true) {
+    if (CONTEXT_EVENTS.has(event.type)) {
       guarded(`context reading on ${event.type}`, () =>
         store.setContext(id, readContextFill(session)),
       );
