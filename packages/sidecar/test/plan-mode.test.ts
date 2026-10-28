@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from "bun:test";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { resetSettingsForTest } from "@oh-my-pi/pi-coding-agent/config/settings";
@@ -76,15 +76,25 @@ async function newSession() {
 
 const planOfStore = (id: string) => store.snapshot(id).snapshot.plan;
 
-/** Writes the plan the agent would have written, in the session's own local root. */
-function writePlan(session: AgentSession, slug: string, body: string): void {
+/**
+ * Writes the plan the agent would have written, in the session's own local root. `modifiedAt`
+ * (epoch ms) sets the file's mtime outright: `readPlan` tells an earlier plan from a new one by
+ * comparing that mtime with `Date.now()` at the moment plan mode was turned on, and a write in
+ * the same millisecond as the toggle can land on either side of it. Pinning the mtime far from
+ * the toggle makes the answer independent of the clock and of the file system's timestamp lag.
+ */
+function writePlan(session: AgentSession, slug: string, body: string, modifiedAt?: number): void {
   const dir = resolveLocalRoot({
     getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
     getSessionId: () => session.sessionManager.getSessionId(),
   });
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, `${slug}-plan.md`), body);
+  const file = join(dir, `${slug}-plan.md`);
+  writeFileSync(file, body);
+  if (modifiedAt !== undefined) utimesSync(file, modifiedAt / 1000, modifiedAt / 1000);
 }
+
+const MINUTE = 60_000;
 
 /** Calls the handler omp installed for `xd://propose` and answers its question. */
 async function propose(id: string, session: AgentSession, slug: string, choice: string) {
@@ -247,15 +257,13 @@ describe("switching while a proposal waits", () => {
 describe("a plan omp re-entered", () => {
   test("is read as earlier when it was written before plan mode was turned on", async () => {
     const { id, session } = await newSession();
-    writePlan(session, "old-news", "# Old news\n");
-    await Bun.sleep(20);
+    writePlan(session, "old-news", "# Old news\n", Date.now() - MINUTE);
     await handlers()["session.setPlanMode"]({ sessionId: id, enabled: true }, fake);
     expect(await handlers()["session.readPlan"]({ sessionId: id }, fake)).toMatchObject({
       state: "ok",
       earlier: true,
     });
-    await Bun.sleep(20);
-    writePlan(session, "old-news", "# Old news, rewritten\n");
+    writePlan(session, "old-news", "# Old news, rewritten\n", Date.now() + MINUTE);
     expect(await handlers()["session.readPlan"]({ sessionId: id }, fake)).toMatchObject({
       state: "ok",
       earlier: false,
@@ -271,7 +279,8 @@ describe("a proposal", () => {
       state: "missing",
     });
 
-    writePlan(session, "rename-loader", "# Rename the loader\n\n1. do it\n");
+    // The agent writes its plan a whole turn after the toggle; pin an mtime after `enabledAt`.
+    writePlan(session, "rename-loader", "# Rename the loader\n\n1. do it\n", Date.now() + MINUTE);
     const read = await handlers()["session.readPlan"]({ sessionId: id }, fake);
     expect(read).toEqual({
       state: "ok",
