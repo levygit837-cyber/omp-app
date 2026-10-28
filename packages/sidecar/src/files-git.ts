@@ -94,7 +94,7 @@ export async function readStatus(
   if (out.kind === "aborted") throw new GitAborted();
   if (out.kind === "timeout") return { kind: "timeout" };
   if (out.kind === "failed") throw unavailable();
-  const parsed = parseStatus(out.stdout.toString("utf8"), out.kind === "ok");
+  const parsed = parseStatus(out.stdout.toString("utf8"));
   const entries: StatusEntry[] = [];
   for (const entry of parsed.entries) {
     const path = stripPrefix(entry.path, prefix);

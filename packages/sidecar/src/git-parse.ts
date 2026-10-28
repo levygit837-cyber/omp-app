@@ -50,10 +50,10 @@ export function statusLetter(xy: string): ChangeStatus {
  * separated and never quoted, so any file name is read back as it is. A rename carries its
  * source as the next NUL field. Ignored paths (`!`) and anything unknown are skipped.
  *
- * `text` may end in a partial entry when the output hit its cap; the last field is then dropped
- * unless `complete`, since it may be cut in the middle of a name.
+ * The last field is always dropped: it is the empty tail of complete output, or an entry cut
+ * in the middle of a name when the output hit its cap.
  */
-export function parseStatus(text: string, complete: boolean): ParsedStatus {
+export function parseStatus(text: string): ParsedStatus {
   let name: string | null = null;
   let head: string | null = null;
   let upstream: string | null = null;
@@ -61,9 +61,9 @@ export function parseStatus(text: string, complete: boolean): ParsedStatus {
   let behind = 0;
   const entries: StatusEntry[] = [];
   const fields = text.split("\0");
-  // The text ends with a NUL when complete, so the last field is empty; otherwise it is cut.
+  // Complete output ends with a NUL, so its last field is empty. Cut output ends inside an
+  // entry, so its last field may be a partial name. Either way the last field is dropped.
   fields.pop();
-  if (!complete) fields.pop();
   for (let i = 0; i < fields.length; i++) {
     const field = fields[i] as string;
     if (field.startsWith("# branch.oid ")) {
