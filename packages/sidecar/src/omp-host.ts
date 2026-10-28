@@ -41,6 +41,9 @@ import { parseMcpFailure, resolveMcpServers } from "./mcp-config";
 import type { RequestRegistry } from "./request-registry";
 import { findStoredSession, listStoredSessions } from "./session-catalog";
 
+/** omp refuses the plan mode while its `plan.enabled` setting is off (acp-agent.ts:2236-2239 [V]). */
+const PLAN_MODE_OFF = /^Unsupported ACP mode: plan/;
+
 export interface OmpHostOptions {
   /** Holds what the agent is blocked on (permissions, ask forms) until a person answers. */
   readonly requests: Pick<RequestRegistry, "permission" | "elicitation">;
@@ -108,6 +111,12 @@ export interface OmpHost extends CommandControl {
   cancel(sessionId: string): Promise<void>;
   /** The builtins omp runs without a terminal, with what the palette needs to show them. */
   commands(): ReturnType<typeof listBuiltinCommands>;
+  /**
+   * Switches omp's ACP mode of an open session to `plan` or `default`. It is the path that
+   * installs the proposal handler, which plan mode needs to ask for approval (see `PlanControl`).
+   * Fails with omp's `Unsupported ACP mode: plan` when the `plan.enabled` setting is off.
+   */
+  setPlanMode(sessionId: string, enabled: boolean): Promise<void>;
   /** Closes the in-memory transport; the AcpAgent disposes itself when it sees the close. */
   close(): Promise<void>;
   /**
@@ -460,6 +469,22 @@ export async function startOmpHost(options: OmpHostOptions): Promise<OmpHost> {
       // write it back (`session-manager.ts:2432-2439`, `3179-3181` [V]).
       if (!manager.isSessionOnDisk()) return;
       manager.appendCustomEntry(COMMAND_ENTRY_TYPE, storedCommandOf(command));
+    },
+    async setPlanMode(sessionId, enabled) {
+      try {
+        await client.setSessionMode({
+          sessionId: keyOf(sessionId),
+          modeId: enabled ? "plan" : "default",
+        });
+      } catch (error) {
+        // The ACP layer answers a thrown error with "Internal error" and keeps omp's own message in
+        // `data.details` (pi-utils acp/transport.ts:330 [V]). Only the one the window has a
+        // sentence for is passed on; any other failure stays as generic as omp made it.
+        const details = (error as { data?: { details?: unknown } } | null)?.data?.details;
+        throw typeof details === "string" && PLAN_MODE_OFF.test(details)
+          ? new Error(details)
+          : error;
+      }
     },
     close: async () => {
       await transport.client.writable.close().catch(() => {});

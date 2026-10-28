@@ -9,7 +9,9 @@ import { SessionStore } from "../src/session-store";
 /** A session that hands its listener back, so the test can emit events the way omp does. */
 function fakeSession() {
   let listener: ((event: AgentSessionEvent) => void) | undefined;
+  const mode = { state: undefined as { enabled: boolean; planFilePath: string } | undefined };
   const session = {
+    getPlanModeState: () => mode.state,
     sessionId: "s",
     sessionManager: {
       getCwd: () => "/w",
@@ -28,7 +30,7 @@ function fakeSession() {
       return () => {};
     },
   } as unknown as AgentSession;
-  return { session, emit: (event: AgentSessionEvent) => listener?.(event) };
+  return { session, mode, emit: (event: AgentSessionEvent) => listener?.(event) };
 }
 
 const messageEnd = {
@@ -83,5 +85,33 @@ describe("attachSession", () => {
     attachSession(store, session, new RequestRegistry(store));
     emit({ type: "agent_start" } as AgentSessionEvent);
     expect(store.snapshot("s").snapshot.context).toBeNull();
+  });
+
+  // omp emits no event for plan mode: the state is read after each event, so an approval that
+  // flips it inside the proposal handler (acp-agent.ts:2316 [V]) reaches the view model.
+  test("plan mode changes omp made on its own are published after the next event, once", () => {
+    const store = new SessionStore();
+    const { session, mode, emit } = fakeSession();
+    attachSession(store, session, new RequestRegistry(store));
+    const published: unknown[] = [];
+    store.subscribe("s", "test", (e) => {
+      if (e.op.type === "plan.set") published.push(e.op.plan);
+    });
+    expect(store.snapshot("s").snapshot.plan).toEqual({ enabled: false, planFile: null });
+
+    mode.state = { enabled: true, planFilePath: "local://PLAN.md" };
+    emit(messageEnd);
+    emit(messageEnd);
+    expect(store.snapshot("s").snapshot.plan).toEqual({
+      enabled: true,
+      planFile: "local://PLAN.md",
+    });
+    // Two events, one change: a streamed turn does not flood the replicas.
+    expect(published).toHaveLength(1);
+
+    mode.state = undefined;
+    emit(messageEnd);
+    expect(store.snapshot("s").snapshot.plan).toEqual({ enabled: false, planFile: null });
+    expect(published).toHaveLength(2);
   });
 });

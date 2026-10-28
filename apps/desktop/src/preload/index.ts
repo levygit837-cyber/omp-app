@@ -23,10 +23,12 @@ import {
   SESSION_OP,
   SESSION_PICK_DIRECTORY,
   SESSION_PROMPT,
+  SESSION_READ_PLAN,
   SESSION_REMOVE_QUEUED,
   SESSION_RESUME,
   SESSION_RUN_COMMAND,
   SESSION_SET_MODEL,
+  SESSION_SET_PLAN_MODE,
   SESSION_SET_THINKING,
   SESSION_SUBSCRIBE,
   SESSION_UNSUBSCRIBE,
@@ -81,6 +83,9 @@ const bridge: OmpBridge = {
       ipcRenderer.invoke(SESSION_ANSWER_PERMISSION, sessionId, requestId, optionId),
     answerAsk: (sessionId, requestId, action, content) =>
       ipcRenderer.invoke(SESSION_ANSWER_ASK, sessionId, requestId, action, content),
+    setPlanMode: (sessionId, enabled) =>
+      ipcRenderer.invoke(SESSION_SET_PLAN_MODE, sessionId, enabled),
+    readPlan: (sessionId) => ipcRenderer.invoke(SESSION_READ_PLAN, sessionId),
     list: () => ipcRenderer.invoke(SESSION_LIST),
     resume: (sessionId) => ipcRenderer.invoke(SESSION_RESUME, sessionId),
     fork: (sessionId) => ipcRenderer.invoke(SESSION_FORK, sessionId),

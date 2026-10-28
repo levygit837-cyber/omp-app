@@ -143,6 +143,9 @@ export async function raiseRequests(session: RequestSession, emit: Emit): Promis
   waiting.set(session.vm.id, mine);
   const done: Promise<void>[] = [];
   for (const request of requestsFor()) {
+    // A proposal only happens in plan mode: omp rejects `xd://propose` otherwise.
+    if (request.id === "fake-plan" && !session.vm.plan.enabled)
+      emit({ type: "plan.set", plan: { enabled: true, planFile: "local://PLAN.md" } });
     const gate = Promise.withResolvers<void>();
     mine.set(request.id, gate.resolve);
     done.push(gate.promise);
@@ -188,6 +191,14 @@ export function answerRequest(
       ...(detail ? { detail } : {}),
     },
   });
+  // Like omp: only the explicit approve choice leaves plan mode (acp-agent.ts:2306-2316 [V]).
+  const approved =
+    "ask" in how &&
+    how.ask === "accept" &&
+    isAskContent(how.content) &&
+    how.content.value === "Approve and execute";
+  if (request.id === "fake-plan" && approved)
+    emit({ type: "plan.set", plan: { enabled: false, planFile: null } });
   resolve();
   return true;
 }

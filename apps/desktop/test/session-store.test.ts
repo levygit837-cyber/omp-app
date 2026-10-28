@@ -25,6 +25,7 @@ const emptyVm = (id = "s1", patch: Partial<SessionViewModel> = {}): SessionViewM
   pending: [],
   thinking: null,
   queue: { steering: [], followUp: [], liveSteered: 0 },
+  plan: { enabled: false, planFile: null },
   ...patch,
 });
 

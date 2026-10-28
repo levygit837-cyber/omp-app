@@ -8,6 +8,7 @@
  * older replica never breaks on a newer op.
  */
 import { isRecord } from "./guards";
+import { isPlanState, type PlanState } from "./plan";
 import { type Attachment, isAttachment, isQueueState, type QueueState, sameQueue } from "./prompt";
 import {
   type DecisionItem,
@@ -124,6 +125,11 @@ export interface SessionViewModel {
   readonly pending: readonly PendingRequest[];
   /** Input waiting for the running turn: steering and follow-ups, as omp reports it. */
   readonly queue: QueueState;
+  /**
+   * Plan mode of this session. A restored session starts with it off: omp's ACP path does not
+   * write the mode to the session file, so there is nothing to resume it from.
+   */
+  readonly plan: PlanState;
 }
 
 /** A change to the view model. Discriminated by `type`. */
@@ -164,6 +170,7 @@ export type SessionOp =
   | { readonly type: "usage.set"; readonly usage: SessionUsage }
   | { readonly type: "context.set"; readonly context: ContextFill | null }
   | { readonly type: "todo.set"; readonly todo: readonly TodoPhase[] }
+  | { readonly type: "plan.set"; readonly plan: PlanState }
   | { readonly type: "request.add"; readonly request: PendingRequest }
   /**
    * Removes a pending request. `item` is the one-line event it leaves behind when a person
@@ -289,6 +296,10 @@ export function applyOp(vm: SessionViewModel, op: SessionOp): SessionViewModel {
       return { ...vm, context: op.context };
     case "todo.set":
       return { ...vm, todo: op.todo };
+    case "plan.set":
+      return vm.plan.enabled === op.plan.enabled && vm.plan.planFile === op.plan.planFile
+        ? vm
+        : { ...vm, plan: op.plan };
     case "request.add":
       return vm.pending.some((r) => r.id === op.request.id)
         ? vm
@@ -347,7 +358,8 @@ export function isSessionViewModel(v: unknown): v is SessionViewModel {
     Array.isArray(v.todo) &&
     v.todo.every(isTodoPhase) &&
     Array.isArray(v.pending) &&
-    v.pending.every(isPendingRequest)
+    v.pending.every(isPendingRequest) &&
+    isPlanState(v.plan)
   );
 }
 

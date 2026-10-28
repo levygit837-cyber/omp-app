@@ -25,6 +25,7 @@ import {
 import { type DraftImage, imageChipText, readImages } from "./draft-images";
 import { FileSuggest, SUGGEST_ID, suggestOptionId } from "./FileSuggest";
 import { LOCKED_ID, LOCKED_WHILE_RUNNING, ModelControls } from "./ModelControls";
+import { PlanToggle } from "./PlanToggle";
 import {
   deliveryForKey,
   deliveryHint,
@@ -364,7 +365,9 @@ export function Composer({
           className={`max-h-(--layout-composer-input-max) w-full resize-none bg-transparent text-size-body leading-(--line-height-prose) text-text-primary outline-none field-sizing-content placeholder:text-text-dim${waiting ? " pl-(--space-24) placeholder:text-text-secondary" : ""}`}
         />
       </div>
-      <div className="flex items-center gap-(--space-8)">
+      {/* Wraps: model, thinking and plan together are wider than the bar in a narrow window, and
+          the send button would otherwise leave the box. */}
+      <div className="flex flex-wrap items-center gap-x-(--space-8) gap-y-(--space-4)">
         <IconButton
           aria-label="Attach image"
           title="Attach an image (PNG, JPEG, GIF or WebP). You can also paste or drop one."
@@ -397,6 +400,7 @@ export function Composer({
           locked={engine !== "ready"}
           onError={setError}
         />
+        <PlanToggle sessionId={sessionId} engineReady={engine === "ready"} readOnly={readOnly} />
         {view.reason && <p className="text-size-sm text-text-dim">{view.reason}</p>}
         <span className="flex-1" />
         {streaming ? (

@@ -2,6 +2,7 @@ import type {
   CommandItem,
   Item,
   PendingRequest,
+  PlanState,
   QueueState,
   SessionStatus,
   SessionWarning,
@@ -48,6 +49,8 @@ export const useWarnings = (sessionId: string): readonly SessionWarning[] | unde
   select((s) => s.sessions[sessionId]?.warnings);
 export const usePending = (sessionId: string): readonly PendingRequest[] | undefined =>
   select((s) => s.sessions[sessionId]?.pending);
+export const usePlan = (sessionId: string): PlanState | undefined =>
+  select((s) => s.sessions[sessionId]?.plan);
 export const useItemKind = (sessionId: string, index: number): Item["kind"] | undefined =>
   select((s) => s.sessions[sessionId]?.timeline[index]?.kind);
 export const useModel = (sessionId: string | null): string | null | undefined =>

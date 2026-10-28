@@ -6,8 +6,11 @@ import { groupByProvider, thinkingChoices } from "./prompt-input";
 import { message } from "./session-controller";
 import { useModel, useThinking } from "./session-hooks";
 
-/** Why the pickers are locked while a turn runs. omp applies the choice to the next turn. */
-export const LOCKED_WHILE_RUNNING = "Model and thinking change when the turn ends.";
+/**
+ * Why the pickers and the plan toggle are locked while a turn runs. omp applies the choice to the
+ * next turn.
+ */
+export const LOCKED_WHILE_RUNNING = "Model, thinking and plan mode change when the turn ends.";
 /** Id of the visible text that gives the reason; the locked triggers point `aria-describedby` at it. */
 export const LOCKED_ID = "controls-locked-reason";
 

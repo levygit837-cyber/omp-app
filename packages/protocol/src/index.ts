@@ -18,6 +18,7 @@ import {
   type SkillsListing,
 } from "./extensions";
 import { isRecord } from "./guards";
+import { isPlanReadResult, type PlanReadResult } from "./plan";
 import {
   type Delivery,
   isRemoveQueuedResult,
@@ -44,6 +45,7 @@ import {
 export * from "./catalog";
 export * from "./commands";
 export * from "./extensions";
+export * from "./plan";
 export * from "./prompt";
 export * from "./requests";
 export * from "./session";
@@ -209,6 +211,19 @@ export interface Methods {
     };
     result: null;
   };
+  /**
+   * Turns plan mode on or off for an open session, the way omp's own ACP mode switch does (it
+   * also installs the approval handler). Fails when omp's `plan.enabled` setting is off.
+   */
+  "session.setPlanMode": {
+    params: { readonly sessionId: string; readonly enabled: boolean };
+    result: null;
+  };
+  /**
+   * Reads the session's plan file. The caller names no path: the sidecar takes it from the plan
+   * state omp reports and refuses anything outside the session's `local://` root.
+   */
+  "session.readPlan": { params: { readonly sessionId: string }; result: PlanReadResult };
   /** Every session on disk the CLI picker would list, across projects. Reads only. */
   "session.list": { params: undefined; result: SessionListResult };
   /** Opens a stored session with its full history. Already open: returns the same id. */
@@ -394,6 +409,9 @@ export const methodWrites: { [M in MethodName]: boolean } = {
   // have a pending request anyway because `session.create` and `session.prompt` are refused.
   "session.answerPermission": false,
   "session.answerAsk": false,
+  // Both touch only the live session in memory; the plan file is read, never written.
+  "session.setPlanMode": false,
+  "session.readPlan": false,
   "session.list": false,
   "session.resume": true,
   "session.fork": true,
@@ -448,6 +466,8 @@ export const resultGuards: { [M in MethodName]: (v: unknown) => v is Methods[M][
   "session.unsubscribe": isNull,
   "session.answerPermission": isNull,
   "session.answerAsk": isNull,
+  "session.setPlanMode": isNull,
+  "session.readPlan": isPlanReadResult,
   "session.list": isSessionListResult,
   "session.resume": isSessionCreateResult,
   "session.fork": isSessionCreateResult,

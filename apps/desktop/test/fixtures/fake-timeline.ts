@@ -21,6 +21,7 @@ export function fakeViewModel(init: {
     todo: [],
     pending: [],
     queue: { steering: [], followUp: [], liveSteered: 0 },
+    plan: { enabled: false, planFile: null },
   };
 }
 

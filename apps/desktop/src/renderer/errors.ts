@@ -1,5 +1,6 @@
 import {
   CONFIRM_REQUIRED_MESSAGE,
+  PLAN_BUSY_MESSAGE,
   SESSION_BUSY_MESSAGE,
   STALE_REQUEST_MESSAGE,
   UNKNOWN_COMMAND_MESSAGE,
@@ -34,6 +35,14 @@ const KNOWN: readonly (readonly [RegExp, (match: RegExpMatchArray) => string])[]
   ],
   [/^session not found: /, () => "That session is no longer on disk."],
   [/^unknown session/, () => "That session isn’t open in omp any more."],
+  // acp-agent.ts:2219-2227 [V]: plan mode is only offered while the `plan.enabled` setting is on.
+  [
+    /^Unsupported ACP mode: plan/,
+    () => "Plan mode is turned off in omp’s settings (Tasks › Plan Mode).",
+  ],
+  // The sidecar refuses a plan switch while a turn runs; the toggle is disabled then, so this is
+  // the answer to a click that raced the status change.
+  [new RegExp(`^${PLAN_BUSY_MESSAGE}$`), () => "Plan mode changes between turns."],
   [
     /Could not restore model (\S+)/,
     (m) => `omp couldn’t restore the model this session used (${m[1]}). Check its credentials.`,
