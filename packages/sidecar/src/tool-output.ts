@@ -343,7 +343,7 @@ function matchesOutput(details: Record<string, unknown>): ToolOutput | undefined
 
 // -- Per tool ----------------------------------------------------------------------------------
 
-function todoPhases(details: Record<string, unknown>): TodoPhase[] | undefined {
+export function todoPhases(details: Record<string, unknown>): TodoPhase[] | undefined {
   if (!Array.isArray(details.phases)) return undefined;
   const phases: TodoPhase[] = [];
   for (const p of details.phases) {

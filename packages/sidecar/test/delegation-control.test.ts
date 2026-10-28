@@ -17,6 +17,7 @@ import { RequestRegistry } from "../src/request-registry";
 import type { ClientHandle } from "../src/server";
 import { SESSION_CAPABILITIES, sessionHandlers } from "../src/session-handlers";
 import { SessionStore } from "../src/session-store";
+import { noActions } from "./fixtures/no-actions";
 import { noCommands } from "./fixtures/no-commands";
 import { noPromptControls } from "./harness";
 
@@ -242,6 +243,7 @@ describe("the requests", () => {
     const control = {
       ...noPromptControls,
       ...noCommands,
+      ...noActions,
       list: async () => [],
       createSession: async () => "x",
       resumeSession: async () => "x",
@@ -305,9 +307,19 @@ describe("the requests", () => {
     "session.files": { query: "" },
     "session.commands": {},
     "session.runCommand": { text: "/usage" },
+    "session.clearContext": { confirmed: true },
+    "session.deletePreview": {},
+    "session.delete": { confirmed: true },
+    "agents.setPaused": { paused: true, confirmed: true },
   };
   // Methods that take a session id and are allowed on a view, or take none.
-  const notDriving = ["session.subscribe", "session.unsubscribe", "session.create", "session.list"];
+  const notDriving = [
+    "session.subscribe",
+    "session.unsubscribe",
+    "session.create",
+    "session.list",
+    "agents.pauseState",
+  ];
 
   test("every session request is classified here, so a new one cannot skip the view check", () => {
     expect([...Object.keys(drivingArgs), ...notDriving].sort()).toEqual(

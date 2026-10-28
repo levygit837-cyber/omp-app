@@ -6,6 +6,7 @@ import type {
   JobInfo,
   PendingRequest,
   PlanState,
+  QueueState,
   SessionOp,
   SessionOpEvent,
   SessionSnapshot,
@@ -13,11 +14,21 @@ import type {
   SessionViewModel,
   SessionWarning,
   SubagentInfo,
+  TodoPhase,
 } from "@omp-app/protocol";
 import { applyOp, UNKNOWN_SESSION_MESSAGE } from "@omp-app/protocol";
 import { type Reduced, reduceEvent, reduceModel, reduceThinking } from "./reducer";
 
 export type OpSink = (event: SessionOpEvent) => void;
+
+/** What the session holds after omp cleared its context, as omp reports it. */
+export interface ClearedState {
+  /** When the boundary was written to the session file, epoch milliseconds. */
+  readonly at: number;
+  readonly context: ContextFill | null;
+  readonly queue: QueueState;
+  readonly todo: readonly TodoPhase[];
+}
 
 interface Entry {
   viewModel: SessionViewModel;
@@ -189,6 +200,27 @@ export class SessionStore {
       requestId,
       ...(item ? { item } : {}),
     });
+  }
+
+  /**
+   * The agent's context was cleared: the timeline stays and gains the "Context cleared" line, and
+   * what omp reset (queued messages) or measured again (context fill) is taken from omp. Each
+   * piece publishes nothing when it did not change.
+   */
+  markCleared(sessionId: string, cleared: ClearedState): void {
+    const entry = this.#entry(sessionId);
+    this.#apply(sessionId, {
+      type: "item.add",
+      item: { kind: "boundary", id: `i${entry.viewModel.timeline.length}`, at: cleared.at },
+    });
+    const queue = this.#entry(sessionId).viewModel.queue;
+    if (JSON.stringify(queue) !== JSON.stringify(cleared.queue)) {
+      this.#apply(sessionId, { type: "queue.set", queue: cleared.queue });
+    }
+    if (JSON.stringify(this.#entry(sessionId).viewModel.todo) !== JSON.stringify(cleared.todo)) {
+      this.#apply(sessionId, { type: "todo.set", todo: cleared.todo });
+    }
+    this.setContext(sessionId, cleared.context);
   }
 
   /** Appends a running `command` item for a line the person ran; returns its id. */
