@@ -11,6 +11,8 @@ import {
 } from "@omp-app/protocol";
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, shell } from "electron";
 import {
+  AGENTS_PAUSE_STATE,
+  AGENTS_SET_PAUSED,
   APP_OPEN_LINK,
   JOB_CANCEL,
   MCP_ADD,
@@ -23,9 +25,12 @@ import {
   SESSION_ANSWER_ASK,
   SESSION_ANSWER_PERMISSION,
   SESSION_CANCEL,
+  SESSION_CLEAR_CONTEXT,
   SESSION_CLOSE,
   SESSION_COMMANDS,
   SESSION_CREATE,
+  SESSION_DELETE,
+  SESSION_DELETE_PREVIEW,
   SESSION_FILES,
   SESSION_FORK,
   SESSION_LIST,
@@ -264,6 +269,34 @@ function registerSessionRelay(sidecar: SidecarSupervisor): void {
   ipcMain.handle(SESSION_CLOSE, async (_event, sessionId: unknown) => {
     await sidecar.request("session.close", { sessionId: text(sessionId, "sessionId") });
   });
+  // The sidecar enforces `confirmed`; main only passes a literal `true` through.
+  ipcMain.handle(SESSION_CLEAR_CONTEXT, (_event, sessionId: unknown, confirmed: unknown) =>
+    sidecar.request("session.clearContext", {
+      sessionId: text(sessionId, "sessionId"),
+      ...(confirmed === true ? { confirmed } : {}),
+    }),
+  );
+  ipcMain.handle(SESSION_DELETE_PREVIEW, (_event, sessionId: unknown) =>
+    sidecar.request("session.deletePreview", { sessionId: text(sessionId, "sessionId") }),
+  );
+  ipcMain.handle(SESSION_DELETE, (_event, sessionId: unknown, confirmed: unknown) =>
+    sidecar.request("session.delete", {
+      sessionId: text(sessionId, "sessionId"),
+      ...(confirmed === true ? { confirmed } : {}),
+    }),
+  );
+  ipcMain.handle(AGENTS_PAUSE_STATE, () => sidecar.request("agents.pauseState"));
+  ipcMain.handle(
+    AGENTS_SET_PAUSED,
+    (_event, sessionId: unknown, paused: unknown, confirmed: unknown) => {
+      if (typeof paused !== "boolean") throw new Error("paused must be true or false");
+      return sidecar.request("agents.setPaused", {
+        sessionId: text(sessionId, "sessionId"),
+        paused,
+        ...(confirmed === true ? { confirmed } : {}),
+      });
+    },
+  );
   ipcMain.handle(
     SESSION_COMMANDS,
     async (_event, sessionId: unknown) =>

@@ -48,6 +48,13 @@ export function clock(ms: number): string {
   return `${Math.floor(total / 60)}:${seconds}`;
 }
 
+const WALL_CLOCK = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
+
+/** The time of day an event happened, in the person's locale (`14:32`). */
+export function wallClock(at: number): string {
+  return WALL_CLOCK.format(at);
+}
+
 /** The state mark a session carries in the sidebar and its tab. A question waiting outranks the rest. */
 export function sessionMark(status: SessionStatus | undefined, waiting = false): MarkState {
   if (waiting) return "approval";

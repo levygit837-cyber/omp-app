@@ -7,7 +7,7 @@ import { projectName } from "./format";
 import { useCwd, useItem, useItemCount, useItemKind } from "./session-hooks";
 import { useShownStatus } from "./shown-status";
 import { CommandLine } from "./timeline/CommandLine";
-import { CompactionLine, compactionVisible, RetryLine } from "./timeline/StatusLines";
+import { BoundaryLine, CompactionLine, compactionVisible, RetryLine } from "./timeline/StatusLines";
 import { ThinkingLine } from "./timeline/ThinkingLine";
 import { ToolLine } from "./timeline/ToolLine";
 import { UserMessage } from "./timeline/UserMessage";
@@ -60,6 +60,8 @@ function Body({ sessionId, item }: { sessionId: string; item: Item }) {
       return <RetryLine sessionId={sessionId} item={item} />;
     case "command":
       return <CommandLine item={item} />;
+    case "boundary":
+      return <BoundaryLine item={item} />;
     case "decision":
       return <DecisionLine item={item} />;
     default:
