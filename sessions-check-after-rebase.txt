@@ -1,0 +1,6 @@
+Real ~/.omp/agent/sessions entries before the live run: 137
+after: 137
+diff of the two sorted listings: empty
+config.yml mtime before: 1792964624 after: 1792964624
+omp-app-live* temp folders left: 0
+(The listings themselves are not published: the names encode project paths.)

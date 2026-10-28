@@ -1,4 +1,4 @@
-[sidecar] ready: sidecar 0.0.0, omp 18.12.6, mode normal, socket /var/folders/d2/2lnqp37x36b_yq5pms_wsxzw0000gn/T/omp-app-live-2cwRCZ/s.sock
+[sidecar] ready: sidecar 0.0.0, omp 18.12.6, mode normal, socket /tmp/omp-app-live-2cwRCZ/s.sock
 sidecar up: omp 18.12.6, mode normal
 
 == basic (01a18068-8aa5-7526-a757-f252123c63a3)
@@ -65,7 +65,7 @@ status: idle, model: kiro/claude-haiku-5.5
 == plan-approve (01a18069-3379-740b-bd53-480b5a7113e5)
 ops: {"plan.set":2,"status.set":2,"context.set":14,"item.add":15,"item.appendText":176,"thinking.end":6,"usage.set":6,"tool.call.update":7,"request.add":1,"request.settle":1,"item.done":1}
 status: idle, model: kiro/claude-haiku-5.5
-  user: "Plan (do not implement yet) how to create a file named approved.txt in /private/var/folders/d2/2lnqp… (242 chars)"
+  user: "Plan (do not implement yet) how to create a file named approved.txt in /tmp/… (242 chars)"
   thinking: "Since the user wants a plan only, I should first do a quick read-only check of the directory to see … (269 chars)"
   tool: "Checking target directory state"
   thinking: "I see the directory has gated.txt and a config file but no approved.txt, so I need to write a canoni… (276 chars)"
@@ -81,14 +81,14 @@ status: idle, model: kiro/claude-haiku-5.5
   tool: "Listing target directory"
   thinking: "The user had said not to implement yet, just propose the plan — but the approval message indicated p… (255 chars)"
   assistant [done]: "`approved.txt` está criado em `/tmp/omp-app-live… (474 chars)"
-  proposal: "Approve plan \"Create-refinedtxt-containing-hi\" and start implementation?\n\n# Create refined.txt containing \"hi\"\n\n## Context\nCreate `refined.txt` in `/private/var"
+  proposal: "Approve plan \"Create-refinedtxt-containing-hi\" and start implementation?\n\n# Create refined.txt containing \"hi\"\n\n## Context\nCreate `refined.txt` in `/tmp"
   readPlan: ok local://create-refined-txt-plan.md (1322 chars)
   second proposal: "Approve plan \"Create-refinedtxt-containing-hi\" and start implementation?\n\n# Create refined.txt conta"
 
 == plan-refine (01a18069-c174-7256-a80e-39589731b674)
 ops: {"plan.set":2,"status.set":2,"context.set":12,"item.add":12,"item.appendText":110,"thinking.end":5,"usage.set":6,"tool.call.update":6,"request.add":2,"request.settle":2}
 status: idle, model: kiro/claude-haiku-5.5
-  user: "Plan (do not implement yet) how to create a file named refined.txt in /private/var/folders/d2/2lnqp3… (241 chars)"
+  user: "Plan (do not implement yet) how to create a file named refined.txt in /tmp/… (241 chars)"
   thinking: "I'm in plan mode, so I need to write the plan file locally and then propose it, keeping things to th… (258 chars)"
   tool: "Checking target directory state"
   thinking: "I should draft the plan file at local://refined-file-plan.md with three concise steps, then propose … (178 chars)"
@@ -108,7 +108,7 @@ status: idle, model: kiro/claude-haiku-5.5
 == plan-cancel (01a1806a-37b6-71b7-8b52-b6fedc3aa662)
 ops: {"plan.set":3,"status.set":2,"context.set":11,"item.add":12,"item.appendText":103,"thinking.end":4,"usage.set":5,"tool.call.update":6,"request.add":2,"request.settle":2,"item.done":1}
 status: idle, model: kiro/claude-haiku-5.5
-  user: "Plan (do not implement yet) how to create a file named cancelled.txt in /private/var/folders/d2/2lnq… (243 chars)"
+  user: "Plan (do not implement yet) how to create a file named cancelled.txt in /tmp/… (243 chars)"
   thinking: "Since I'm in plan mode, I need to write the plan to local://<slug>-plan.md and then submit it via xd… (378 chars)"
   tool: "Checking target directory state"
   tool: "Reading propose device schema"

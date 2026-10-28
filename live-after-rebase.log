@@ -1,0 +1,77 @@
+[sidecar] ready: sidecar 0.0.0, omp 18.12.6, mode normal, socket /tmp/omp-app-live-bpvfUj/s.sock
+sidecar up: omp 18.12.6, mode normal
+  switch during the turn: plan mode changes between turns
+
+== plan-toggle (01a180e9-928a-7366-9bd9-bf702e05fe13)
+ops: {"plan.set":2,"status.set":2,"context.set":1,"item.add":1,"usage.set":1}
+status: idle, model: kiro/claude-haiku-5.5
+  user: "Count from 1 to 200, one number per line. No tools."
+  proposal: "Approve plan \"create-approved-txt-Create-approvedtxt-containing-hi-in-the-omp-app-live-project-AIox4n-temp-directory\" and start implementation?\n\n# Create approv"
+  readPlan: ok local://create-approved-txt-plan.md (1537 chars)
+  plan mode ended; waiting for the work to finish
+
+== plan-approve (01a180e9-9615-74cb-a92f-f6ad7d9db463)
+ops: {"plan.set":2,"status.set":2,"context.set":15,"item.add":16,"item.appendText":157,"thinking.end":6,"usage.set":6,"tool.call.update":8,"request.add":1,"request.settle":1,"thinking.tokens":3,"item.done":1}
+status: idle, model: kiro/claude-haiku-5.5
+  user: "Plan how to create a file named approved.txt in /tmp/… (303 chars)"
+  thinking: "Preciso escrever o arquivo de plano local com os três passos resumidos, depois verificar rapidamente… (224 chars)"
+  tool: "Checking target directory for approved.txt"
+  tool: "Reading propose device docs"
+  thinking: "I need to write a local plan file first, then propose it with slug \"create-approved-txt\" at local://… (486 chars)"
+  tool: "Writing plan file"
+  tool: "Submitting plan for approval"
+  decision: answered "Approve plan \"create-approved-txt-Create-approvedtxt-containing-hi-in-the-omp-app-live-project-AIox4n-temp-directory\" and start implementation?"
+  thinking: "With the plan approved, I'll re-check for approved.txt before writing, since my earlier glob was fro… (164 chars)"
+  tool: "Confirming approved.txt is absent"
+  thinking: "Plan's approved, so I'll create the file with \"hi\" as the content, no trailing newline, then read it… (119 chars)"
+  tool: "Creating approved.txt with hi"
+  thinking: "Let me verify by reading the file back and checking the directory listing.\n\n"
+  tool: "Verifying approved.txt content"
+  tool: "Listing target directory"
+  thinking: "File created and verified—\"hi\" written correctly, mid.txt and secret.txt untouched. Ready to report … (119 chars)"
+  assistant [done]: "O arquivo `approved.txt` foi criado em `/tmp/omp… (412 chars)"
+  proposal: "Approve plan \"slug-create-refined-txt-title-Create-refinedtxt-containing-hi\" and start implementation?\n\n# Create refined.txt containing \"hi\"\n\n## Context\nCreate "
+  readPlan: ok local://create-refined-txt-plan.md (1352 chars)
+  second proposal: "Approve plan \"create-refined-txt-Create-refinedtxt-containing-hi\" and start implementation?\n\n# Creat"
+
+== plan-refine (01a180ea-1629-7732-bdfe-27aa09338f6e)
+ops: {"plan.set":2,"status.set":2,"context.set":10,"item.add":10,"item.appendText":159,"thinking.end":4,"usage.set":5,"tool.call.update":5,"request.add":2,"request.settle":2}
+status: idle, model: kiro/claude-haiku-5.5
+  user: "Plan how to create a file named refined.txt in /tmp/… (302 chars)"
+  thinking: "I'm working out the plan mode requirements for creating refined.txt with \"hi\" — I need to write a pl… (731 chars)"
+  tool: "Checking target directory and whether refined.txt exists"
+  thinking: "Since the user asked me to continue, I should write the plan file to local storage first, keeping it… (693 chars)"
+  tool: "Writing plan file"
+  tool: "Reading propose device schema"
+  thinking: "The user wanted only three short steps, but my plan file has more than that, so I should trim it dow… (200 chars)"
+  tool: "Submitting plan for approval"
+  decision: answered "Approve plan \"slug-create-refined-txt-title-Create-refinedtxt-containing-hi\" and start implementation?"
+  thinking: "The tool's response seems to want the plan resubmitted with a particular slug naming convention, whi… (237 chars)"
+  tool: "Resubmitting plan in plain-text slug/title format"
+  proposal: "Approve plan \"Create-cancelledtxt-containing-hi\" and start implementation?\n\n# Create cancelled.txt containing \"hi\"\n\n## Context\n\nCreate `cancelled.txt` in `/priv"
+  readPlan: ok local://create-cancelled-txt-plan.md (1333 chars)
+  after cancel: the agent proposed again
+
+== plan-cancel (01a180ea-7f29-774f-be19-d97091c69e40)
+ops: {"plan.set":2,"status.set":2,"context.set":9,"item.add":9,"item.appendText":88,"thinking.end":3,"usage.set":4,"tool.call.update":5,"request.add":2,"request.settle":2}
+status: idle, model: kiro/claude-haiku-5.5
+  user: "Plan how to create a file named cancelled.txt in /tmp/… (304 chars)"
+  thinking: "Since I'm in plan mode, I need to write the plan to a local file first, then propose it via xd://pro… (557 chars)"
+  tool: "Reading propose device docs"
+  tool: "Checking target directory exists"
+  thinking: "I need to create a plan file at local://create-cancelled-txt-plan.md with a few short steps, then pr… (232 chars)"
+  tool: "write"
+  tool: "Submitting plan for approval"
+  decision: cancelled "Approve plan \"Create-cancelledtxt-containing-hi\" and start implementation?"
+  thinking: "The proposal got flagged for a slug mismatch, so I need to resubmit to xd://propose with the title m… (163 chars)"
+  tool: "Resubmitting refined plan for approval"
+
+session directory: ~/.omp/agent/sessions
+  plan-toggle: ~/.omp/agent/sessions/-tmp-omp-app-live-project-AIox4n/2026-10-28T05-09-13-482Z_01a180e9-928a-7366-9bd9-bf702e05fe13.jsonl
+  plan-approve: ~/.omp/agent/sessions/-tmp-omp-app-live-project-AIox4n/2026-10-28T05-09-14-389Z_01a180e9-9615-74cb-a92f-f6ad7d9db463.jsonl
+  plan-refine: ~/.omp/agent/sessions/-tmp-omp-app-live-project-AIox4n/2026-10-28T05-09-47-177Z_01a180ea-1629-7732-bdfe-27aa09338f6e.jsonl
+  plan-cancel: ~/.omp/agent/sessions/-tmp-omp-app-live-project-AIox4n/2026-10-28T05-10-14-057Z_01a180ea-7f29-774f-be19-d97091c69e40.jsonl
+resume: omp --resume 01a180e9 -p "What did I ask first?"  (cwd /tmp/omp-app-live-project-AIox4n)
+[sidecar] exiting: client disconnected
+
+live: all scenarios passed
