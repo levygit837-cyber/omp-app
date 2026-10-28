@@ -315,3 +315,32 @@ test("a resumed steer keeps its badge and a resumed image its type and size", ()
     attachments: [{ kind: "image", mimeType: "image/png", bytes: 3 }],
   });
 });
+
+test("saved commands go back between the messages they were run between", () => {
+  const command = (text: string, startedAt: number) => ({
+    text,
+    state: "done" as const,
+    output: `out ${text}`,
+    startedAt,
+    endedAt: startedAt + 1,
+  });
+  const { items, omitted } = buildTranscript(
+    [
+      { role: "user", content: "one", timestamp: 100 },
+      { ...assistant("two"), timestamp: 200 },
+      { role: "user", content: "three", timestamp: 400 },
+    ],
+    // Given out of order on purpose; one before everything, one in the middle, one after.
+    [command("/c", 900), command("/a", 50), command("/b", 300)],
+  );
+  expect(items.map((i) => (i.kind === "command" ? i.text : i.kind))).toEqual([
+    "/a",
+    "user",
+    "assistant",
+    "/b",
+    "user",
+    "/c",
+  ]);
+  expect(items.map((i) => i.id)).toEqual(["i0", "i1", "i2", "i3", "i4", "i5"]);
+  expect(omitted).toEqual({});
+});

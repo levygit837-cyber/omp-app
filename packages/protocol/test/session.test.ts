@@ -4,6 +4,7 @@ import {
   isSessionSnapshot,
   isSessionViewModel,
   methodWrites,
+  resultGuards,
   type SessionOp,
   type SessionViewModel,
 } from "../src/index";
@@ -121,5 +122,69 @@ describe("guards and gate", () => {
     expect(methodWrites["session.cancel"]).toBe(true);
     expect(methodWrites["session.subscribe"]).toBe(false);
     expect(methodWrites["session.unsubscribe"]).toBe(false);
+  });
+});
+
+describe("command items and the commands result", () => {
+  const command = {
+    kind: "command",
+    id: "i3",
+    text: "/usage",
+    state: "done",
+    output: "5 turns",
+    startedAt: 1,
+    endedAt: 2,
+  };
+
+  const withItem = (item: object) => isSessionViewModel({ ...empty, timeline: [item] });
+
+  test("a command item is an item; a bad state, a missing text or a stray flag is not", () => {
+    expect(withItem(command)).toBe(true);
+    expect(withItem({ ...command, state: "paused" })).toBe(false);
+    expect(withItem({ ...command, text: undefined })).toBe(false);
+    expect(withItem({ ...command, truncated: false })).toBe(false);
+  });
+
+  test("an item.patch reaches a command item and no other kind of item", () => {
+    const vm = {
+      ...empty,
+      timeline: [command as never, { kind: "user", id: "i4", text: "hi" } as never],
+    };
+    const patched = applyOp(vm, {
+      type: "item.patch",
+      itemId: "i3",
+      patch: { output: "more" },
+    });
+    expect(patched.timeline[0]).toMatchObject({ output: "more" });
+    expect(applyOp(vm, { type: "item.patch", itemId: "i4", patch: { text: "x" } as never })).toBe(
+      vm,
+    );
+  });
+
+  test("session.commands answers with the shape the palette reads; anything else is refused", () => {
+    const entry = {
+      name: "effort",
+      aliases: [],
+      description: "Set effort",
+      hint: "[level]",
+      subcommands: [{ name: "low", description: "Less" }],
+      confirm: { because: "Writes a file." },
+      confirmVerbs: [{ verbs: ["reset"], because: "Spends one.", destructive: true }],
+    };
+    expect(resultGuards["session.commands"]({ commands: [entry] })).toBe(true);
+    expect(resultGuards["session.commands"]({ commands: [{ ...entry, confirm: "Writes." }] })).toBe(
+      false,
+    );
+    expect(
+      resultGuards["session.commands"]({
+        commands: [{ ...entry, confirmVerbs: [{ because: "No verbs." }] }],
+      }),
+    ).toBe(false);
+    expect(resultGuards["session.commands"]({})).toBe(false);
+  });
+
+  test("running a builtin is a write; listing them is not", () => {
+    expect(methodWrites["session.runCommand"]).toBe(true);
+    expect(methodWrites["session.commands"]).toBe(false);
   });
 });

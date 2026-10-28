@@ -1,7 +1,14 @@
 import { useContext, useEffect, useRef, useState } from "react";
 import { announce, announceControls, announceQueue } from "./announce";
+import { commandAnnouncement } from "./command-phrase";
 import { requestAnnouncement } from "./requests-view";
-import { lastAssistantText, useModel, useQueue, useThinking } from "./session-hooks";
+import {
+  lastAssistantText,
+  useEndedCommand,
+  useModel,
+  useQueue,
+  useThinking,
+} from "./session-hooks";
 import { EngineContext, useShownStatus, useWaiting } from "./shown-status";
 
 /**
@@ -41,6 +48,16 @@ export function Announcer({ sessionId }: { sessionId: string }) {
     askedId.current = waiting?.id;
     if (waiting) setText(requestAnnouncement(waiting));
   }, [waiting]);
+
+  // A command ends on its own time, so it is said when it does. One that had already ended when
+  // the session opened (a resumed history) is not news.
+  const ended = useEndedCommand(sessionId);
+  const spoken = useRef(ended?.id);
+  useEffect(() => {
+    if (!ended || ended.id === spoken.current) return;
+    spoken.current = ended.id;
+    setText(commandAnnouncement(ended));
+  }, [ended]);
 
   useEffect(() => {
     const said = announce({

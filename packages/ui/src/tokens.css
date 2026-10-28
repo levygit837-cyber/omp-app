@@ -37,6 +37,11 @@
   --color-bg-user: #2e1a16;
   --color-bg-hover: #170e0c;
   --color-bg-selected: #1e1210;
+  /* Command palette (Pen NUFjM, not yet in the Pen variables): its selected row sits on the
+   * elevated surface, so it is lighter than the sidebar's selected fill, not darker. */
+  --color-bg-palette-selected: #2a1814;
+  /* Dims the window behind the palette (Pen node dPzLh, fill #0A0605A6). */
+  --color-veil: #0a0605a6;
   /* Text */
   --color-text-primary: #f1e4da; /* 15.8:1 on bg-base */
   --color-text-secondary: #b29e93; /* 7.7:1 on bg-base */
@@ -168,6 +173,13 @@
    * it scrolls there, so the choices and buttons below it stay on screen. */
   --layout-band-message-max: 16svh;
   --layout-empty-column: 560px;
+  /* Command palette (Pen NUFjM): 640 wide, 64 from the top, search bar 52, rows 32. The list
+   * scrolls inside itself past the max, so the window never does. */
+  --layout-palette: 640px;
+  --layout-palette-top: 64px;
+  --layout-palette-list-max: 60svh;
+  --size-palette-search: 52px;
+  --size-palette-row: 32px;
   /* Context menu width (Pen QTqk0: 248 wide, items 28 high = --size-control). */
   --layout-menu: 248px;
   /* Longest a chip grows before its text is cut (attachments, queued messages). Not in the Pen file. */

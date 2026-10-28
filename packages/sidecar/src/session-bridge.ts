@@ -1,5 +1,6 @@
 import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import type { SessionWarning } from "@omp-app/protocol";
+import { readStoredCommands } from "./command-entries";
 import { readContextFill } from "./context-fill";
 import { emptyViewModel } from "./reducer";
 import type { RequestAnswers } from "./request-registry";
@@ -52,10 +53,14 @@ export function attachSession(
   session: AgentSession,
   requests: Pick<RequestAnswers, "agentEvent">,
 ): void {
-  // The id the store knows the session by. omp can change `session.sessionId` under us (see the
-  // persistence notice below); this follows it.
-  let id = session.sessionId;
-  const transcript = buildTranscript(session.buildTranscriptSessionContext().messages);
+  // The id the store knows the session by: the manager's, which omp changes when it moves the
+  // session to a new file (see the persistence notice below). `session.sessionId` is the provider
+  // session id and also changes on `/fresh`, which moves nothing.
+  let id = session.sessionManager.getSessionId();
+  const transcript = buildTranscript(
+    session.buildTranscriptSessionContext().messages,
+    readStoredCommands(session.sessionManager.getBranch()),
+  );
   const warnings: SessionWarning[] = [];
   const omittedText = describeOmitted(transcript.omitted);
   if (omittedText) {
@@ -83,7 +88,7 @@ export function attachSession(
       return;
     }
     const previous = id;
-    id = session.sessionId;
+    id = session.sessionManager.getSessionId();
     if (id !== previous) store.rekey(previous, id);
     store.warn(id, warning);
   });

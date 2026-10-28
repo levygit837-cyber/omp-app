@@ -6,6 +6,7 @@ import { MAX_FILE_QUERY_CHARS, MAX_IMAGES_PER_PROMPT } from "@omp-app/protocol";
 import { emptyViewModel } from "../src/reducer";
 import { type SessionControl, sessionHandlers } from "../src/session-handlers";
 import { SessionStore } from "../src/session-store";
+import { noCommands } from "./fixtures/no-commands";
 import { noPromptControls } from "./harness";
 import { PNG_HEAD } from "./images";
 
@@ -19,6 +20,7 @@ function setup(over: Partial<SessionControl> = {}) {
   store.create(emptyViewModel({ id: "s1", cwd: "/work", model: "p/m" }));
   const control: SessionControl = {
     ...noPromptControls,
+    ...noCommands,
     list: async () => [],
     createSession: async () => "s1",
     resumeSession: async (id) => id,

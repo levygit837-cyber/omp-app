@@ -1,12 +1,14 @@
 import type { ComponentProps } from "react";
 import { cx } from "./cx";
 
-export type ButtonVariant = "primary" | "approval" | "secondary" | "ghost";
+export type ButtonVariant = "primary" | "approval" | "destructive" | "secondary" | "ghost";
 
 const VARIANT: Record<ButtonVariant, string> = {
   primary: "bg-accent px-(--space-control-x) text-on-accent",
   /** The affirmative answer of a wait band: sulfur, because the band is sulfur. */
   approval: "bg-state-approval px-(--space-control-x) text-on-accent",
+  /** Confirms a loss that cannot be undone (Delete session, K8sot8): the error red, once. */
+  destructive: "bg-state-error px-(--space-control-x) text-on-accent",
   secondary:
     "border border-border-control px-(--space-control-x) text-text-primary hover:bg-bg-hover",
   ghost: "px-(--space-4) text-text-secondary hover:text-text-primary",

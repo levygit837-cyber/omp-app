@@ -5,7 +5,7 @@
  * `session.create|resume|fork`), `old-protocol` (answers with another protocolVersion).
  *
  * Every mode except `silent` also serves
- * `session.create|list|resume|fork|close|subscribe|unsubscribe|prompt|cancel`
+ * `session.create|list|resume|fork|close|subscribe|unsubscribe|prompt|cancel|commands|runCommand`
  * with in-memory sessions (`fake-<n>`) whose state is kept with `applyOp`, so snapshots match
  * the `session.op` stream. A prompt runs a scripted turn. Knobs, all optional:
  * - FAKE_REPLY: reply text of a turn (default: a short English paragraph).
@@ -20,6 +20,8 @@
  * - FAKE_WARN=1: emit one MCP `warning.add` right after the first subscribe of each session.
  * - FAKE_REQUEST=permission|ask|form|queue: halfway through the reply, raise that request and
  *   wait for its answer (see fake-requests.ts). Also serves `session.answerPermission|answerAsk`.
+ * - FAKE_COMMAND_MS: how long a command runs before it prints (default 40).
+ * - FAKE_COMMAND_HOLD=1: a command stays `running` until `session.cancel` (then `stopped`).
  * - FAKE_STORED=<n>: n sessions "on disk" (`stored-<i>`, see fake-catalog.ts) for list/resume/fork.
  *
  * `settings.*` is served from `fake-settings.ts` (in memory; `read-only` refuses the writes).
@@ -46,6 +48,13 @@ import {
   UNKNOWN_SESSION_MESSAGE,
 } from "@omp-app/protocol";
 import { storedSessions, storedTimeline } from "./fake-catalog";
+import {
+  commandItem,
+  FAKE_COMMANDS,
+  fakeCommandOutput,
+  missingConfirmation,
+  unknownCommand,
+} from "./fake-commands";
 import { handleExtensions } from "./fake-extensions";
 import {
   drainFollowUp,
@@ -92,6 +101,8 @@ interface FakeSession {
   seq: number;
   subs: Set<Conn>;
   turn?: Turn;
+  /** Commands still running, by item id, with what ends them early. */
+  commands: Map<string, () => void>;
   turns: number;
   warned: boolean;
 }
@@ -241,7 +252,26 @@ function promptTarget(session: FakeSession): PromptTarget {
   };
 }
 
+async function runCommand(session: FakeSession, line: string, output: string): Promise<void> {
+  const itemId = `c${session.commands.size + session.vm.timeline.length}`;
+  emit(session, { type: "item.add", item: commandItem(itemId, line, Date.now()) });
+  const gate = Promise.withResolvers<"stopped" | "done">();
+  session.commands.set(itemId, () => gate.resolve("stopped"));
+  if (process.env.FAKE_COMMAND_HOLD !== "1") {
+    setTimeout(() => gate.resolve("done"), Number(process.env.FAKE_COMMAND_MS ?? 40));
+  }
+  const state = await gate.promise;
+  session.commands.delete(itemId);
+  emit(session, {
+    type: "item.patch",
+    itemId,
+    patch:
+      state === "done" ? { state, output, endedAt: Date.now() } : { state, endedAt: Date.now() },
+  });
+}
+
 function cancelTurn(session: FakeSession): void {
+  for (const stop of session.commands.values()) stop();
   const turn = session.turn;
   if (!turn) return;
   turn.cancelled = true;
@@ -269,6 +299,7 @@ function openFake(sessionId: string, cwd: string, timeline: Item[]): void {
     }),
     seq: 0,
     subs: new Set(),
+    commands: new Map(),
     turns: 0,
     warned: false,
   });
@@ -345,6 +376,7 @@ function handleSession(
       }),
       seq: 0,
       subs: new Set(),
+      commands: new Map(),
       turns: 0,
       warned: false,
     });
@@ -384,7 +416,26 @@ function handleSession(
     case "session.unsubscribe":
       session.subs.delete(conn);
       return okResponse(id, null);
+    case "session.commands":
+      return okResponse(id, { commands: FAKE_COMMANDS });
+    case "session.runCommand": {
+      if (mode === "read-only") return readOnlyError(id, method);
+      const line = param(params, "text");
+      const output = fakeCommandOutput(line);
+      if (output === null)
+        return errorResponse(id, { code: "internal", message: unknownCommand(line).message });
+      const refused = missingConfirmation(
+        line,
+        (params as { confirmed?: unknown }).confirmed === true,
+      );
+      if (refused) return errorResponse(id, { code: "internal", message: refused.message });
+      void runCommand(session, line, output);
+      return okResponse(id, null);
+    }
     case "session.prompt": {
+      // The real sidecar refuses a gated builtin on the prompt path too (`gatedPromptLine`).
+      const refused = missingConfirmation(param(params, "text").trim(), false);
+      if (refused) return errorResponse(id, { code: "internal", message: refused.message });
       const text = param(params, "text");
       const images = (params as { images?: PromptImage[] } | null)?.images ?? [];
       // Like the real reducer: type and decoded size, never the bytes.

@@ -8,6 +8,7 @@ import { RequestRegistry } from "../src/request-registry";
 import { attachSession } from "../src/session-bridge";
 import { sessionHandlers } from "../src/session-handlers";
 import { SessionStore } from "../src/session-store";
+import { noCommands } from "./fixtures/no-commands";
 import { noPromptControls } from "./harness";
 
 const SID = "s1";
@@ -15,6 +16,7 @@ const SID = "s1";
 /** The lifecycle members of `SessionControl` that these tests never reach. */
 const idle = {
   ...noPromptControls,
+  ...noCommands,
   list: async () => [],
   resumeSession: async (id: string) => id,
   forkSession: async (id: string) => id,
@@ -516,7 +518,12 @@ describe("the session bridge", () => {
     const session = {
       sessionId: SID,
       model: undefined,
-      sessionManager: { getCwd: () => "/work", onPersistenceNotice: () => () => {} },
+      sessionManager: {
+        getCwd: () => "/work",
+        getBranch: () => [],
+        getSessionId: () => SID,
+        onPersistenceNotice: () => () => {},
+      },
       buildTranscriptSessionContext: () => ({ messages: [] }),
       thinkingLevel: "off",
       configuredThinkingLevel: () => "off",

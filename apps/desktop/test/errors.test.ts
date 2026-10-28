@@ -19,6 +19,15 @@ describe("describeEngineFailure", () => {
 });
 
 describe("describeError", () => {
+  test("a line the sidecar wanted confirmed becomes a sentence, not the raw refusal", () => {
+    const text = describeError(
+      new Error(
+        "Error invoking remote method 'session:runCommand': Error: confirmation required: /session delete",
+      ),
+    );
+    expect(text).toBe("/session delete needs a confirmation first. Nothing was run.");
+  });
+
   test("a dead sidecar becomes a sentence, not the IPC text", () => {
     const raw = new Error(
       "Error invoking remote method 'session:cancel': Error: the sidecar is not ready",

@@ -1,4 +1,5 @@
 import {
+  CONFIRM_REQUIRED_MESSAGE,
   type Delivery,
   IMAGE_REFUSED_MESSAGE,
   isPromptImage,
@@ -7,16 +8,25 @@ import {
   type PromptImage,
   type QueueName,
   refuseImages,
+  type SessionCommandsResult,
   type StoredSession,
+  UNKNOWN_COMMAND_MESSAGE,
   UNKNOWN_SESSION_MESSAGE,
 } from "@omp-app/protocol";
+import {
+  confirmationFor,
+  gatedPromptLine,
+  isRunnableCommand,
+  needsConfirmationSentence,
+} from "./command-catalog";
+import { type CommandControl, CommandRunner } from "./command-runner";
 import { listFiles } from "./file-list";
 import type { RequestAnswers } from "./request-registry";
 import type { Handlers } from "./server";
 import type { SessionStore } from "./session-store";
 
 /** What the handlers need from the omp host. Narrow, so tests can stand in for omp. */
-export interface SessionControl {
+export interface SessionControl extends CommandControl {
   list(): Promise<StoredSession[]>;
   createSession(cwd: string): Promise<string>;
   resumeSession(sessionId: string): Promise<string>;
@@ -35,6 +45,8 @@ export interface SessionControl {
   removeQueued(sessionId: string, queue: QueueName, text: string): boolean;
   cwdOf(sessionId: string): string;
   cancel(sessionId: string): Promise<void>;
+  /** The builtins omp runs without a terminal. Independent of the session. */
+  commands(): SessionCommandsResult["commands"];
 }
 
 export const SESSION_CAPABILITIES = [
@@ -54,6 +66,8 @@ export const SESSION_CAPABILITIES = [
   "session.resume",
   "session.fork",
   "session.close",
+  "session.commands",
+  "session.runCommand",
 ] as const;
 
 /** Handlers for the `session.*` methods. Control goes through ACP; state comes from the store. */
@@ -77,6 +91,21 @@ export function sessionHandlers(
     lifecycle = next.catch(() => {});
     return next;
   };
+  const commands = new CommandRunner({
+    store,
+    control,
+    // The same path as a typed prompt, for what a builtin hands back (`/force`, `/ratchet`).
+    refusal: (text) => {
+      const line = gatedPromptLine(text);
+      return line === null ? null : needsConfirmationSentence(line);
+    },
+    prompt: (sessionId, text) => {
+      control.prompt(sessionId, text).catch((error: unknown) => {
+        const id = store.current(sessionId);
+        if (store.has(id)) store.fail(id, error instanceof Error ? error.message : String(error));
+      });
+    },
+  });
   return {
     "session.create": ({ cwd }) =>
       inOrder(async () => ({ sessionId: await control.createSession(cwd) })),
@@ -105,6 +134,10 @@ export function sessionHandlers(
       }),
 
     "session.prompt": async ({ sessionId, text, images = [], delivery = "steer" }) => {
+      // Refused here so the composer shows a sentence; `OmpHost.prompt` holds the same line for
+      // every other caller.
+      const gated = gatedPromptLine(text);
+      if (gated !== null) throw new Error(`${CONFIRM_REQUIRED_MESSAGE}: ${gated}`);
       // The request comes from a renderer: check the shape here, not at the call sites.
       if (
         !Array.isArray(images) ||
@@ -165,7 +198,27 @@ export function sessionHandlers(
       // omp keeps the wire request of a permission open when the turn is cancelled (it only
       // sends `$/cancel_request` on a steer), so drop it here or the band would outlive the turn.
       requests.dismissSession(id);
+      // A builtin that is still running (`/compact`) stops with the Stop control, like a turn.
+      commands.cancel(id);
       await control.cancel(id);
+      return null;
+    },
+
+    "session.commands": async ({ sessionId }) => {
+      known(sessionId);
+      return { commands: control.commands() };
+    },
+
+    "session.runCommand": async ({ sessionId, text, confirmed }) => {
+      const id = known(sessionId);
+      // Checked here so a typo is an error the person sees, not a message sent to the model.
+      if (!isRunnableCommand(text)) throw new Error(`${UNKNOWN_COMMAND_MESSAGE}: ${text}`);
+      // The question is the person's to answer, not the client's to remember: a line that
+      // reaches beyond the session does not start without the answer in the request.
+      if (confirmed !== true && confirmationFor(text) !== null) {
+        throw new Error(`${CONFIRM_REQUIRED_MESSAGE}: ${text}`);
+      }
+      commands.start(id, text);
       return null;
     },
 

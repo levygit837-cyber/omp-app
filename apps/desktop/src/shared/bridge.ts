@@ -16,6 +16,7 @@ import type {
   SettingsTarget,
   SkillsChange,
   SkillsListing,
+  SlashCommand,
   StoredSession,
 } from "@omp-app/protocol";
 
@@ -103,8 +104,20 @@ export type OmpBridge = {
     fork(sessionId: string): Promise<string>;
     /** Closes an open session in the sidecar. The session file stays on disk. */
     close(sessionId: string): Promise<void>;
+    /** The omp builtins the session can run without a terminal (what the palette lists). */
+    commands(sessionId: string): Promise<readonly SlashCommand[]>;
+    /**
+     * Runs one builtin (`text` is the whole line). Resolves once it is accepted; the answer is a
+     * `command` item on the timeline. Rejects in read-only mode, for a line that is no builtin,
+     * and for one the sidecar asks about (`confirmationOf`) unless `confirmed` is true.
+     */
+    runCommand(sessionId: string, text: string, confirmed?: true): Promise<void>;
     /** Calls `listener` for every op of every subscribed session. Returns the unsubscribe function. */
     onOp(listener: (event: SessionOpEvent) => void): () => void;
+  };
+  readonly palette: {
+    /** Calls `listener` when the application menu asks for the palette (⌘K). Returns the unsubscribe function. */
+    onOpenRequested(listener: () => void): () => void;
   };
   readonly settings: {
     /** Every registry setting with its effective value in `target`'s scope. Secrets are masked. */

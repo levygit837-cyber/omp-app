@@ -146,3 +146,55 @@ test("a session another live process holds moves to a new id; the app follows an
     await other.exited;
   }
 });
+
+test("after /fresh the session keeps its id; a later forced move is still followed", async () => {
+  const cwd = join(root, "fresh-project");
+  mkdirSync(cwd, { recursive: true });
+  const other = Bun.spawn(
+    [
+      process.execPath,
+      join(import.meta.dir, "fixtures", "hold-session.ts"),
+      process.env.PI_CODING_AGENT_DIR as string,
+      cwd,
+    ],
+    { stdout: "pipe", stdin: "ignore", stderr: "inherit", env: process.env },
+  );
+  try {
+    const held = JSON.parse(
+      new TextDecoder().decode((await other.stdout.getReader().read()).value),
+    ) as { id: string; file: string };
+    const openedAs = await host.resumeSession(held.id);
+    const session = sessions.at(-1) as AgentSession;
+
+    // `/fresh` replaces the provider session id and moves nothing (`agent-session.ts:6245-6259`).
+    const outcome = await host.runCommand(
+      openedAs,
+      "/fresh",
+      () => {},
+      new AbortController().signal,
+    );
+    expect(outcome).toEqual({ failed: false });
+    expect(session.sessionId).not.toBe(held.id);
+    expect(session.sessionManager.getSessionId()).toBe(held.id);
+    expect(store.has(held.id)).toBe(true);
+
+    // The first write now meets the other process's claim: omp moves the session. Selecting the
+    // model is that first write.
+    await useEchoModel(session);
+    session.sessionManager.appendMessage({ role: "user", content: "after fresh", timestamp: 3 });
+    await session.sessionManager.flush();
+    const movedTo = session.sessionManager.getSessionId();
+    expect(movedTo).not.toBe(held.id);
+    expect(store.current(held.id)).toBe(movedTo);
+    expect(store.has(movedTo)).toBe(true);
+    expect(store.has(session.sessionId)).toBe(false);
+
+    // The host maps the new id to ACP's key: a prompt under it reaches the session.
+    expect(await host.prompt(movedTo, "still reachable")).toBe("end_turn");
+    await host.closeSession(movedTo);
+    store.remove(movedTo);
+  } finally {
+    other.kill();
+    await other.exited;
+  }
+});

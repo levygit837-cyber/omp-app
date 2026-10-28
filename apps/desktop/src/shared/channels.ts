@@ -21,6 +21,10 @@ export const SESSION_LIST = "session:list";
 export const SESSION_RESUME = "session:resume";
 export const SESSION_FORK = "session:fork";
 export const SESSION_CLOSE = "session:close";
+export const SESSION_COMMANDS = "session:commands";
+export const SESSION_RUN_COMMAND = "session:run-command";
+/** Pushed by main when the user asks for the command palette from the application menu (⌘K). */
+export const PALETTE_OPEN = "palette:open";
 export const SETTINGS_LIST = "settings:list";
 export const SETTINGS_SET = "settings:set";
 export const SETTINGS_RESET = "settings:reset";

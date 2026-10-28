@@ -4,6 +4,7 @@
  */
 
 import { isSessionListResult, type SessionListResult } from "./catalog";
+import { isSessionCommandsResult, type SessionCommandsResult } from "./commands";
 import {
   isMcpChange,
   isMcpListing,
@@ -41,6 +42,7 @@ import {
 } from "./settings";
 
 export * from "./catalog";
+export * from "./commands";
 export * from "./extensions";
 export * from "./prompt";
 export * from "./requests";
@@ -218,6 +220,21 @@ export interface Methods {
   "session.fork": { params: { readonly sessionId: string }; result: SessionCreateResult };
   /** Closes an open session (a running turn stops). The session file stays on disk. */
   "session.close": { params: { readonly sessionId: string }; result: null };
+  /** The omp builtins that run without a terminal, as this session's omp offers them. */
+  "session.commands": { params: { readonly sessionId: string }; result: SessionCommandsResult };
+  /**
+   * Runs one builtin (`text` is the whole line, `/model sonnet`) and returns once it is accepted:
+   * the answer arrives as a `command` item on the timeline (running, then done or failed).
+   * A name that is not a builtin with a terminal-free handler is refused, never sent to the
+   * model. Unlike `session.prompt` it does not interrupt a turn that is streaming.
+   * A line that `confirmationOf` asks about is refused (`CONFIRM_REQUIRED_MESSAGE`) unless
+   * `confirmed` is true: the person's answer travels with the request, so a client that skips
+   * the question cannot run it.
+   */
+  "session.runCommand": {
+    params: { readonly sessionId: string; readonly text: string; readonly confirmed?: true };
+    result: null;
+  };
   /** Registry-driven listing with effective values; secrets are withheld. */
   "settings.list": { params: SettingsTarget; result: SettingsListing };
   /** A refused value comes back as `{ ok: false, message }`, not as an error. */
@@ -382,6 +399,12 @@ export const methodWrites: { [M in MethodName]: boolean } = {
   "session.fork": true,
   // Frees memory and stops a turn; nothing in the shared database changes.
   "session.close": false,
+  // Lists names and descriptions from omp's registry and the session's files; changes nothing.
+  "session.commands": false,
+  // Some builtins write (/model, /compact, /move, /rename, plugin changes), and which ones is
+  // omp's business, not ours. No session can be open in read-only mode (create, resume and fork
+  // are refused), so gating the whole method is the same as refusing every writing builtin.
+  "session.runCommand": true,
   // Writes go to the shared config.yml / project config.yml. Reveal only reads.
   "settings.list": false,
   "settings.set": true,
@@ -429,6 +452,8 @@ export const resultGuards: { [M in MethodName]: (v: unknown) => v is Methods[M][
   "session.resume": isSessionCreateResult,
   "session.fork": isSessionCreateResult,
   "session.close": isNull,
+  "session.commands": isSessionCommandsResult,
+  "session.runCommand": isNull,
   "settings.list": isSettingsListing,
   "settings.set": isSettingsChange,
   "settings.reset": isSettingsChange,

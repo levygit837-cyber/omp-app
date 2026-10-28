@@ -1,10 +1,12 @@
 import {
+  type CommandItem,
   type CompactionItem,
   type Item,
   joinsItem,
   type ToolCall,
   type ToolItem,
 } from "@omp-app/protocol";
+import type { StoredCommand } from "./command-entries";
 import { distill, isRecord, toolTarget, toToolResult, writeOutput } from "./tool-output";
 import { attachmentsOf, mentionedFiles } from "./user-message";
 
@@ -115,7 +117,10 @@ const ACTIONS: Readonly<Record<string, NonNullable<CompactionItem["action"]>>> =
  *
  * Pure. A new item kind is one more `case`; what has no item yet is counted in `omitted`.
  */
-export function buildTranscript(messages: readonly TranscriptMessage[]): Transcript {
+export function buildTranscript(
+  messages: readonly TranscriptMessage[],
+  commands: readonly StoredCommand[] = [],
+): Transcript {
   const items: Item[] = [];
   const omitted: Record<string, number> = {};
   const leaveOut = (label: string, count = 1): void => {
@@ -155,8 +160,20 @@ export function buildTranscript(messages: readonly TranscriptMessage[]): Transcr
     return undefined;
   };
 
+  /** Commands not yet placed, oldest first. A command goes before the first message that is newer. */
+  const pending = [...commands].sort((a, b) => a.startedAt - b.startedAt);
+  const placeCommands = (before: number | undefined): void => {
+    while (pending[0] && (before === undefined || pending[0].startedAt <= before)) {
+      const stored = pending.shift() as StoredCommand;
+      const item: CommandItem = { kind: "command", id: `i${items.length}`, ...stored };
+      items.push(item);
+    }
+  };
+
   for (const message of messages) {
     const at = num(message.timestamp) ?? 0;
+    // A message without a time cannot be ordered against a command: the commands wait for the end.
+    if (at > 0) placeCommands(at);
     switch (message.role) {
       case "user": {
         if (message.synthetic) {
@@ -310,6 +327,7 @@ export function buildTranscript(messages: readonly TranscriptMessage[]): Transcr
         leaveOut(OMITTED_LABELS[message.role] ?? message.role);
     }
   }
+  placeCommands(undefined);
   return { items, model, omitted };
 }
 
