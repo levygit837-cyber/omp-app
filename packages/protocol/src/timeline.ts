@@ -241,6 +241,19 @@ export interface CommandItem {
 /** Longest output a command item carries; `/dump` alone can print a whole transcript. */
 export const COMMAND_OUTPUT_MAX = 64_000;
 
+/**
+ * Where the agent's memory was cleared (`resetSessionContext`, omp's `reset_boundary` entry).
+ * Everything above the line is still in the session file and still on screen; the agent no
+ * longer sees it. The sidecar adds it live when the person clears the context and rebuilds it
+ * from the session file when the session is opened again, so both show the same line.
+ */
+export interface BoundaryItem {
+  readonly kind: "boundary";
+  readonly id: string;
+  /** When the context was cleared, in epoch milliseconds (the entry's own timestamp). */
+  readonly at: number;
+}
+
 // -- Session-level facts -----------------------------------------------------------------------
 
 /** Tokens and cost the session has used, summed from the assistant messages of its timeline. */
@@ -407,7 +420,7 @@ export function isToolCall(v: unknown): v is ToolCall {
 /** The kinds this module owns; `isTimelineItem` answers for exactly these. */
 export function isTimelineItem(
   v: unknown,
-): v is ToolItem | ThinkingItem | CompactionItem | RetryItem | CommandItem {
+): v is ToolItem | ThinkingItem | CompactionItem | RetryItem | CommandItem | BoundaryItem {
   if (!isRecord(v) || !isString(v.id)) return false;
   switch (v.kind) {
     case "tool":
@@ -441,6 +454,8 @@ export function isTimelineItem(
         isNumber(v.startedAt) &&
         optNumber(v.endedAt)
       );
+    case "boundary":
+      return isNumber(v.at);
     case "retry":
       return (
         isString(v.state) &&

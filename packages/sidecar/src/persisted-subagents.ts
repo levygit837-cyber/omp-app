@@ -217,6 +217,17 @@ async function collect(dir: string, parentId: string | undefined, out: Found[]):
 }
 
 /**
+ * How many subagent transcripts `loadPersistedSubagents` would find for the session file,
+ * without reading any of them. This is the number `session.delete` removes with the session.
+ */
+export async function countPersistedSubagents(sessionFile: string): Promise<number> {
+  if (!sessionFile.endsWith(".jsonl")) return 0;
+  const found: Found[] = [];
+  await collect(sessionFile.slice(0, -".jsonl".length), undefined, found);
+  return found.length;
+}
+
+/**
  * The subagents of a stored session, read from the transcripts omp keeps in the session's
  * artifacts directory (`<sessionFile minus .jsonl>/`), oldest first. Includes nested ones.
  *

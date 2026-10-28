@@ -5,6 +5,16 @@
 
 import { isSessionListResult, type SessionListResult } from "./catalog";
 import { isSessionCommandsResult, type SessionCommandsResult } from "./commands";
+import {
+  type ClearContextResult,
+  type DeletePreview,
+  type DeleteResult,
+  isClearContextResult,
+  isDeletePreview,
+  isDeleteResult,
+  isPauseState,
+  type PauseState,
+} from "./actions";
 import { type CancelResult, isCancelResult } from "./delegation";
 import {
   isMcpChange,
@@ -45,6 +55,7 @@ import {
 
 export * from "./catalog";
 export * from "./commands";
+export * from "./actions";
 export * from "./delegation";
 export * from "./extensions";
 export * from "./plan";
@@ -253,6 +264,41 @@ export interface Methods {
     result: null;
   };
   /**
+   * Drops the agent's working memory and keeps the session, its id and its file (omp's
+   * `resetSessionContext`). The timeline stays and gains a `boundary` item. Refused while a turn
+   * or a shell command runs. Subagents and jobs still running are stopped. Needs `confirmed`.
+   */
+  "session.clearContext": {
+    params: { readonly sessionId: string; readonly confirmed?: true };
+    result: ClearContextResult;
+  };
+  /** What `session.delete` would remove, to word the question. Reads only. */
+  "session.deletePreview": { params: { readonly sessionId: string }; result: DeletePreview };
+  /**
+   * Deletes the session file and its persisted subagent sessions, then closes the session. The
+   * CLI loses it too. Refused while a turn runs and when another omp process owns the file.
+   * Needs `confirmed`. An id that is not open (or already deleted) is `unknown session`.
+   */
+  "session.delete": {
+    params: { readonly sessionId: string; readonly confirmed?: true };
+    result: DeleteResult;
+  };
+  /** Whether the sidecar's agents are paused. The palette reads it to word its command. */
+  "agents.pauseState": { params: undefined; result: PauseState };
+  /**
+   * Pauses or resumes EVERY agent of the sidecar (omp's process-wide `agentPauseGate`). Pausing
+   * needs `confirmed`; resuming never asks. `sessionId` is the session the command was run
+   * from: it gets one `command` line as the trace. Answers with the state after the call.
+   */
+  "agents.setPaused": {
+    params: {
+      readonly sessionId: string;
+      readonly paused: boolean;
+      readonly confirmed?: true;
+    };
+    result: PauseState;
+  };
+  /**
    * Kills one running subagent of the session (omp's `cancel_subagent`: release with a tombstone
    * plus abort). `{ cancelled: false }` when it had already finished. `session.cancel` never does
    * this: Esc stops the parent's turn and leaves detached delegated work running (ADR 0001). A
@@ -441,6 +487,16 @@ export const methodWrites: { [M in MethodName]: boolean } = {
   // omp's business, not ours. No session can be open in read-only mode (create, resume and fork
   // are refused), so gating the whole method is the same as refusing every writing builtin.
   "session.runCommand": true,
+  // Appends a `reset_boundary` entry to the session file and drops the agent's context.
+  "session.clearContext": true,
+  // Counts files under the session's artifacts directory; changes nothing.
+  "session.deletePreview": false,
+  // Removes the session file and its subagent transcripts from the shared session directory.
+  "session.delete": true,
+  // Reads the in-memory gate of this process.
+  "agents.pauseState": false,
+  // Flips the in-memory gate, and saves one `command` line in the session file as the trace.
+  "agents.setPaused": true,
   // Stops running work; omp leaves a tombstone beside the subagent's own transcript.
   "subagent.cancel": true,
   "job.cancel": true,
@@ -495,6 +551,11 @@ export const resultGuards: { [M in MethodName]: (v: unknown) => v is Methods[M][
   "session.close": isNull,
   "session.commands": isSessionCommandsResult,
   "session.runCommand": isNull,
+  "session.clearContext": isClearContextResult,
+  "session.deletePreview": isDeletePreview,
+  "session.delete": isDeleteResult,
+  "agents.pauseState": isPauseState,
+  "agents.setPaused": isPauseState,
   "subagent.cancel": isCancelResult,
   "job.cancel": isCancelResult,
   "settings.list": isSettingsListing,
