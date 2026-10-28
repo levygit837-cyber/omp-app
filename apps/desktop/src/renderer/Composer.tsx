@@ -24,6 +24,7 @@ import {
 } from "./draft";
 import { type DraftImage, imageChipText, readImages } from "./draft-images";
 import { FileSuggest, SUGGEST_ID, suggestOptionId } from "./FileSuggest";
+import { BranchChip } from "./files/BranchChip";
 import { LOCKED_ID, LOCKED_WHILE_RUNNING, ModelControls } from "./ModelControls";
 import { PlanToggle } from "./PlanToggle";
 import {
@@ -401,6 +402,7 @@ export function Composer({
           onError={setError}
         />
         <PlanToggle sessionId={sessionId} engineReady={engine === "ready"} readOnly={readOnly} />
+        <BranchChip sessionId={sessionId} />
         {view.reason && <p className="text-size-sm text-text-dim">{view.reason}</p>}
         <span className="flex-1" />
         {streaming ? (

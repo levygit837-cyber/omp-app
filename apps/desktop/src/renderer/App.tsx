@@ -291,6 +291,9 @@ export function App() {
             {sessionId && right.open && (
               <RightPanel
                 sessionId={sessionId}
+                page={right.page}
+                onPage={right.setPage}
+                openPath={tabs.active.kind === "file" ? tabs.active.path : null}
                 toggleRef={right.hideButton}
                 onToggle={() => right.toggle(false)}
               />

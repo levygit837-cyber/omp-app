@@ -28,6 +28,8 @@ export const MAX_FILE_PATH_CHARS = 4_096;
 export const FILES_UNAVAILABLE_MESSAGE = "files unavailable";
 /** Prefix of the error for a path the caller sent that is not a relative path inside the project. */
 export const FILES_BAD_PATH_MESSAGE = "invalid path";
+/** Sent to a status request that a newer one for the same session replaced. The window drops it. */
+export const FILES_SUPERSEDED_MESSAGE = "files request superseded";
 
 /**
  * One letter per changed file, the way `git status` writes them: modified, added, deleted,

@@ -2,6 +2,7 @@ import { lstat, readdir } from "node:fs/promises";
 import {
   type ChangeStatus,
   FILES_BAD_PATH_MESSAGE,
+  FILES_SUPERSEDED_MESSAGE,
   FILES_UNAVAILABLE_MESSAGE,
   type FilesDiffResult,
   type FilesReadResult,
@@ -33,9 +34,6 @@ export const FILES_CAPABILITIES = [
   "files.read",
   "files.diff",
 ] as const;
-
-/** Sent to a status request that a newer one replaced. The window drops it by its own counter. */
-export const FILES_SUPERSEDED_MESSAGE = "files request superseded";
 
 /** What the handlers need from the omp host. */
 export interface FilesControl {
