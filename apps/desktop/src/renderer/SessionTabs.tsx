@@ -1,5 +1,5 @@
 import type { JobInfo, SubagentInfo } from "@omp-app/protocol";
-import { ChatIcon, cx, JobIcon, StateMark, SubagentIcon } from "@omp-app/ui";
+import { ChatIcon, cx, FileIcon, JobIcon, StateMark, SubagentIcon } from "@omp-app/ui";
 import { type KeyboardEvent, type ReactNode, useEffect, useRef } from "react";
 import {
   jobMark,
@@ -12,6 +12,7 @@ import {
   tabDomId,
   tabKey,
 } from "./delegation-view";
+import { nameOf } from "./files/files-model";
 import { useSessionTitle } from "./session-hooks";
 import { useSessionMark } from "./shown-status";
 import { findTabElement } from "./tab-lookup";
@@ -23,7 +24,14 @@ function describe(
   main: { mark: Mark; title: string },
   subagents: readonly SubagentInfo[],
   jobs: readonly JobInfo[],
-): { mark: Mark; icon: ReactNode; label: string; closable: boolean } | null {
+): {
+  /** Null for a tab with no run state of its own (a file). */
+  mark: Mark | null;
+  icon: ReactNode;
+  label: string;
+  title?: string;
+  closable: boolean;
+} | null {
   switch (ref.kind) {
     case "main":
       return {
@@ -54,6 +62,14 @@ function describe(
           }
         : null;
     }
+    case "file":
+      return {
+        mark: null,
+        icon: <FileIcon className="text-icon-neutral" />,
+        label: nameOf(ref.path),
+        title: ref.path,
+        closable: true,
+      };
     default:
       return ref satisfies never;
   }
@@ -61,9 +77,8 @@ function describe(
 
 /** The tab button of `key` among the children of the tablist, found without a CSS selector. */
 function tabIn(list: HTMLElement | null, key: string): HTMLElement | undefined {
-  const buttons = Array.from(list?.children ?? []).filter(
-    (el): el is HTMLElement => el instanceof HTMLElement,
-  );
+  // Tabs can sit one level down (a file tab is wrapped with its close control).
+  const buttons = Array.from(list?.querySelectorAll<HTMLElement>("[role=tab]") ?? []);
   return findTabElement(buttons, key);
 }
 
@@ -132,7 +147,8 @@ export function SessionTabs({ sessionId, tabs }: { sessionId: string; tabs: Tabs
         if (!view) return null;
         const key = tabKey(ref);
         const selected = key === activeKey;
-        return (
+        const isFile = ref.kind === "file";
+        const tab = (
           <button
             type="button"
             key={key}
@@ -142,24 +158,46 @@ export function SessionTabs({ sessionId, tabs }: { sessionId: string; tabs: Tabs
             data-tab-key={key}
             aria-selected={selected}
             aria-controls="session-tabpanel"
-            aria-label={`${view.label}, ${view.mark.label}`}
+            aria-label={`${view.label}, ${view.mark?.label ?? "read-only file"}`}
+            title={view.title}
             tabIndex={selected ? 0 : -1}
             onClick={() => tabs.select(ref)}
             className={cx(
               "app-no-drag flex h-(--layout-bar-height) max-w-(--layout-tab-max) shrink-0 items-center focus-visible:-outline-offset-(--size-focus-ring) gap-(--space-8) border-b px-(--space-12) text-size-sm hover:bg-bg-hover",
+              isFile && "pr-(--space-30)",
               selected
                 ? "border-accent text-text-primary"
                 : "border-transparent text-text-secondary",
             )}
           >
-            <StateMark state={view.mark.mark} decorative />
+            {view.mark && <StateMark state={view.mark.mark} decorative />}
             {view.icon}
             <span
-              className={cx("min-w-0 truncate", ref.kind === "job" && "font-mono text-size-xs")}
+              className={cx(
+                "min-w-0 truncate",
+                (ref.kind === "job" || isFile) && "font-mono text-size-xs",
+              )}
             >
               {view.label}
             </span>
           </button>
+        );
+        if (!isFile) return tab;
+        // A tab is a button, and a button cannot hold another, so the close control sits beside
+        // it. It is out of the tab order: Delete or Backspace on the tab closes it from the keyboard.
+        return (
+          <div key={key} role="presentation" className="group relative flex shrink-0 items-stretch">
+            {tab}
+            <button
+              type="button"
+              tabIndex={-1}
+              aria-label={`Close ${view.label}`}
+              onClick={() => tabs.close(ref)}
+              className="app-no-drag absolute top-1/2 right-(--space-8) flex size-(--size-icon-ui) -translate-y-1/2 items-center justify-center rounded-sm text-text-dim opacity-0 hover:text-text-primary focus-visible:opacity-100 group-hover:opacity-100"
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          </div>
         );
       })}
     </div>

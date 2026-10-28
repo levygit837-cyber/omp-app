@@ -1,29 +1,103 @@
 import {
   cx,
+  FolderIcon,
   IconButton,
+  OverviewIcon,
   SidebarRightCollapseIcon,
   SidebarRightExpandIcon,
   StateMark,
 } from "@omp-app/ui";
-import type { Ref } from "react";
+import { type KeyboardEvent, type Ref, useRef } from "react";
+import { moveTab } from "../delegation-view";
+import { FilesPage } from "../files/FilesPage";
 import { projectName } from "../format";
 import { useCwd, useSessionTitle } from "../session-hooks";
 import { contextMeter, formatCost, summarizeTodo, type TodoRow } from "./facts";
 import { useContextFill, useSessionCost, useTodo, useTurnCount } from "./session-facts";
+import { SECTION_LABEL } from "./styles";
+import type { PanelPage } from "./use-right-panel";
 
-const SECTION_LABEL = "font-mono text-size-2xs tracking-caps text-text-dim uppercase";
+const PAGES: readonly {
+  readonly id: PanelPage;
+  readonly name: string;
+  readonly icon: typeof FolderIcon;
+}[] = [
+  { id: "general", name: "Geral", icon: OverviewIcon },
+  { id: "files", name: "Arquivos", icon: FolderIcon },
+];
+
+/** Dom id of a page's tab and of its panel, so each names the other. */
+const tabId = (page: PanelPage) => `right-tab-${page}`;
+const PANEL_ID = "right-panel-page";
+
+/**
+ * Page switcher (Pen `oKImu`): the selected page shows its icon and name, the others only the
+ * icon. One tab stop, arrows move between pages, Home and End jump.
+ */
+function PageSwitcher({ page, onPage }: { page: PanelPage; onPage: (page: PanelPage) => void }) {
+  const list = useRef<HTMLDivElement>(null);
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const to = moveTab(
+      PAGES.map((p) => p.id),
+      page,
+      event.key,
+    );
+    if (to === null) return;
+    event.preventDefault();
+    onPage(to as PanelPage);
+    requestAnimationFrame(() => document.getElementById(tabId(to as PanelPage))?.focus());
+  };
+  return (
+    <div
+      ref={list}
+      role="tablist"
+      aria-label="Details pages"
+      onKeyDown={onKeyDown}
+      className="flex items-center gap-(--space-2)"
+    >
+      {PAGES.map(({ id, name, icon: Icon }) => {
+        const selected = id === page;
+        return (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            id={tabId(id)}
+            aria-selected={selected}
+            aria-controls={PANEL_ID}
+            aria-label={name}
+            title={name}
+            tabIndex={selected ? 0 : -1}
+            onClick={() => onPage(id)}
+            className={cx(
+              "app-no-drag inline-flex h-(--size-control) items-center gap-(--space-6) rounded-sm px-(--space-6) text-size-sm hover:bg-bg-hover focus-visible:outline-(length:--size-focus-ring) focus-visible:outline-focus-ring",
+              selected ? "bg-bg-selected text-text-primary" : "text-icon-neutral",
+            )}
+          >
+            <Icon />
+            {selected && <span className="font-medium">{name}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 /** Right edge of the title bar when the panel is open: same x as the toggle when it is closed. */
 function PanelTop({
+  page,
+  onPage,
   toggleRef,
   onToggle,
 }: {
+  page: PanelPage;
+  onPage: (page: PanelPage) => void;
   toggleRef: Ref<HTMLButtonElement>;
   onToggle: () => void;
 }) {
   return (
-    <div className="app-drag flex h-(--layout-bar-height) shrink-0 items-center border-b border-border-hairline pr-(--space-16) pl-(--space-20)">
-      <h2 className="text-size-sm font-medium text-text-primary">Geral</h2>
+    <div className="app-drag flex h-(--layout-bar-height) shrink-0 items-center border-b border-border-hairline pr-(--space-16) pl-(--space-14)">
+      <PageSwitcher page={page} onPage={onPage} />
       <span className="flex-1" />
       <IconButton
         ref={toggleRef}
@@ -196,13 +270,20 @@ function Todo({ sessionId }: { sessionId: string }) {
   );
 }
 
-/** The right sidebar's single page, "Geral". Docked right of the chat, aligned with the title bar. */
+/** The right sidebar: "Geral" (the session at a glance) and "Arquivos" (the project, read-only). */
 export function RightPanel({
   sessionId,
+  page,
+  onPage,
+  openPath,
   toggleRef,
   onToggle,
 }: {
   sessionId: string | null;
+  page: PanelPage;
+  onPage: (page: PanelPage) => void;
+  /** The file shown in the center column, marked in the lists. */
+  openPath: string | null;
   toggleRef: Ref<HTMLButtonElement>;
   onToggle: () => void;
 }) {
@@ -212,12 +293,23 @@ export function RightPanel({
       data-testid="right-panel"
       className="flex w-(--layout-sidebar-right) shrink-0 flex-col border-l border-border-hairline bg-bg-base"
     >
-      <PanelTop toggleRef={toggleRef} onToggle={onToggle} />
+      <PanelTop page={page} onPage={onPage} toggleRef={toggleRef} onToggle={onToggle} />
       {sessionId && (
-        <div className="flex min-h-0 flex-1 flex-col gap-(--space-24) overflow-y-auto px-(--space-20) py-(--space-20)">
-          <Heading sessionId={sessionId} />
-          <Context sessionId={sessionId} />
-          <Todo sessionId={sessionId} />
+        <div
+          id={PANEL_ID}
+          role="tabpanel"
+          aria-labelledby={tabId(page)}
+          className="flex min-h-0 flex-1 flex-col gap-(--space-24) overflow-y-auto px-(--space-20) py-(--space-20)"
+        >
+          {page === "general" ? (
+            <>
+              <Heading sessionId={sessionId} />
+              <Context sessionId={sessionId} />
+              <Todo sessionId={sessionId} />
+            </>
+          ) : (
+            <FilesPage sessionId={sessionId} openPath={openPath} />
+          )}
         </div>
       )}
     </aside>

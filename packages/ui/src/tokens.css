@@ -173,6 +173,9 @@
    * it scrolls there, so the choices and buttons below it stay on screen. */
   --layout-band-message-max: 16svh;
   --layout-empty-column: 560px;
+  /* Not in the Pen file: the most of the window the Files page's list of changes may take before it
+   * scrolls inside itself, so a long list never pushes the project tree out of reach. */
+  --layout-changes-max: 32svh;
   /* Command palette (Pen NUFjM): 640 wide, 64 from the top, search bar 52, rows 32. The list
    * scrolls inside itself past the max, so the window never does. */
   --layout-palette: 640px;

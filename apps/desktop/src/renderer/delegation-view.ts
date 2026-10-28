@@ -10,14 +10,16 @@ import { clock } from "./format";
 
 /**
  * What the center column can show for a session. The main chat is always there; subagents and
- * background jobs come and go with what omp reports. A new kind (a file, a browser) is one more
- * member here and one more case in `describeTab` and in the panel that renders it: the compiler
- * lists every place that needs it.
+ * background jobs come and go with what omp reports; a file is there while the person keeps it
+ * open. A new kind (a browser) is one more member here and one more case in `describeTab` and in
+ * the panel that renders it: the compiler lists every place that needs it.
  */
 export type TabRef =
   | { readonly kind: "main" }
   | { readonly kind: "subagent"; readonly id: string }
-  | { readonly kind: "job"; readonly id: string };
+  | { readonly kind: "job"; readonly id: string }
+  /** A file of the session's folder, read-only. `path` is relative to that folder. */
+  | { readonly kind: "file"; readonly path: string };
 
 export const MAIN_TAB: TabRef = { kind: "main" };
 
@@ -30,21 +32,35 @@ export function tabKey(ref: TabRef): string {
       return `subagent:${ref.id}`;
     case "job":
       return `job:${ref.id}`;
+    case "file":
+      return `file:${ref.path}`;
     default:
       return ref satisfies never;
   }
 }
 
-/** DOM id of a tab, so its panel can name it. */
-export const tabDomId = (ref: TabRef): string => `tab-${tabKey(ref).replace(/[^a-z0-9_-]/gi, "_")}`;
+/**
+ * DOM id of a tab, so its panel can name it. Injective: every character outside `[A-Za-z0-9-]`,
+ * `_` included, becomes `_<hex code point>_`, and `_` appears only in such an escape, so two
+ * different keys (`file:docs/a.md`, `file:docs_a.md`) never share an id.
+ */
+export const tabDomId = (ref: TabRef): string =>
+  `tab-${tabKey(ref).replace(/[^A-Za-z0-9-]/gu, (c) => `_${c.codePointAt(0)?.toString(16)}_`)}`;
 
 export interface Delegation {
   readonly subagents: readonly SubagentInfo[];
   readonly jobs: readonly JobInfo[];
 }
 
-/** The tabs of a session, in order: the chat, its subagents as they started, then its jobs. */
-export function tabsOf(delegation: Delegation, dismissed: ReadonlySet<string>): TabRef[] {
+/**
+ * The tabs of a session, in order: the chat, its subagents as they started, its jobs, then the
+ * files the person opened, in the order they were opened.
+ */
+export function tabsOf(
+  delegation: Delegation,
+  dismissed: ReadonlySet<string>,
+  files: readonly string[] = [],
+): TabRef[] {
   const tabs: TabRef[] = [MAIN_TAB];
   for (const sub of delegation.subagents) {
     const ref: TabRef = { kind: "subagent", id: sub.id };
@@ -54,6 +70,7 @@ export function tabsOf(delegation: Delegation, dismissed: ReadonlySet<string>): 
     const ref: TabRef = { kind: "job", id: job.id };
     if (!dismissed.has(tabKey(ref))) tabs.push(ref);
   }
+  for (const path of files) tabs.push({ kind: "file", path });
   return tabs;
 }
 

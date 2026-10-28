@@ -1,6 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { MAIN_TAB } from "../src/renderer/delegation-view";
-import { dismissTab, NO_TABS, rekeyTabs, selectedOf, selectTab } from "../src/renderer/tab-state";
+import {
+  dismissTab,
+  MAX_FILE_TABS,
+  NO_TABS,
+  rekeyTabs,
+  selectedOf,
+  selectTab,
+} from "../src/renderer/tab-state";
 
 const a = { kind: "subagent", id: "a" } as const;
 const j = { kind: "job", id: "j" } as const;
@@ -42,5 +49,32 @@ describe("tab state", () => {
     expect(moved.dismissed.new).toEqual(["job:j"]);
     expect(selectedOf(moved, "old")).toEqual(MAIN_TAB);
     expect(moved.dismissed.old).toBeUndefined();
+  });
+
+  test("files open as tabs, once each, and closing one forgets it", () => {
+    const f = { kind: "file", path: "src/a.ts" } as const;
+    const once = selectTab(selectTab(NO_TABS, "s", f), "s", f);
+    expect(once.files.s).toEqual(["src/a.ts"]);
+    expect(selectedOf(once, "s")).toEqual(f);
+    const closed = dismissTab(once, "s", f);
+    expect(closed.files.s).toEqual([]);
+    expect(selectedOf(closed, "s")).toEqual(MAIN_TAB);
+    expect(dismissTab(closed, "s", f)).toBe(closed);
+  });
+
+  test("past the cap the oldest file tab is dropped", () => {
+    let state = NO_TABS;
+    for (let i = 0; i <= MAX_FILE_TABS; i++) {
+      state = selectTab(state, "s", { kind: "file", path: `f${i}` });
+    }
+    expect(state.files.s).toHaveLength(MAX_FILE_TABS);
+    expect(state.files.s?.[0]).toBe("f1");
+  });
+
+  test("session.moved: open files follow the new id", () => {
+    const state = selectTab(NO_TABS, "old", { kind: "file", path: "a" });
+    const moved = rekeyTabs(state, "old", "new");
+    expect(moved.files.new).toEqual(["a"]);
+    expect(moved.files.old).toBeUndefined();
   });
 });

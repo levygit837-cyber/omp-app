@@ -28,6 +28,10 @@
  *   plan-cancel the same proposal -> cancel the question -> read as Refine plan: plan mode stays
  *               on and the agent proposes again (the turn is stopped by the script afterwards)
  *
+ *   files   the temp project is made a git repository; a real `edit` and a real `write` call end
+ *           -> `files.status` lists the edited file as modified and the new one as untracked, with
+ *           the totals the branch chip shows; `files.diff`, `files.read` and `files.tree` agree
+ *
  * The plan scenarios run on `kiro/claude-haiku-5.5`, pinned by a project-level `.omp/config.yml`
  * in the temp cwd, so the real `~/.omp/config.yml` is never written.
  *
@@ -1333,6 +1337,99 @@ if (wanted("pause")) {
   );
   results.push({ scenario: "pause", sessionId, failures });
 }
+
+// The Files page reads git, so the temp project becomes a repository with one committed file. The
+// window refreshes the page when a file-touching tool call ends (`touchEpoch`); here the same
+// condition is read off the replica, and what the page would then fetch is checked against disk.
+if (wanted("files")) {
+  const git = (...args: string[]) => {
+    const run = Bun.spawnSync(
+      [
+        "git",
+        "-C",
+        cwd,
+        "-c",
+        "user.name=live",
+        "-c",
+        "user.email=live@example.invalid",
+        "-c",
+        "commit.gpgsign=false",
+        "-c",
+        "core.hooksPath=/dev/null",
+        ...args,
+      ],
+      { env: { PATH: process.env.PATH ?? "", HOME: runtimeDir, GIT_CONFIG_NOSYSTEM: "1" } },
+    );
+    if (run.exitCode !== 0) throw new Error(`git ${args.join(" ")}: ${run.stderr.toString()}`);
+  };
+  writeFileSync(join(cwd, "tracked.txt"), "one\n");
+  git("init", "-q", "-b", "main");
+  git("add", "-A");
+  git("commit", "-q", "-m", "baseline");
+}
+await manual(
+  "files",
+  async (sessionId, failures) => {
+    const parent = await liveParent(sessionId);
+    const FILE_TOUCHING = ["edit", "write", "ast_edit", "bash", "eval", "task"];
+    const ended = () =>
+      parent().timeline.filter(
+        (i) =>
+          i.kind === "tool" &&
+          FILE_TOUCHING.includes(i.tool) &&
+          i.calls.some((c) => c.status !== "running"),
+      );
+    await until("a file-touching call to end", () => ended().length > 0);
+    console.log(
+      `  ended calls: ${ended()
+        .map((i) => (i.kind === "tool" ? i.tool : ""))
+        .join(", ")}`,
+    );
+    await until("the parent to go idle", () => parent().status === "idle");
+
+    const status = await ask("files.status", { sessionId });
+    console.log(`  status: ${JSON.stringify(status)}`);
+    if (status.state !== "ok") {
+      failures.push(`files.status is ${status.state}`);
+      return;
+    }
+    if (status.branch.name !== "main") failures.push(`branch ${status.branch.name}`);
+    const tracked = status.changes.find((c) => c.path === "tracked.txt");
+    const fresh = status.changes.find((c) => c.path === "new.txt");
+    if (tracked?.status !== "M") failures.push(`tracked.txt is ${tracked?.status}`);
+    if (fresh?.status !== "?") failures.push(`new.txt is ${fresh?.status}`);
+    if (status.totals.modified < 1) failures.push(`modified total ${status.totals.modified}`);
+    if (status.totals.added < 1) failures.push(`added total ${status.totals.added}`);
+
+    const diff = await ask("files.diff", { sessionId, path: "tracked.txt" });
+    if (diff.state !== "ok") failures.push(`files.diff is ${diff.state}`);
+    else if (
+      !diff.rows.some((r) => r.kind === "remove" && r.text.includes("one")) ||
+      !diff.rows.some((r) => r.kind === "add" && r.text.includes("two"))
+    ) {
+      failures.push(`diff rows: ${JSON.stringify(diff.rows)}`);
+    }
+    const read = await ask("files.read", { sessionId, path: "new.txt" });
+    if (read.state !== "ok" || !read.content.includes("hi")) {
+      failures.push(`files.read new.txt: ${JSON.stringify(read)}`);
+    }
+    const tree = await ask("files.tree", { sessionId, path: "" });
+    if (tree.state !== "ok" || !tree.entries.some((e) => e.name === "new.txt")) {
+      failures.push(`files.tree lacks new.txt: ${JSON.stringify(tree)}`);
+    }
+    // Reading must not write: the index is the one git left after the commit.
+    const porcelain = Bun.spawnSync([
+      "git",
+      "-C",
+      cwd,
+      "--no-optional-locks",
+      "status",
+      "--porcelain",
+    ]);
+    console.log(`  porcelain: ${porcelain.stdout.toString().trim().split("\n").join(" | ")}`);
+  },
+  "Read tracked.txt, then use the edit tool to change the word one to two in it, then use the write tool to create new.txt containing exactly: hi. Reply 'done'.",
+);
 
 console.log(`\nsession directory: ${join(getAgentDir(), "sessions")}`);
 

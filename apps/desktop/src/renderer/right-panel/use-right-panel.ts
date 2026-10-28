@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 
+/** The pages of the right sidebar. One is selected at a time; the choice outlives a collapse. */
+export type PanelPage = "general" | "files";
+
 /**
  * Open/closed state of the right sidebar, with the same focus handoff as the left one: the toggle
  * that was pressed unmounts with its state, so focus moves to the one that replaces it.
@@ -7,6 +10,7 @@ import { useEffect, useRef, useState } from "react";
  */
 export function useRightPanel() {
   const [open, setOpen] = useState(true);
+  const [page, setPage] = useState<PanelPage>("general");
   const hideButton = useRef<HTMLButtonElement>(null);
   const showButton = useRef<HTMLButtonElement>(null);
   const handoff = useRef(false);
@@ -19,5 +23,5 @@ export function useRightPanel() {
     handoff.current = false;
     (open ? hideButton : showButton).current?.focus();
   }, [open]);
-  return { open, toggle, hideButton, showButton };
+  return { open, toggle, page, setPage, hideButton, showButton };
 }

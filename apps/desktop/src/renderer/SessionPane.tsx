@@ -7,6 +7,8 @@ import { JobPanel, SubagentPanel } from "./DelegationPanels";
 import { MAIN_TAB, tabDomId } from "./delegation-view";
 import { EngineSlot } from "./EngineSlot";
 import type { EngineTrack } from "./engine";
+import { FilePanel } from "./files/FilePanel";
+import { useFilesRefresh } from "./files/use-files";
 import { useFollowRequests } from "./follow-request";
 import { PlanView } from "./PlanView";
 import { type PlanCenter, PlanCenterContext } from "./plan-center";
@@ -72,6 +74,7 @@ export function SessionPane({
   onRestart: () => void;
 }) {
   const status = useShownStatus(sessionId);
+  useFilesRefresh(sessionId);
   const sessionError = useSessionError(sessionId);
   const syncError = useSyncError();
   // Bumped when a prompt is sent, so the timeline follows the answer even after a scroll up.
@@ -184,6 +187,9 @@ export function SessionPane({
           >
             {sub && <SubagentPanel key={sub.id} sessionId={sessionId} sub={sub} />}
             {job && <JobPanel key={job.id} sessionId={sessionId} job={job} />}
+            {active.kind === "file" && (
+              <FilePanel key={active.path} sessionId={sessionId} path={active.path} />
+            )}
           </div>
         )}
       </div>

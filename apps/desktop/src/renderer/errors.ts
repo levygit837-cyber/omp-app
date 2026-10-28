@@ -4,6 +4,8 @@ import {
   ACTION_SHELL_MESSAGE,
   CONFIRM_REQUIRED_MESSAGE,
   FILE_OWNED_MESSAGE,
+  FILES_BAD_PATH_MESSAGE,
+  FILES_UNAVAILABLE_MESSAGE,
   PLAN_BUSY_MESSAGE,
   SESSION_BUSY_MESSAGE,
   STALE_REQUEST_MESSAGE,
@@ -11,7 +13,7 @@ import {
 } from "@omp-app/protocol";
 
 /** Electron prefixes errors thrown by an IPC handler with this; it means nothing to the user. */
-const IPC_PREFIX = /^Error invoking remote method '[^']*': (?:Error: )?/;
+const IPC_PREFIX = /^Error invoking remote method '[^']*': (?:(?:Protocol(?:Request)?)?Error: )?/;
 
 /**
  * Messages the sidecar and the main process raise for an answer that is not valid. The window
@@ -38,6 +40,12 @@ const KNOWN: readonly (readonly [RegExp, (match: RegExpMatchArray) => string])[]
     (m) => `${m[1]} needs a confirmation first. Nothing was run.`,
   ],
   [/^session not found: /, () => "That session is no longer on disk."],
+  // The Files page: the sidecar never sends git's own text, only these markers.
+  [
+    new RegExp(`^${FILES_UNAVAILABLE_MESSAGE}`),
+    () => "omp couldn’t read this project’s files. Try again in a moment.",
+  ],
+  [new RegExp(`^${FILES_BAD_PATH_MESSAGE}`), () => "That path isn’t inside the project."],
   [/^unknown session/, () => "That session isn’t open in omp any more."],
   // acp-agent.ts:2219-2227 [V]: plan mode is only offered while the `plan.enabled` setting is on.
   [

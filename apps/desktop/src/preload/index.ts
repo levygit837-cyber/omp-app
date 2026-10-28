@@ -5,6 +5,10 @@ import {
   AGENTS_PAUSE_STATE,
   AGENTS_SET_PAUSED,
   APP_OPEN_LINK,
+  FILES_DIFF,
+  FILES_READ,
+  FILES_STATUS,
+  FILES_TREE,
   JOB_CANCEL,
   MCP_ADD,
   MCP_LIST,
@@ -156,6 +160,12 @@ const bridge: OmpBridge = {
     list: (sessionId) => ipcRenderer.invoke(SKILLS_LIST, sessionId),
     setEnabled: (name, enabled, sessionId) =>
       ipcRenderer.invoke(SKILLS_SET_ENABLED, name, enabled, sessionId),
+  },
+  files: {
+    status: (sessionId) => ipcRenderer.invoke(FILES_STATUS, sessionId),
+    tree: (sessionId, path) => ipcRenderer.invoke(FILES_TREE, sessionId, path),
+    read: (sessionId, path) => ipcRenderer.invoke(FILES_READ, sessionId, path),
+    diff: (sessionId, path) => ipcRenderer.invoke(FILES_DIFF, sessionId, path),
   },
 };
 

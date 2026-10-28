@@ -9,6 +9,7 @@ import {
   SKILLS_CAPABILITIES,
   skillsHandlers,
 } from "./extensions-handlers";
+import { FILES_CAPABILITIES, filesHandlers } from "./files-handlers";
 import { startOmpHost } from "./omp-host";
 import { PLAN_CAPABILITIES, PlanSessions, planHandlers } from "./plan-handlers";
 import { RequestRegistry } from "./request-registry";
@@ -58,6 +59,7 @@ async function main(): Promise<void> {
     ...SETTINGS_CAPABILITIES,
     ...MCP_CAPABILITIES,
     ...SKILLS_CAPABILITIES,
+    ...FILES_CAPABILITIES,
     ...(DEBUG ? ["debug.logStdout", "debug.write"] : []),
   ];
   const handlers: Handlers = {
@@ -75,6 +77,7 @@ async function main(): Promise<void> {
     ...settingsHandlers(settingsControl(host, store)),
     ...mcpHandlers(settingsControl(host, store)),
     ...skillsHandlers(settingsControl(host, store)),
+    ...filesHandlers(host, store),
   };
   if (DEBUG) {
     handlers["debug.logStdout"] = async ({ marker }) => {
