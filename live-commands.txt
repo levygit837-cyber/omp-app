@@ -1,0 +1,11 @@
+bun run scripts/live.ts --only=commands   (real omp 18.12.6, kiro/claude-haiku-5.5 via /switch, temp cwd)
+  /switch kiro/claude-haiku-5.5 -> done: "Session-only model: kiro/claude-haiku-5.5."
+  /effort -> done: "Thinking: medium\nAvailable: off, auto, minimal, low, medium, high, xhigh, max"
+  /effort low -> done: "Thinking set to low."
+  /usage -> done (provider usage report)
+  -- mid-stream (a 300-number count is streaming) --
+  /effort -> done: "Thinking: low\nAvailable: ..."
+  /effort medium -> done: "Thinking set to medium."
+  /move /tmp -> failed: "Cannot move while streaming."
+  the turn kept streaming, the reply stayed one assistant item, 7 command items, 7 stored entries
+live: all scenarios passed
