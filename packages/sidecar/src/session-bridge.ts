@@ -1,6 +1,6 @@
 import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import type { SessionWarning } from "@omp-app/protocol";
-import { readStoredCommands } from "./command-entries";
+import { readResetBoundaries, readStoredCommands } from "./command-entries";
 import { readContextFill } from "./context-fill";
 import { type DelegationHooks, trackDelegation } from "./delegation";
 import { planOf } from "./plan-state";
@@ -63,6 +63,7 @@ export function attachSession(
   const transcript = buildTranscript(
     session.buildTranscriptSessionContext().messages,
     readStoredCommands(session.sessionManager.getBranch()),
+    readResetBoundaries(session.sessionManager.getBranch()),
   );
   const warnings: SessionWarning[] = [];
   const omittedText = describeOmitted(transcript.omitted);

@@ -1,7 +1,8 @@
-import type { StoredSession } from "@omp-app/protocol";
+import { type StoredSession, sessionActionConfirmation } from "@omp-app/protocol";
 import {
   ChevronDownIcon,
   ChevronRightIcon,
+  ConfirmCard,
   cx,
   FolderIcon,
   IconButton,
@@ -9,18 +10,21 @@ import {
   Menu,
   type MenuAnchor,
   MenuItem,
+  MenuNote,
+  MenuSeparator,
   MoreIcon,
   NewSessionIcon,
   SettingsIcon,
   SidebarLeftCollapseIcon,
   StateMark,
 } from "@omp-app/ui";
-import { type Ref, useEffect, useMemo, useRef, useState } from "react";
+import { type Ref, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { SidecarStatus } from "../shared/bridge";
 import { relativeTime } from "./format";
 import { buildRows, groupProjects, projectLabels, type SessionRowData } from "./projects";
 import { SubagentRows } from "./SubagentRows";
-import { useSessionTitle } from "./session-hooks";
+import { usePending, useSessionTitle } from "./session-hooks";
+import { type MenuEntry, sessionMenuState } from "./session-menu";
 import { useSessionMark, useShownStatus } from "./shown-status";
 
 /** Left edge of the title bar: room for the native traffic lights, then the two buttons. */
@@ -76,6 +80,20 @@ export interface SessionActions {
   onSelect: (sessionId: string) => void;
   onFork: (sessionId: string) => void;
   onClose: (sessionId: string) => void;
+  /** Already confirmed in the card the row shows. */
+  onClearContext: (sessionId: string) => void;
+  /** Already confirmed in the card the row shows. */
+  onDelete: (sessionId: string) => void;
+  /** Subagent sessions that go with a session, to word the question; null when counting failed. */
+  previewDelete: (sessionId: string) => Promise<number | null>;
+}
+
+/** The card a row shows in place of its menu. */
+interface Asking {
+  readonly action: "clear" | "delete";
+  readonly anchor: MenuAnchor;
+  readonly subagents: number;
+  readonly waiting: boolean;
 }
 
 interface RowProps extends SessionActions {
@@ -92,24 +110,38 @@ interface RowProps extends SessionActions {
 /** The menu of a session: only what omp can really do from here. */
 function SessionMenu({
   anchor,
+  opener,
   canFork,
   canClose,
   closeBlocked,
+  clear,
+  remove,
   onFork,
   onClose,
+  onClear,
+  onDelete,
   onDismiss,
 }: {
   anchor: MenuAnchor;
+  /** The row's actions button: a scroll closes the menu only when it moves this. */
+  opener: HTMLElement | null;
   canFork: boolean;
   canClose: boolean;
   /** Closing stops a running turn, so a session that is streaming cannot be closed from here. */
   closeBlocked: boolean;
+  clear: MenuEntry;
+  remove: MenuEntry;
   onFork: () => void;
   onClose: () => void;
+  onClear: () => void;
+  onDelete: () => void;
   onDismiss: () => void;
 }) {
+  const clearNote = useId();
+  const deleteNote = useId();
+  const dangerous = clear.state !== "hidden" || remove.state !== "hidden";
   return (
-    <Menu label="Session actions" anchor={anchor} onDismiss={onDismiss}>
+    <Menu label="Session actions" anchor={anchor} opener={opener} onDismiss={onDismiss}>
       {canFork && (
         <MenuItem
           onClick={() => {
@@ -132,6 +164,29 @@ function SessionMenu({
           Close
         </MenuItem>
       )}
+      {dangerous && (canFork || canClose) && <MenuSeparator />}
+      {clear.state !== "hidden" && (
+        <MenuItem
+          danger
+          aria-disabled={clear.state === "blocked" || undefined}
+          aria-describedby={clear.state === "blocked" ? clearNote : undefined}
+          onClick={onClear}
+        >
+          Clear context…
+        </MenuItem>
+      )}
+      {clear.state === "blocked" && <MenuNote id={clearNote}>{clear.reason}</MenuNote>}
+      {remove.state !== "hidden" && (
+        <MenuItem
+          danger
+          aria-disabled={remove.state === "blocked" || undefined}
+          aria-describedby={remove.state === "blocked" ? deleteNote : undefined}
+          onClick={onDelete}
+        >
+          Delete session…
+        </MenuItem>
+      )}
+      {remove.state === "blocked" && <MenuNote id={deleteNote}>{remove.reason}</MenuNote>}
     </Menu>
   );
 }
@@ -146,24 +201,59 @@ function SessionRow({
   onSelect,
   onFork,
   onClose,
+  onClearContext,
+  onDelete,
+  previewDelete,
 }: RowProps) {
   const status = useShownStatus(row.id);
   const mark = useSessionMark(row.id);
   const replicaTitle = useSessionTitle(row.id);
+  const waiting = (usePending(row.id)?.length ?? 0) > 0;
   const title = row.title ?? replicaTitle;
   const [anchor, setAnchor] = useState<MenuAnchor | null>(null);
+  // Clear context and Delete session ask first, in a card where the menu was (Pen `TWRW2`,
+  // `K8sot8`). What the sentence says is fixed when it opens, so it does not change under a click.
+  const [asking, setAsking] = useState<Asking | null>(null);
   const more = useRef<HTMLButtonElement>(null);
   // A session that is not on disk yet has nothing to copy, and omp refuses to copy one that is
   // running a turn. One that is not open has nothing to close.
   const canFork = row.modified !== null && !readOnly && status !== "streaming";
   const canClose = open;
-  const hasMenu = canFork || canClose;
+  const dangerous = sessionMenuState({
+    open,
+    readOnly,
+    status,
+    waiting,
+    onDisk: row.modified !== null,
+  });
+  const hasMenu = canFork || canClose || dangerous.clear.state !== "hidden";
   const locked = readOnly && !open;
 
   const dismiss = () => {
     setAnchor(null);
     more.current?.focus();
   };
+  const ask = async (action: "clear" | "delete", from: MenuAnchor) => {
+    setAnchor(null);
+    let subagents = 0;
+    if (action === "delete") {
+      // The sentence counts what goes with the session; a failed count is not guessed.
+      const counted = await previewDelete(row.id);
+      if (counted === null) {
+        more.current?.focus();
+        return;
+      }
+      subagents = counted;
+    }
+    setAsking({ action, anchor: from, subagents, waiting });
+  };
+  const confirmation = asking
+    ? sessionActionConfirmation(asking.action, {
+        title,
+        subagents: asking.subagents,
+        waiting: asking.waiting,
+      })
+    : null;
   return (
     <li
       className="group relative"
@@ -216,12 +306,40 @@ function SessionRow({
       {anchor && (
         <SessionMenu
           anchor={anchor}
+          opener={more.current}
           canFork={canFork}
           canClose={canClose}
           closeBlocked={status === "streaming"}
+          clear={dangerous.clear}
+          remove={dangerous.delete}
           onFork={() => onFork(row.id)}
           onClose={() => onClose(row.id)}
+          onClear={() => void ask("clear", anchor)}
+          onDelete={() => void ask("delete", anchor)}
           onDismiss={dismiss}
+        />
+      )}
+      {asking && confirmation && (
+        <ConfirmCard
+          question={confirmation.question}
+          consequence={confirmation.because}
+          confirmLabel={confirmation.confirm}
+          anchor={asking.anchor}
+          opener={more.current}
+          focus={confirmation.destructive ? "cancel" : "confirm"}
+          onConfirm={() => {
+            setAsking(null);
+            if (asking.action === "clear") {
+              onClearContext(row.id);
+              more.current?.focus();
+            } else {
+              onDelete(row.id);
+            }
+          }}
+          onCancel={() => {
+            setAsking(null);
+            more.current?.focus();
+          }}
         />
       )}
     </li>
@@ -249,7 +367,18 @@ function Project({
   readOnly: boolean;
   now: number;
 } & SessionActions) {
-  const { open, shownSubagent, readOnly, now, onSelect, onFork, onClose } = rest;
+  const {
+    open,
+    shownSubagent,
+    readOnly,
+    now,
+    onSelect,
+    onFork,
+    onClose,
+    onClearContext,
+    onDelete,
+    previewDelete,
+  } = rest;
   const holdsFocused = rows.some((row) => row.id === focusedId);
   return (
     <li>
@@ -288,6 +417,9 @@ function Project({
               onSelect={onSelect}
               onFork={onFork}
               onClose={onClose}
+              onClearContext={onClearContext}
+              onDelete={onDelete}
+              previewDelete={previewDelete}
             />
           ))}
         </ul>

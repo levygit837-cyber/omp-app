@@ -1,10 +1,13 @@
 import {
+  ACTION_BUSY_MESSAGE,
+  ACTION_COMMAND_MESSAGE,
   CONFIRM_REQUIRED_MESSAGE,
   type Delivery,
   IMAGE_REFUSED_MESSAGE,
   isPromptImage,
   MAX_FILE_QUERY_CHARS,
   type ModelOption,
+  type PauseState,
   type PromptImage,
   type QueueName,
   refuseImages,
@@ -23,7 +26,7 @@ import { type CommandControl, CommandRunner } from "./command-runner";
 import { listFiles } from "./file-list";
 import type { RequestAnswers } from "./request-registry";
 import type { Handlers } from "./server";
-import type { SessionStore } from "./session-store";
+import type { ClearedState, SessionStore } from "./session-store";
 
 /** What the handlers need from the omp host. Narrow, so tests can stand in for omp. */
 export interface SessionControl extends CommandControl {
@@ -47,6 +50,13 @@ export interface SessionControl extends CommandControl {
   cancel(sessionId: string): Promise<void>;
   /** The builtins omp runs without a terminal. Independent of the session. */
   commands(): SessionCommandsResult["commands"];
+  /** See `OmpHost`: the actions omp has only as terminal builtins. */
+  clearContext(sessionId: string): Promise<{ dropped: number; cleared: ClearedState }>;
+  deletePreview(sessionId: string): Promise<number>;
+  /** `beforeClose` runs once the file may be deleted and before the session is closed. */
+  deleteSession(sessionId: string, beforeClose: () => void): Promise<number>;
+  pauseState(): PauseState;
+  setPaused(paused: boolean): PauseState;
 }
 
 export const SESSION_CAPABILITIES = [
@@ -68,6 +78,11 @@ export const SESSION_CAPABILITIES = [
   "session.close",
   "session.commands",
   "session.runCommand",
+  "session.clearContext",
+  "session.deletePreview",
+  "session.delete",
+  "agents.pauseState",
+  "agents.setPaused",
 ] as const;
 
 /** Handlers for the `session.*` methods. Control goes through ACP; state comes from the store. */
@@ -232,6 +247,99 @@ export function sessionHandlers(
       }
       commands.start(id, text);
       return null;
+    },
+
+    "session.clearContext": ({ sessionId, confirmed }) =>
+      inOrder(async () => {
+        const id = known(sessionId);
+        if (confirmed !== true) throw new Error(`${CONFIRM_REQUIRED_MESSAGE}: clear`);
+        // A builtin of this app (`/usage`, `/compact`) writes into the timeline: its end would
+        // land after the boundary. The host refuses a turn, a shell and a compaction itself.
+        if (commands.running(id)) throw new Error(ACTION_COMMAND_MESSAGE);
+        const { dropped, cleared } = await control.clearContext(id);
+        const now = store.current(id);
+        // Nothing the agent asked before the boundary can be answered any more.
+        requests.dismissSession(now);
+        store.markCleared(now, cleared);
+        return { dropped };
+      }),
+
+    "session.deletePreview": async ({ sessionId }) => ({
+      subagents: await control.deletePreview(known(sessionId)),
+    }),
+
+    "session.delete": ({ sessionId, confirmed }) =>
+      inOrder(async () => {
+        const id = known(sessionId);
+        if (confirmed !== true) throw new Error(`${CONFIRM_REQUIRED_MESSAGE}: delete`);
+        const view = store.snapshot(id).snapshot;
+        // A turn that waits on a person (permission, ask) is not working: the window said that
+        // deleting rejects the request. Any other running turn is refused, because the files of
+        // a session in use are not the sidecar's to pull away.
+        if (view.status === "streaming" && view.pending.length === 0) {
+          throw new Error(ACTION_BUSY_MESSAGE);
+        }
+        // Closing the session aborts its turn, and the turn's end withdraws any request it held
+        // (`RequestRegistry.agentEvent`), so a waiting approval is rejected without a step here.
+        const subagents = await control.deleteSession(id, () => {
+          // After the host took the file's lease and before it closes the session: a refusal
+          // for an owned file leaves the running command alone.
+          commands.cancel(id);
+        });
+        store.remove(store.current(id));
+        return { subagents };
+      }),
+
+    "agents.pauseState": async () => control.pauseState(),
+
+    "agents.setPaused": async ({ sessionId, paused, confirmed }) => {
+      if (typeof paused !== "boolean") throw new Error("invalid pause");
+      const id = known(sessionId);
+      // Freezing is the one direction that needs the answer: resuming only lets work go on.
+      if (paused && confirmed !== true) throw new Error(`${CONFIRM_REQUIRED_MESSAGE}: pause`);
+      const before = control.pauseState();
+      // The trace the person finds in the timeline of the session the command ran from. Written
+      // as the part-1 `command` line, saved like any other.
+      const itemId = store.startCommand(id, paused ? "/pause" : "/resume");
+      let output: string;
+      let state: PauseState;
+      try {
+        state = before.paused === paused ? before : control.setPaused(paused);
+      } catch (error) {
+        store.patchCommand(store.current(id), itemId, {
+          state: "failed",
+          output: error instanceof Error ? error.message : String(error),
+          endedAt: Date.now(),
+        });
+        throw error;
+      }
+      if (before.paused === paused) {
+        output = paused ? "Every agent was already paused." : "No agent was paused.";
+      } else if (paused) {
+        output =
+          "Every open session and its subagents stop at their next step. Nothing was cancelled. Run “Resume all agents” from the command palette to let them go on. If omp restarts while paused, the sessions start unpaused.";
+      } else {
+        output = "Every open session goes on from where it stopped.";
+      }
+      const finished = store.patchCommand(store.current(id), itemId, {
+        state: "done",
+        output,
+        endedAt: Date.now(),
+      });
+      if (finished) {
+        try {
+          control.saveCommand(store.current(id), finished);
+        } catch (error) {
+          store.warn(store.current(id), {
+            source: "session",
+            title: "A command is not saved with the session",
+            message: `It shows here, but it will be gone when the session is opened again. ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          });
+        }
+      }
+      return state;
     },
 
     "session.answerPermission": async ({ sessionId, requestId, optionId }) => {

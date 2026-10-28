@@ -359,3 +359,61 @@ describe("confirmFocus", () => {
     }
   });
 });
+
+describe("the This session group and the pause toggle", () => {
+  const withSession = (over: Partial<PaletteInput> = {}) =>
+    input({
+      actions: [
+        { id: "new-session", label: "New session" },
+        { id: "fork-session", label: "Fork session", scope: "session" },
+        { id: "clear-context", label: "Clear context", scope: "session", asks: true },
+        { id: "delete-session", label: "Delete session", scope: "session", asks: true },
+        { id: "toggle-pause", label: "Pause all agents", asks: true },
+      ],
+      ...over,
+    });
+
+  test("the actions on the focused session sit in their own group, ahead of app actions", () => {
+    const groups = buildView(">", withSession()).groups;
+    expect(groups.map((g) => [g.id, g.label])).toEqual([
+      ["session", "This session"],
+      ["actions", "App actions"],
+    ]);
+    expect(groups[0]?.rows.map((r) => r.key)).toEqual([
+      "action:fork-session",
+      "action:clear-context",
+      "action:delete-session",
+    ]);
+    expect(groups[1]?.rows.map((r) => r.key)).toEqual([
+      "action:new-session",
+      "action:toggle-pause",
+    ]);
+  });
+
+  test("an action that asks first yields ask, one that does not yields action", () => {
+    const rows = rowsOf(buildView(">", withSession()));
+    const entry = (key: string) => rows.find((r) => r.key === key)?.entry as never;
+    expect(activate(entry("action:clear-context"))).toEqual({ do: "ask", id: "clear-context" });
+    expect(activate(entry("action:delete-session"))).toEqual({ do: "ask", id: "delete-session" });
+    expect(activate(entry("action:toggle-pause"))).toEqual({ do: "ask", id: "toggle-pause" });
+    expect(activate(entry("action:fork-session"))).toEqual({ do: "action", id: "fork-session" });
+  });
+
+  test("resume asks nothing: the row is a plain action", () => {
+    const view = buildView(
+      ">resume",
+      withSession({ actions: [{ id: "toggle-pause", label: "Resume all agents" }] }),
+    );
+    const [row] = rowsOf(view);
+    expect(row?.entry && activate(row.entry)).toEqual({ do: "action", id: "toggle-pause" });
+  });
+
+  test("typing finds the actions by their words, whichever group they are in", () => {
+    expect(rowsOf(buildView("delete", withSession())).map((r) => r.key)).toContain(
+      "action:delete-session",
+    );
+    expect(rowsOf(buildView("pause", withSession())).map((r) => r.key)).toContain(
+      "action:toggle-pause",
+    );
+  });
+});

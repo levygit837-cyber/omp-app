@@ -1,5 +1,6 @@
 import { stat } from "node:fs/promises";
 import { homedir } from "node:os";
+import { agentPauseGate } from "@oh-my-pi/pi-agent-core";
 import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import {
@@ -12,6 +13,7 @@ import { createAgentSession, discoverAuthStorage } from "@oh-my-pi/pi-coding-age
 import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import type { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { FileSessionStorage } from "@oh-my-pi/pi-coding-agent/session/session-storage";
 import { executeAcpBuiltinSlashCommand } from "@oh-my-pi/pi-coding-agent/slash-commands/acp-builtins";
 import { refreshAgentDiscovery } from "@oh-my-pi/pi-coding-agent/task";
 import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
@@ -24,10 +26,15 @@ import {
   type Stream,
 } from "@oh-my-pi/pi-utils/acp";
 import {
+  ACTION_BUSY_MESSAGE,
+  ACTION_COMMAND_MESSAGE,
+  ACTION_SHELL_MESSAGE,
   CONFIRM_REQUIRED_MESSAGE,
   type CommandItem,
   type Delivery,
+  FILE_OWNED_MESSAGE,
   type ModelOption,
+  type PauseState,
   type PromptImage,
   type QueueName,
   SESSION_BUSY_MESSAGE,
@@ -35,11 +42,15 @@ import {
   UNKNOWN_SESSION_MESSAGE,
 } from "@omp-app/protocol";
 import { gatedPromptLine, listBuiltinCommands } from "./command-catalog";
-import { COMMAND_ENTRY_TYPE, storedCommandOf } from "./command-entries";
+import { COMMAND_ENTRY_TYPE, readResetBoundaries, storedCommandOf } from "./command-entries";
 import type { CommandControl } from "./command-runner";
+import { readContextFill } from "./context-fill";
 import { parseMcpFailure, resolveMcpServers } from "./mcp-config";
+import { countPersistedSubagents } from "./persisted-subagents";
 import type { RequestRegistry } from "./request-registry";
 import { findStoredSession, listStoredSessions } from "./session-catalog";
+import type { ClearedState } from "./session-store";
+import { todoPhases } from "./tool-output";
 
 /** omp refuses the plan mode while its `plan.enabled` setting is off (acp-agent.ts:2236-2239 [V]). */
 const PLAN_MODE_OFF = /^Unsupported ACP mode: plan/;
@@ -126,6 +137,25 @@ export interface OmpHost extends CommandControl {
   globalSettings(): Promise<Settings>;
   /** The settings clone of every open session, for reloading after a config write. */
   liveSessionSettings(): readonly Settings[];
+  /**
+   * Drops the agent's memory and keeps the session (omp's `resetSessionContext`). Refused with the
+   * `ACTION_*` sentences while a turn, a shell command or a compaction runs. Answers with what the
+   * view must take over from omp afterwards.
+   */
+  clearContext(sessionId: string): Promise<{ dropped: number; cleared: ClearedState }>;
+  /** Persisted subagent sessions that `deleteSession` removes with the session. */
+  deletePreview(sessionId: string): Promise<number>;
+  /**
+   * Closes the session and removes its file, its artifacts and its subagent transcripts. Refused
+   * with `FILE_OWNED_MESSAGE` while another omp process owns the file. Resolves with the number
+   * of subagent sessions removed. `beforeClose` runs once the lease is held and the session is about
+   * to close, so what a refusal must leave alone is touched only after the refusals.
+   */
+  deleteSession(sessionId: string, beforeClose: () => void): Promise<number>;
+  /** Whether omp's process-wide pause gate is engaged. */
+  pauseState(): PauseState;
+  /** Engages or releases the gate, which freezes (or releases) every agent loop of the process. */
+  setPaused(paused: boolean): PauseState;
 }
 
 /** Two cross-wired in-memory streams: what one end writes, the other reads. */
@@ -355,6 +385,20 @@ export async function startOmpHost(options: OmpHostOptions): Promise<OmpHost> {
     }
   };
 
+  /** Closes one session in ACP and forgets everything the host keeps for it. Run inside `exclusive`. */
+  const closeKey = async (sessionId: string): Promise<void> => {
+    const key = keyOf(sessionId);
+    await client.closeSession({ sessionId: key });
+    liveSettings.delete(key);
+    sessions.delete(key);
+    moved.delete(sessionId);
+  };
+
+  const pauseStateOf = (): PauseState => {
+    const since = agentPauseGate.pausedAt;
+    return since === undefined ? { paused: false } : { paused: true, since };
+  };
+
   return {
     ompVersion,
     globalSettings: async () => (await openContext()).settings,
@@ -379,14 +423,7 @@ export async function startOmpHost(options: OmpHostOptions): Promise<OmpHost> {
         const { cwd, mcpServers } = await storedSessionContext(sessionId);
         return (await client.unstable_forkSession({ sessionId, cwd, mcpServers })).sessionId;
       }),
-    closeSession: (sessionId) =>
-      exclusive(async () => {
-        const key = keyOf(sessionId);
-        await client.closeSession({ sessionId: key });
-        liveSettings.delete(key);
-        sessions.delete(key);
-        moved.delete(sessionId);
-      }),
+    closeSession: (sessionId) => exclusive(() => closeKey(sessionId)),
     async prompt(sessionId, text, images = []) {
       // The one door to ACP's builtin dispatch: `session.prompt` (the composer) and the text a
       // builtin hands back both come here, and a gated builtin only starts through
@@ -442,6 +479,70 @@ export async function startOmpHost(options: OmpHostOptions): Promise<OmpHost> {
     cwdOf: (sessionId) => sessionOf(sessionId).sessionManager.getCwd(),
     cancel: (sessionId) => client.cancel({ sessionId: keyOf(sessionId) }),
     commands: listBuiltinCommands,
+    async clearContext(sessionId) {
+      const session = sessionOf(sessionId);
+      // `resetSessionContext` returns undefined without touching anything while a response
+      // streams or a foreground shell runs (`agent-session.ts:6279-6283` [V]); the shell gets its
+      // own sentence. A running compaction or handoff would write its result after the boundary,
+      // so it is refused too (the TUI aborts it first, `command-controller.ts:1350` [V]).
+      if (session.isBashRunning || session.isEvalRunning) throw new Error(ACTION_SHELL_MESSAGE);
+      if (session.isCompacting) throw new Error(ACTION_COMMAND_MESSAGE);
+      const result = await session.resetSessionContext();
+      if (!result) throw new Error(ACTION_BUSY_MESSAGE);
+      const manager = session.sessionManager;
+      return {
+        dropped: result.droppedCount,
+        cleared: {
+          at: readResetBoundaries(manager.getBranch()).at(-1) ?? Date.now(),
+          context: readContextFill(session),
+          queue: session.getQueuedMessages(),
+          // omp keeps its todo list across a reset (`resetSessionContext` never touches it), so
+          // the view shows what omp holds, not an empty list.
+          todo: todoPhases({ phases: session.getTodoPhases() }) ?? [],
+        },
+      };
+    },
+    async deletePreview(sessionId) {
+      const file = sessionOf(sessionId).sessionManager.getSessionFile();
+      return file === undefined ? 0 : await countPersistedSubagents(file);
+    },
+    deleteSession: (sessionId, beforeClose) =>
+      exclusive(async () => {
+        const manager = sessionOf(sessionId).sessionManager;
+        const file = manager.getSessionFile();
+        // A session that never wrote has no file: closing it is all there is to delete.
+        const onDisk = file !== undefined && manager.isSessionOnDisk();
+        const storage = new FileSessionStorage();
+        // The ownership lease, taken the way the session manager takes it for its first write
+        // (`session-storage.ts:1292` [V]): null while another live omp process holds the session
+        // (typically the CLI), and re-entrant for this process, which holds it itself once it has
+        // written. Kept until the files are gone, so nobody claims the session in between.
+        const lease = onDisk ? storage.claimSession(manager.getSessionId(), file) : undefined;
+        if (lease === null) throw new Error(FILE_OWNED_MESSAGE);
+        try {
+          const subagents = onDisk ? await countPersistedSubagents(file) : 0;
+          beforeClose();
+          // Closed before the files go: closing flushes the writer, and a write after the delete
+          // would bring the file back (part 1 hit this with `saveCommand`).
+          await closeKey(sessionId);
+          if (onDisk) {
+            try {
+              await storage.deleteSessionWithArtifacts(file);
+            } catch (error) {
+              if ((error as { code?: unknown } | null)?.code !== "ENOENT") throw error;
+            }
+          }
+          return subagents;
+        } finally {
+          lease?.();
+        }
+      }),
+    pauseState: () => pauseStateOf(),
+    setPaused(paused) {
+      if (paused) agentPauseGate.pause();
+      else agentPauseGate.resume();
+      return pauseStateOf();
+    },
     async runCommand(sessionId, text, output, signal) {
       const session = sessionOf(sessionId);
       // Called directly, not through `session/prompt`: a prompt cancels the running turn

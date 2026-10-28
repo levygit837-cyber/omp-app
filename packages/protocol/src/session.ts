@@ -18,6 +18,7 @@ import {
   type PendingRequest,
 } from "./requests";
 import {
+  type BoundaryItem,
   type CommandItem,
   type CompactionItem,
   type ContextFill,
@@ -68,6 +69,7 @@ export type Item =
   | CompactionItem
   | RetryItem
   | CommandItem
+  | BoundaryItem
   | DecisionItem;
 
 /** The fields of a status event an `item.patch` may change. `kind` and `id` never change. */

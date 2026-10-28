@@ -42,3 +42,19 @@ export function readStoredCommands(entries: readonly unknown[]): StoredCommand[]
   }
   return found;
 }
+
+/**
+ * When the context was cleared, from the `reset_boundary` entries of a session branch (omp's
+ * `/clear`, `session-entries.ts:188` [V]), oldest first. The entry's `timestamp` is an ISO string;
+ * one that does not parse is skipped, because a line without a time cannot be placed.
+ */
+export function readResetBoundaries(entries: readonly unknown[]): number[] {
+  const found: number[] = [];
+  for (const entry of entries) {
+    if (!isRecord(entry) || entry.type !== "reset_boundary" || typeof entry.timestamp !== "string")
+      continue;
+    const at = Date.parse(entry.timestamp);
+    if (Number.isFinite(at)) found.push(at);
+  }
+  return found;
+}

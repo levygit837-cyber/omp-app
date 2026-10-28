@@ -159,7 +159,7 @@ for (const [signal, code] of [
 ] as const) {
   process.on(signal, () => void stopAndClean().finally(() => process.exit(code)));
 }
-const results: { scenario: string; sessionId: string; failures: string[] }[] = [];
+const results: { scenario: string; sessionId: string; failures: string[]; deleted?: true }[] = [];
 
 /** The next request the sidecar raised for `sessionId` after op index `from`. */
 async function nextRequest(sessionId: string, from: number): Promise<PendingRequest> {
@@ -1201,9 +1201,144 @@ await manual(
 );
 await noOrphans("job-cancel");
 
+// ── Session actions (#17 part 2) ─────────────────────────────────────────────────────────
+/** A finished turn on the cheap model, so the session has a file and a reply. */
+async function actionSession(text: string) {
+  const { sessionId } = await ask("session.create", { cwd });
+  const sub = await ask("session.subscribe", { sessionId });
+  const from = ops.length;
+  const view = () => replica(sub.snapshot, sessionId, from);
+  await useCheap(sessionId);
+  await ask("session.prompt", { sessionId, text });
+  await until("the first turn", () => {
+    const vm = view();
+    return vm.status !== "streaming" && vm.timeline.some((i) => i.kind === "assistant" && i.done);
+  });
+  return { sessionId, view };
+}
+const sessionFileOf = (sessionId: string) => {
+  const found = [
+    ...new Bun.Glob(`**/*${sessionId}*.jsonl`).scanSync({ cwd: join(getAgentDir(), "sessions") }),
+  ][0];
+  return found ? join(getAgentDir(), "sessions", found) : undefined;
+};
+
+if (wanted("clear")) {
+  const failures: string[] = [];
+  const { sessionId, view } = await actionSession(
+    "Remember the code word ZEBRA-42. Reply with exactly: ok. No tools.",
+  );
+  const refused = await refusal(ask("session.clearContext", { sessionId }));
+  if (!refused?.startsWith("confirmation required")) {
+    failures.push(`clear without the answer was not refused (${refused})`);
+  }
+  const { dropped } = await ask("session.clearContext", { sessionId, confirmed: true });
+  if (dropped < 2) failures.push(`dropped ${dropped} messages, expected the first turn`);
+  await until("the boundary", () => view().timeline.some((i) => i.kind === "boundary"));
+  await ask("session.prompt", {
+    sessionId,
+    text: "What code word did I ask you to remember? If you were never told one, reply exactly: unknown. No tools.",
+  });
+  await until("the turn after the clear", () => {
+    const vm = view();
+    return (
+      vm.status !== "streaming" && vm.timeline.filter((i) => i.kind === "assistant").length === 2
+    );
+  });
+  const vm = view();
+  // Reasoning lines depend on the model; the order of the rest is the check.
+  const kinds = vm.timeline.flatMap((i) => (i.kind === "thinking" ? [] : [i.kind])).join(",");
+  if (kinds !== "user,assistant,boundary,user,assistant") failures.push(`timeline ${kinds}`);
+  const after = vm.timeline.findLast((i) => i.kind === "assistant");
+  if (after?.kind === "assistant" && /ZEBRA/i.test(after.text)) {
+    failures.push("the agent still knew the code word after the clear");
+  }
+  const file = sessionFileOf(sessionId);
+  if (!file || !(await Bun.file(file).text()).includes('"type":"reset_boundary"')) {
+    failures.push("the session file has no reset_boundary entry");
+  }
+  console.log(`\n== clear (${sessionId})`);
+  console.log(
+    `  timeline: ${kinds}; dropped ${dropped}; after: ${JSON.stringify(after?.kind === "assistant" ? after.text : "")}`,
+  );
+  results.push({ scenario: "clear", sessionId, failures });
+}
+
+if (wanted("delete")) {
+  const failures: string[] = [];
+  const { sessionId } = await actionSession("Reply with exactly one word: pong. No tools.");
+  const file = sessionFileOf(sessionId);
+  if (!file) failures.push("no session file before the delete");
+  const preview = await ask("session.deletePreview", { sessionId });
+  const result = await ask("session.delete", { sessionId, confirmed: true });
+  if (result.subagents !== preview.subagents) failures.push("preview and result disagree");
+  if (file && existsSync(file)) failures.push("the session file is still on disk");
+  if (file && existsSync(file.slice(0, -".jsonl".length)))
+    failures.push("the artifacts are still on disk");
+  const { sessions } = await ask("session.list");
+  if (sessions.some((s) => s.id === sessionId)) failures.push("session.list still lists it");
+  const again = await refusal(ask("session.delete", { sessionId, confirmed: true }));
+  if (!again?.startsWith(UNKNOWN)) failures.push(`a second delete answered ${again}`);
+  await Bun.sleep(1_000);
+  if (file && existsSync(file)) failures.push("the session file came back");
+  console.log(`\n== delete (${sessionId})`);
+  console.log(
+    `  file ${file}: ${file && existsSync(file) ? "STILL THERE" : "gone"}; subagents ${result.subagents}`,
+  );
+  results.push({ scenario: "delete", sessionId, failures, deleted: true });
+}
+
+if (wanted("pause")) {
+  const failures: string[] = [];
+  const { sessionId } = await actionSession("Reply with exactly one word: ready. No tools.");
+  const sub = await ask("session.subscribe", { sessionId });
+  const from = ops.length;
+  const view = () => replica(sub.snapshot, sessionId, from);
+  const replies = () => view().timeline.filter((i) => i.kind === "assistant").length;
+  const before = replies();
+
+  const refused = await refusal(ask("agents.setPaused", { sessionId, paused: true }));
+  if (!refused?.startsWith("confirmation required"))
+    failures.push(`pause without the answer: ${refused}`);
+  const paused = await ask("agents.setPaused", { sessionId, paused: true, confirmed: true });
+  if (!paused.paused || !(await ask("agents.pauseState")).paused) failures.push("not paused");
+
+  // A turn started while paused parks before its model call.
+  await ask("session.prompt", { sessionId, text: COUNTING });
+  await until("the turn to start", () => view().status === "streaming");
+  await Bun.sleep(4_000);
+  const frozenText = textOf(view()).length;
+  if (replies() !== before) failures.push("a reply appeared while paused");
+
+  // Stop works while paused, and the pause stays.
+  await ask("session.cancel", { sessionId });
+  await until("the parked turn to stop", () => view().status !== "streaming", 30_000);
+  if (!(await ask("agents.pauseState")).paused) failures.push("Stop released the pause");
+
+  // Resume: a new turn runs to the end.
+  await ask("agents.setPaused", { sessionId, paused: false });
+  await ask("session.prompt", {
+    sessionId,
+    text: "Reply with exactly one word: resumed. No tools.",
+  });
+  await until("the turn after the resume", () => {
+    const vm = view();
+    return vm.status !== "streaming" && /resumed/i.test(textOf(vm));
+  });
+  const lines = view().timeline.flatMap((i) => (i.kind === "command" ? [i.text] : []));
+  if (lines.join(",") !== "/pause,/resume") failures.push(`trace lines ${lines.join(",")}`);
+  console.log(`\n== pause (${sessionId})`);
+  console.log(
+    `  text while paused: ${frozenText} chars; trace: ${lines.join(", ")}; status ${view().status}`,
+  );
+  results.push({ scenario: "pause", sessionId, failures });
+}
+
 console.log(`\nsession directory: ${join(getAgentDir(), "sessions")}`);
 
 for (const r of results) {
+  // A session deleted on purpose has no file left, which is what its own scenario checked.
+  if (r.deleted) continue;
   const found = new Bun.Glob(`**/*${r.sessionId}*.jsonl`).scanSync({
     cwd: join(getAgentDir(), "sessions"),
   });

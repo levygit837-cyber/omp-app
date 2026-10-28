@@ -1,12 +1,16 @@
 import type {
   AskAction,
   AskContent,
+  ClearContextResult,
+  DeletePreview,
+  DeleteResult,
   Delivery,
   McpChange,
   McpListing,
   McpSecretRef,
   McpServerInput,
   ModelOption,
+  PauseState,
   PlanReadResult,
   PromptImage,
   QueueName,
@@ -118,6 +122,19 @@ export type OmpBridge = {
      */
     runCommand(sessionId: string, text: string, confirmed?: true): Promise<void>;
     /**
+     * Drops the agent's context and keeps the session: the timeline stays and gains a boundary.
+     * Rejects while a turn or a shell command runs, and without `confirmed` (the sidecar asks).
+     */
+    clearContext(sessionId: string, confirmed?: true): Promise<ClearContextResult>;
+    /** What `delete` would remove along with the session, to word the question. Changes nothing. */
+    deletePreview(sessionId: string): Promise<DeletePreview>;
+    /**
+     * Deletes the session file and its subagent sessions, then closes the session. The op stream
+     * for it simply ends. Rejects while a turn runs, when another omp process owns the file, and
+     * without `confirmed`.
+     */
+    delete(sessionId: string, confirmed?: true): Promise<DeleteResult>;
+    /**
      * Kills a running subagent of the session. Resolves with false when it had already ended.
      * `cancel` (Esc) leaves subagents running; this is the explicit way to stop one.
      */
@@ -126,6 +143,15 @@ export type OmpBridge = {
     cancelJob(sessionId: string, jobId: string): Promise<boolean>;
     /** Calls `listener` for every op of every subscribed session. Returns the unsubscribe function. */
     onOp(listener: (event: SessionOpEvent) => void): () => void;
+  };
+  readonly agents: {
+    /** Whether every agent of the sidecar is paused. */
+    pauseState(): Promise<PauseState>;
+    /**
+     * Pauses or resumes every agent. `sessionId` is the session the palette command was run from;
+     * it gets the trace line. Pausing needs `confirmed`; resuming never asks.
+     */
+    setPaused(sessionId: string, paused: boolean, confirmed?: true): Promise<PauseState>;
   };
   readonly palette: {
     /** Calls `listener` when the application menu asks for the palette (⌘K). Returns the unsubscribe function. */

@@ -36,9 +36,11 @@
  */
 
 import {
+  ACTION_BUSY_MESSAGE,
   type Attachment,
   applyOp,
   base64Bytes,
+  CONFIRM_REQUIRED_MESSAGE,
   decodeFrame,
   encodeFrame,
   errorResponse,
@@ -54,6 +56,7 @@ import {
   type SessionViewModel,
   UNKNOWN_SESSION_MESSAGE,
 } from "@omp-app/protocol";
+import { clearFake, fakePauseState, fakeSubagents, setFakePaused } from "./fake-actions";
 import { storedSessions, storedTimeline } from "./fake-catalog";
 import {
   commandItem,
@@ -429,7 +432,8 @@ function handleSession(
   const catalog = handleCatalog(method, id, params);
   if (catalog) return catalog;
 
-  if (!method.startsWith("session.")) return undefined;
+  if (method === "agents.pauseState") return okResponse(id, fakePauseState());
+  if (method !== "agents.setPaused" && !method.startsWith("session.")) return undefined;
   const session = sessions.get(sessionId);
   if (!session) {
     return errorResponse(id, {
@@ -438,7 +442,52 @@ function handleSession(
     });
   }
 
+  const refuse = (e: unknown) =>
+    errorResponse(id, { code: "internal", message: e instanceof Error ? e.message : String(e) });
+  const confirmed = (params as { confirmed?: unknown } | null)?.confirmed === true;
   switch (method) {
+    case "agents.setPaused":
+      try {
+        return okResponse(
+          id,
+          setFakePaused(
+            (op) => emit(session, op),
+            (params as { paused?: unknown } | null)?.paused === true,
+            confirmed,
+          ),
+        );
+      } catch (e) {
+        return refuse(e);
+      }
+    case "session.clearContext":
+      if (mode === "read-only") return readOnlyError(id, method);
+      try {
+        return okResponse(
+          id,
+          clearFake(session, (op) => emit(session, op), confirmed),
+        );
+      } catch (e) {
+        return refuse(e);
+      }
+    case "session.deletePreview":
+      return okResponse(id, { subagents: fakeSubagents() });
+    case "session.delete": {
+      if (mode === "read-only") return readOnlyError(id, method);
+      if (!confirmed) return refuse(new Error(`${CONFIRM_REQUIRED_MESSAGE}: delete`));
+      // A turn waiting on the person is deleted anyway (the request is rejected); a running one is not.
+      if (session.turn && session.vm.pending.length === 0)
+        return refuse(new Error(ACTION_BUSY_MESSAGE));
+      dismissRequests(session, (op) => emit(session, op));
+      if (session.turn) {
+        session.turn.cancelled = true;
+        session.turn.wake();
+      }
+      delegation.dispose(sessionId);
+      sessions.delete(sessionId);
+      const at = stored.findIndex((s) => s.id === sessionId);
+      if (at >= 0) stored.splice(at, 1);
+      return okResponse(id, { subagents: fakeSubagents() });
+    }
     case "session.subscribe": {
       session.subs.add(conn);
       if (process.env.FAKE_WARN === "1" && !session.warned) {

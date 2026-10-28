@@ -122,6 +122,15 @@ export class CommandRunner {
     })();
   }
 
+  /** Whether a command is running on the session. */
+  running(sessionId: string): boolean {
+    const target = this.#deps.store.current(sessionId);
+    for (const running of this.#running) {
+      if (this.#deps.store.current(running.sessionId) === target) return true;
+    }
+    return false;
+  }
+
   /** Stops every command running on the session. True when there was one to stop. */
   cancel(sessionId: string): boolean {
     // Compared by current id: the session may have moved to a new file since the command began.

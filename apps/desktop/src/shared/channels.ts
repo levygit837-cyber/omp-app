@@ -28,6 +28,16 @@ export const SESSION_FORK = "session:fork";
 export const SESSION_CLOSE = "session:close";
 export const SESSION_COMMANDS = "session:commands";
 export const SESSION_RUN_COMMAND = "session:run-command";
+/** Drops the agent's context and keeps the session (`session.clearContext`). */
+export const SESSION_CLEAR_CONTEXT = "session:clear-context";
+/** What deleting the session would remove, to word the question (`session.deletePreview`). */
+export const SESSION_DELETE_PREVIEW = "session:delete-preview";
+/** Deletes the session file and closes the session (`session.delete`). */
+export const SESSION_DELETE = "session:delete";
+/** Whether every agent is paused (`agents.pauseState`). */
+export const AGENTS_PAUSE_STATE = "agents:pause-state";
+/** Pauses or resumes every agent (`agents.setPaused`). */
+export const AGENTS_SET_PAUSED = "agents:set-paused";
 /** Pushed by main when the user asks for the command palette from the application menu (⌘K). */
 export const PALETTE_OPEN = "palette:open";
 export const SETTINGS_LIST = "settings:list";

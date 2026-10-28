@@ -44,11 +44,23 @@ export interface SessionRef {
   readonly focused: boolean;
 }
 
-export type ActionId = "new-session" | "open-settings" | "toggle-left" | "toggle-right";
+export type ActionId =
+  | "new-session"
+  | "open-settings"
+  | "toggle-left"
+  | "toggle-right"
+  | "fork-session"
+  | "clear-context"
+  | "delete-session"
+  | "toggle-pause";
 
 export interface ActionRef {
   readonly id: ActionId;
   readonly label: string;
+  /** Acts on the focused session: listed under "This session", not under "App actions". */
+  readonly scope?: "session";
+  /** Asks first, saying what it does; the host words the question (`onPrepare`). */
+  readonly asks?: true;
   /** A real shortcut that already does this, drawn at the right of the row. */
   readonly shortcut?: string;
 }
@@ -97,7 +109,7 @@ export interface Row {
   readonly ranges: readonly Range[];
 }
 
-export type GroupId = "sessions" | "actions" | "commands" | "suggestion";
+export type GroupId = "sessions" | "session" | "actions" | "commands" | "suggestion";
 
 export interface Group {
   readonly id: GroupId;
@@ -116,7 +128,7 @@ export type View =
   | { readonly kind: "empty"; readonly query: string; readonly groups: readonly Group[] };
 
 /** Rows per group while nothing is typed; the rest is a search away. */
-export const IDLE_LIMIT = { sessions: 6, actions: 4, commands: 6 } as const;
+export const IDLE_LIMIT = { sessions: 6, session: 3, actions: 5, commands: 6 } as const;
 /** Rows per group while searching. */
 export const SEARCH_LIMIT = 30;
 
@@ -124,6 +136,7 @@ export const SEARCH_LIMIT = 30;
 
 const LABELS: Record<GroupId, string> = {
   sessions: "Sessions",
+  session: "This session",
   actions: "App actions",
   commands: "omp commands",
   suggestion: "Suggestion",
@@ -243,13 +256,22 @@ export function buildView(raw: string, input: PaletteInput): View {
     if (group) groups.push({ group, top: ranked[0]?.score ?? 0 });
   }
   if (mode !== "commands") {
-    const ranked = rank(
-      input.actions.map((action): Entry => ({ kind: "action", action })),
-      query,
-      (e) => (e.kind === "action" ? { name: e.action.label } : { name: "" }),
-    );
-    const group = limited("actions", ranked, cap(IDLE_LIMIT.actions), keyOf);
-    if (group) groups.push({ group, top: ranked[0]?.score ?? 0 });
+    // The actions on the focused session sit in their own group, so "Delete session" is never
+    // mistaken for something the app does to itself.
+    for (const [id, scope] of [
+      ["session", "session"],
+      ["actions", undefined],
+    ] as const) {
+      const ranked = rank(
+        input.actions
+          .filter((action) => action.scope === scope)
+          .map((action): Entry => ({ kind: "action", action })),
+        query,
+        (e) => (e.kind === "action" ? { name: e.action.label } : { name: "" }),
+      );
+      const group = limited(id, ranked, cap(IDLE_LIMIT[id]), keyOf);
+      if (group) groups.push({ group, top: ranked[0]?.score ?? 0 });
+    }
   }
   if (mode !== "actions") {
     const ranked = rank(
@@ -326,7 +348,9 @@ export function moveSelection(index: number, count: number, delta: number): numb
 
 export type Outcome =
   | { readonly do: "select-session"; readonly id: string }
-  | { readonly do: "action"; readonly id: ActionId }
+  | { readonly do: "action"; readonly id: ActionId; readonly confirmed?: true }
+  /** The action asks first: the host words the question, then the palette shows it. */
+  | { readonly do: "ask"; readonly id: ActionId }
   | { readonly do: "prompt"; readonly text: string }
   | { readonly do: "run"; readonly line: string; readonly confirmed?: true }
   /** The command reaches beyond the session: ask first, saying what it does. */
@@ -360,7 +384,9 @@ export function activate(entry: Entry): Outcome {
     case "session":
       return { do: "select-session", id: entry.session.id };
     case "action":
-      return { do: "action", id: entry.action.id };
+      return entry.action.asks
+        ? { do: "ask", id: entry.action.id }
+        : { do: "action", id: entry.action.id };
     case "prompt":
       return { do: "prompt", text: entry.text };
     case "command":

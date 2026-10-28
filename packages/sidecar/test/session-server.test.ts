@@ -21,6 +21,7 @@ import { RequestRegistry } from "../src/request-registry";
 import { type Handlers, type Server, startServer } from "../src/server";
 import { sessionHandlers } from "../src/session-handlers";
 import { SessionStore } from "../src/session-store";
+import { noActions } from "./fixtures/no-actions";
 import { noCommands } from "./fixtures/no-commands";
 import { noPromptControls } from "./harness";
 import { loadFixture, readGolden } from "./replay";
@@ -84,6 +85,7 @@ async function replayServer(name: string, readOnly = false, pauseAt = -1) {
   const control = {
     ...noPromptControls,
     ...noCommands,
+    ...noActions,
     async createSession(cwd: string) {
       store.create(emptyViewModel({ id, cwd, model: fixture.header.model }));
       return id;
@@ -247,6 +249,7 @@ async function multiServer(fixtureNames: readonly string[], readOnly = false) {
   const control = {
     ...noPromptControls,
     ...noCommands,
+    ...noActions,
     async createSession(cwd: string) {
       const fixture = fixtures[created++];
       if (!fixture) throw new Error("no more fixtures");

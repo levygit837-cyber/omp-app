@@ -1,5 +1,6 @@
-import type { CompactionItem, RetryItem } from "@omp-app/protocol";
+import type { BoundaryItem, CompactionItem, RetryItem } from "@omp-app/protocol";
 import { StateMark } from "@omp-app/ui";
+import { wallClock } from "../format";
 import { useShownStatus } from "../shown-status";
 import { formatDuration } from "../tool-phrases";
 import { compactionSize } from "./compaction-text";
@@ -126,6 +127,29 @@ export function RetryLine({ sessionId, item }: { sessionId: string; item: RetryI
         <span className="text-text-primary">{text}</span>
         <span className="text-text-dim">{` · ${item.error}`}</span>
       </span>
+    </div>
+  );
+}
+
+/**
+ * Where the agent's memory was cleared: a quiet rule with the words and the time on it. The
+ * lines above stay on screen and in the session file; the agent no longer sees them. No Pen frame
+ * draws it, so it borrows the rule of the compaction line.
+ */
+export function BoundaryLine({ item }: { item: BoundaryItem }) {
+  return (
+    <div
+      data-testid="boundary-line"
+      className="flex w-full items-center gap-(--space-12) text-size-md text-text-secondary"
+    >
+      <span aria-hidden="true" className="h-px flex-1 bg-border-hairline" />
+      <span>
+        Context cleared
+        <time dateTime={new Date(item.at).toISOString()} className="text-text-dim">
+          {` · ${wallClock(item.at)}`}
+        </time>
+      </span>
+      <span aria-hidden="true" className="h-px flex-1 bg-border-hairline" />
     </div>
   );
 }

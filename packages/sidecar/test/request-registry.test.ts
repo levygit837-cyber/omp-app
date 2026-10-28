@@ -8,6 +8,7 @@ import { RequestRegistry } from "../src/request-registry";
 import { attachSession } from "../src/session-bridge";
 import { sessionHandlers } from "../src/session-handlers";
 import { SessionStore } from "../src/session-store";
+import { noActions } from "./fixtures/no-actions";
 import { noCommands } from "./fixtures/no-commands";
 import { noPromptControls } from "./harness";
 
@@ -17,6 +18,7 @@ const SID = "s1";
 const idle = {
   ...noPromptControls,
   ...noCommands,
+  ...noActions,
   list: async () => [],
   resumeSession: async (id: string) => id,
   forkSession: async (id: string) => id,

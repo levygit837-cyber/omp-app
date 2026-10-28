@@ -2,6 +2,8 @@ import type { SessionOpEvent } from "@omp-app/protocol";
 import { contextBridge, ipcRenderer } from "electron";
 import type { OmpBridge, SidecarStatus } from "../shared/bridge";
 import {
+  AGENTS_PAUSE_STATE,
+  AGENTS_SET_PAUSED,
   APP_OPEN_LINK,
   JOB_CANCEL,
   MCP_ADD,
@@ -14,9 +16,12 @@ import {
   SESSION_ANSWER_ASK,
   SESSION_ANSWER_PERMISSION,
   SESSION_CANCEL,
+  SESSION_CLEAR_CONTEXT,
   SESSION_CLOSE,
   SESSION_COMMANDS,
   SESSION_CREATE,
+  SESSION_DELETE,
+  SESSION_DELETE_PREVIEW,
   SESSION_FILES,
   SESSION_FORK,
   SESSION_LIST,
@@ -95,6 +100,10 @@ const bridge: OmpBridge = {
     commands: async (sessionId) => ipcRenderer.invoke(SESSION_COMMANDS, sessionId),
     runCommand: (sessionId, text, confirmed) =>
       ipcRenderer.invoke(SESSION_RUN_COMMAND, sessionId, text, confirmed),
+    clearContext: (sessionId, confirmed) =>
+      ipcRenderer.invoke(SESSION_CLEAR_CONTEXT, sessionId, confirmed),
+    deletePreview: (sessionId) => ipcRenderer.invoke(SESSION_DELETE_PREVIEW, sessionId),
+    delete: (sessionId, confirmed) => ipcRenderer.invoke(SESSION_DELETE, sessionId, confirmed),
     cancelSubagent: (sessionId, subagentId) =>
       ipcRenderer.invoke(SUBAGENT_CANCEL, sessionId, subagentId),
     cancelJob: (sessionId, jobId) => ipcRenderer.invoke(JOB_CANCEL, sessionId, jobId),
@@ -105,6 +114,11 @@ const bridge: OmpBridge = {
         ipcRenderer.removeListener(SESSION_OP, handler);
       };
     },
+  },
+  agents: {
+    pauseState: () => ipcRenderer.invoke(AGENTS_PAUSE_STATE),
+    setPaused: (sessionId, paused, confirmed) =>
+      ipcRenderer.invoke(AGENTS_SET_PAUSED, sessionId, paused, confirmed),
   },
   palette: {
     onOpenRequested: (listener) => {

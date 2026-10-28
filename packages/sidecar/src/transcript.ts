@@ -1,5 +1,4 @@
 import {
-  type CommandItem,
   type CompactionItem,
   type Item,
   joinsItem,
@@ -116,10 +115,13 @@ const ACTIONS: Readonly<Record<string, NonNullable<CompactionItem["action"]>>> =
  *   only counts it (`strippedToolCalls`), so it is counted here, under its own label.
  *
  * Pure. A new item kind is one more `case`; what has no item yet is counted in `omitted`.
+ * `boundaries` are the epoch times of the `reset_boundary` entries of the branch (omp's
+ * `/clear`): each becomes a `boundary` item between the messages, and the messages before it stay.
  */
 export function buildTranscript(
   messages: readonly TranscriptMessage[],
   commands: readonly StoredCommand[] = [],
+  boundaries: readonly number[] = [],
 ): Transcript {
   const items: Item[] = [];
   const omitted: Record<string, number> = {};
@@ -160,13 +162,25 @@ export function buildTranscript(
     return undefined;
   };
 
-  /** Commands not yet placed, oldest first. A command goes before the first message that is newer. */
-  const pending = [...commands].sort((a, b) => a.startedAt - b.startedAt);
+  /**
+   * Lines that are not messages and go between them by time, oldest first: the commands the
+   * person ran and the points where the context was cleared. One goes before the first message
+   * that is newer.
+   */
+  const pending: { at: number; make: (id: string) => Item }[] = [
+    ...commands.map((stored) => ({
+      at: stored.startedAt,
+      make: (id: string): Item => ({ kind: "command", id, ...stored }),
+    })),
+    ...boundaries.map((at) => ({
+      at,
+      make: (id: string): Item => ({ kind: "boundary", id, at }),
+    })),
+  ].sort((a, b) => a.at - b.at);
   const placeCommands = (before: number | undefined): void => {
-    while (pending[0] && (before === undefined || pending[0].startedAt <= before)) {
-      const stored = pending.shift() as StoredCommand;
-      const item: CommandItem = { kind: "command", id: `i${items.length}`, ...stored };
-      items.push(item);
+    while (pending[0] && (before === undefined || pending[0].at <= before)) {
+      const next = pending.shift() as (typeof pending)[number];
+      items.push(next.make(`i${items.length}`));
     }
   };
 
