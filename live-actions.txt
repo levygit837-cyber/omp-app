@@ -1,0 +1,21 @@
+sidecar up: omp 18.12.6, mode normal
+sleep 25 processes before: 0
+sleep 25 processes after cancel-with-subagent: 0
+sleep 25 processes after blocking-subagent: 0
+sleep 25 processes after job-cancel: 0
+
+== clear (01a1830b-99c6-7037-b924-d81a4cce39eb)
+  timeline: user,assistant,boundary,user,assistant; dropped 2; after: "unknown"
+
+== delete (01a1830b-d385-710e-9f8c-4ae76a05e636)
+  file ~/.omp/agent/sessions/-tmp-omp-app-live-project-HhicOc/2026-10-28T15-05-52-773Z_01a1830b-d385-710e-9f8c-4ae76a05e636.jsonl: gone; subagents 0
+
+== pause (01a1830b-e9c9-721e-84c2-5e3c5015d0db)
+  text while paused: 5 chars; trace: /pause, /resume; status idle
+
+session directory: ~/.omp/agent/sessions
+  clear: ~/.omp/agent/sessions/-tmp-omp-app-live-project-HhicOc/2026-10-28T15-05-37-990Z_01a1830b-99c6-7037-b924-d81a4cce39eb.jsonl
+  pause: ~/.omp/agent/sessions/-tmp-omp-app-live-project-HhicOc/2026-10-28T15-05-58-473Z_01a1830b-e9c9-721e-84c2-5e3c5015d0db.jsonl
+resume: omp --resume 01a1830b -p "What did I ask first?"  (cwd <tmp>/omp-app-live-project-HhicOc)
+
+live: all scenarios passed
