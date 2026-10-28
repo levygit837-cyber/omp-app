@@ -8,6 +8,7 @@ import {
   skillsHandlers,
 } from "./extensions-handlers";
 import { startOmpHost } from "./omp-host";
+import { PLAN_CAPABILITIES, PlanSessions, planHandlers } from "./plan-handlers";
 import { RequestRegistry } from "./request-registry";
 import { AgentDbUnreadableError, checkSchema } from "./schema-guard";
 import { type Handlers, startServer } from "./server";
@@ -35,9 +36,13 @@ async function main(): Promise<void> {
   const guard = checkSchema();
   const store = new SessionStore();
   const requests = new RequestRegistry(store);
+  const planSessions = new PlanSessions((id) => store.has(id));
   const host = await startOmpHost({
     requests,
-    onSessionCreated: (session) => attachSession(store, session, requests),
+    onSessionCreated: (session) => {
+      attachSession(store, session, requests);
+      planSessions.add(session);
+    },
     onMcpFailure: (sessionId, server, message) => {
       if (store.has(sessionId)) store.warn(sessionId, { source: "mcp", server, message });
     },
@@ -45,6 +50,7 @@ async function main(): Promise<void> {
   const capabilities = [
     "handshake",
     ...SESSION_CAPABILITIES,
+    ...PLAN_CAPABILITIES,
     ...SETTINGS_CAPABILITIES,
     ...MCP_CAPABILITIES,
     ...SKILLS_CAPABILITIES,
@@ -60,6 +66,7 @@ async function main(): Promise<void> {
       ...(guard.mode === "read_only" ? { schema: guard.schema } : {}),
     }),
     ...sessionHandlers(host, store, requests),
+    ...planHandlers(host, store, planSessions, requests),
     ...settingsHandlers(settingsControl(host, store)),
     ...mcpHandlers(settingsControl(host, store)),
     ...skillsHandlers(settingsControl(host, store)),

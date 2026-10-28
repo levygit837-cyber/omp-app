@@ -56,6 +56,7 @@ import {
   unknownCommand,
 } from "./fake-commands";
 import { handleExtensions } from "./fake-extensions";
+import { handlePlan } from "./fake-plan";
 import {
   drainFollowUp,
   fakeFiles,
@@ -506,8 +507,10 @@ function handleSession(
       }
       return okResponse(id, null);
     }
-    default:
-      return undefined;
+    default: {
+      const plan = handlePlan(method, session, (op) => emit(session, op), params);
+      return plan ? okResponse(id, plan.result) : undefined;
+    }
   }
 }
 

@@ -10,12 +10,12 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import { toolIcon } from "./DecisionLine";
 import { useElapsed } from "./engine";
 import { clock } from "./format";
+import { cancelNoteFor } from "./plan-view";
 import {
   type AskDraft,
   askHint,
   BAND_ID,
   bandLabel,
-  CANCEL_NOTE,
   COMPOSER_ID,
   canSend,
   createBandKeys,
@@ -391,7 +391,7 @@ function AskBody({
         </div>
         {hint && (
           <Hint>
-            {hint} · {CANCEL_NOTE}
+            {hint} · {cancelNoteFor(request)}
           </Hint>
         )}
         <Failure text={failure} />

@@ -64,6 +64,10 @@ describe("describeError", () => {
     expect(via("folder no longer exists: /gone")).toContain("/gone");
     expect(via("Could not restore model openai/gpt-x")).toContain("openai/gpt-x");
     expect(via("unknown session: abc")).not.toContain("abc");
+    // The error of turning plan mode on while omp's `plan.enabled` setting is off.
+    expect(via("Unsupported ACP mode: plan")).toContain("Plan mode is turned off");
+    // The sidecar's refusal of a plan switch during a turn.
+    expect(via("plan mode changes between turns")).toBe("Plan mode changes between turns.");
     expect(via("ACP session fork is unavailable while a prompt is in progress: abc")).not.toContain(
       "abc",
     );

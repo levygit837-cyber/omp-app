@@ -4,6 +4,7 @@ import type {
   ContextFill,
   DecisionItem,
   PendingRequest,
+  PlanState,
   SessionOp,
   SessionOpEvent,
   SessionSnapshot,
@@ -91,6 +92,14 @@ export class SessionStore {
     if (JSON.stringify(now) === JSON.stringify(context)) return;
     const op: SessionOp = { type: "context.set", context };
     this.#commit(sessionId, entry, { viewModel: applyOp(entry.viewModel, op), ops: [op] });
+  }
+
+  /** Records omp's plan mode state. No op when nothing changed. */
+  setPlan(sessionId: string, plan: PlanState): void {
+    const entry = this.#entry(sessionId);
+    const now = entry.viewModel.plan;
+    if (now.enabled === plan.enabled && now.planFile === plan.planFile) return;
+    this.#apply(sessionId, { type: "plan.set", plan });
   }
 
   /** Puts a request a person has to answer into the view model, so every replica shows it. */

@@ -607,5 +607,6 @@ export function emptyViewModel(init: {
     pending: [],
     thinking: init.thinking ?? null,
     queue: EMPTY_QUEUE,
+    plan: { enabled: false, planFile: null },
   };
 }

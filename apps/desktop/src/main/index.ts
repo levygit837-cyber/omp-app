@@ -32,10 +32,12 @@ import {
   SESSION_OP,
   SESSION_PICK_DIRECTORY,
   SESSION_PROMPT,
+  SESSION_READ_PLAN,
   SESSION_REMOVE_QUEUED,
   SESSION_RESUME,
   SESSION_RUN_COMMAND,
   SESSION_SET_MODEL,
+  SESSION_SET_PLAN_MODE,
   SESSION_SET_THINKING,
   SESSION_SUBSCRIBE,
   SESSION_UNSUBSCRIBE,
@@ -217,6 +219,17 @@ function registerSessionRelay(sidecar: SidecarSupervisor): void {
         ...(content === undefined ? {} : { content }),
       });
     },
+  );
+  ipcMain.handle(SESSION_SET_PLAN_MODE, async (_event, sessionId: unknown, enabled: unknown) => {
+    if (typeof enabled !== "boolean") throw new Error("enabled must be true or false");
+    await sidecar.request("session.setPlanMode", {
+      sessionId: text(sessionId, "sessionId"),
+      enabled,
+    });
+  });
+  // No path crosses this call: the sidecar reads the plan path from omp's own state.
+  ipcMain.handle(SESSION_READ_PLAN, (_event, sessionId: unknown) =>
+    sidecar.request("session.readPlan", { sessionId: text(sessionId, "sessionId") }),
   );
   ipcMain.handle(SESSION_LIST, async () => (await sidecar.request("session.list")).sessions);
   ipcMain.handle(SESSION_RESUME, async (_event, sessionId: unknown) => {

@@ -20,18 +20,29 @@
  *               argument; a refusal is omp's own sentence; a gated line is refused without
  *               `confirmed`; `/fresh` keeps the session id; the output is in the session file
  *
+ *   plan-toggle plan mode on -> view model says so, off -> it says so
+ *   plan-approve  plan mode on -> the agent writes a plan and proposes it -> the question carries
+ *               both choices and the plan file reads back -> Approve and execute -> plan mode is
+ *               off and the work starts (the file the plan describes appears)
+ *   plan-refine the same proposal -> Refine plan -> plan mode stays on, the agent proposes again
+ *   plan-cancel the same proposal -> cancel the question -> read as Refine plan: plan mode stays
+ *               on and the agent proposes again (the turn is stopped by the script afterwards)
+ *
+ * The plan scenarios run on `kiro/claude-haiku-5.5`, pinned by a project-level `.omp/config.yml`
+ * in the temp cwd, so the real `~/.omp/config.yml` is never written.
+ *
  * Prints the observed ops and the session file each scenario left in the CLI's session
  * directory. Pass `--keep` to leave the sessions in place, e.g. to resume one with the CLI;
  * without it the run deletes its own session directory (named after its temp cwd) on every exit.
  *
  *   bun run scripts/live.ts [--keep] [--only=model,steer,...]
  */
-import { existsSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import { deflateSync } from "node:zlib";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { getAgentDir } from "@oh-my-pi/pi-utils";
+import { getAgentDir, postmortem } from "@oh-my-pi/pi-utils";
 import {
   applyOp,
   decodeFrame,
@@ -44,6 +55,7 @@ import {
   type SessionOpEvent,
   type SessionViewModel,
 } from "@omp-app/protocol";
+import { ownsLiveSessionDir, stopThenClean } from "./live-cleanup";
 
 const keep = process.argv.includes("--keep");
 /** `--only=model,steer` runs just those scenarios. */
@@ -105,25 +117,47 @@ console.log(`sidecar up: omp ${handshake.ompVersion}, mode ${handshake.mode}`);
 if (handshake.mode !== "normal") throw new Error("sidecar is read_only; cannot run live scenarios");
 
 const cwd = realpathSync(mkdtempSync(join(tmpdir(), "omp-app-live-project-")));
+// The cheap model for every scenario of this run, from the project layer of the temp cwd.
+mkdirSync(join(cwd, ".omp"), { recursive: true });
+writeFileSync(
+  join(cwd, ".omp", "config.yml"),
+  "modelRoles:\n  default: kiro/claude-haiku-5.5:low\n  plan: kiro/claude-haiku-5.5:low\n",
+);
 
 /**
- * Leaves nothing in the shared `~/.omp` behind: omp files this run's sessions (and their lock
- * files) under a directory named after the unique temp cwd, so that directory is ours alone.
- * Runs on every exit, including a scenario that throws or a Ctrl-C. `--keep` skips it.
+ * Removes this run's sessions (and their lock files) from the shared `~/.omp`: omp files them under
+ * a directory named after the unique temp cwd, so that directory is ours alone. It is only removed
+ * when `ownsLiveSessionDir` agrees, whatever form omp gave the name. Runs on every exit, including
+ * a scenario that throws (omp's fatal handler) or a Ctrl-C. `--keep` skips it.
  */
 function cleanup() {
   proc.kill();
   rmSync(runtimeDir, { recursive: true, force: true });
   if (keep) return;
   const sessionDir = SessionManager.getDefaultSessionDir(cwd);
-  if (basename(sessionDir).startsWith("-tmp-omp-app-live-project-")) {
+  if (ownsLiveSessionDir(sessionDir, cwd)) {
     rmSync(sessionDir, { recursive: true, force: true });
   }
   rmSync(cwd, { recursive: true, force: true });
 }
 process.on("exit", cleanup);
-process.on("SIGINT", () => process.exit(130));
-process.on("SIGTERM", () => process.exit(143));
+// omp's fatal-error handler ends the process with `reallyExit`, which skips the `exit` event
+// above: a scenario that throws would leave its temp folders and session directory behind.
+// Registered with the same postmortem system, the cleanup runs on that path too (it is idempotent).
+// The sidecar still writes its session file while it shuts down: remove the folders after it.
+const stopAndClean = () =>
+  stopThenClean({ stop: () => proc.kill(), exited: proc.exited, clean: cleanup, waitMs: 5_000 });
+postmortem.register("live-cleanup", async () => {
+  await stopAndClean();
+});
+// `process.exit` here would run the synchronous `exit` cleanup at once and cut the wait above, so
+// the exit comes after it.
+for (const [signal, code] of [
+  ["SIGINT", 130],
+  ["SIGTERM", 143],
+] as const) {
+  process.on(signal, () => void stopAndClean().finally(() => process.exit(code)));
+}
 const results: { scenario: string; sessionId: string; failures: string[] }[] = [];
 
 /** The next request the sidecar raised for `sessionId` after op index `from`. */
@@ -162,6 +196,7 @@ async function scenario(
   const { sessionId } = await ask("session.create", { cwd });
   const sub = await ask("session.subscribe", { sessionId });
   let vm = sub.snapshot;
+  // Taken before `setup`, so the ops it causes are part of the replica and of the seq check.
   const from = ops.length;
   const early: string[] = [];
   await options.before?.(sessionId, early);
@@ -697,6 +732,172 @@ if (!only || only.includes("commands")) {
     failures.push(`stored ${entries}, shown ${commandItems().length}`);
   results.push({ scenario: "commands", sessionId, failures });
 }
+
+// ── Plan mode ───────────────────────────────────────────────────────────────
+
+const planOf = (sessionId: string) =>
+  ask("session.subscribe", { sessionId }).then((r) => r.snapshot.plan);
+const planSetup = async (sessionId: string) => {
+  await ask("session.setPlanMode", { sessionId, enabled: true });
+};
+/** Each scenario has its own target file, so one scenario's work is never read as another's. */
+const planPrompt = (file: string) =>
+  `Plan how to create a file named ${file} in ${cwd} that contains the single word hi. Keep the plan to three short steps, then propose it. Do not create the file before the plan is approved; once it is approved, create it.`;
+const target = (file: string) => join(cwd, file);
+
+/** The approval question omp raises for a proposal, with both choices, checked and returned. */
+async function proposal(sessionId: string, from: number, failures: string[]) {
+  const request = await nextRequest(sessionId, from);
+  if (request.kind !== "ask") {
+    failures.push(`expected the plan approval ask, got ${request.kind}`);
+    return undefined;
+  }
+  const values = request.fields[0]?.choices?.map((c) => c.value).join("|");
+  if (values !== "Approve and execute|Refine plan") failures.push(`choices: ${values}`);
+  console.log(`  proposal: ${JSON.stringify(request.message.slice(0, 160))}`);
+  const read = await ask("session.readPlan", { sessionId });
+  console.log(
+    `  readPlan: ${read.state}${read.state === "ok" ? ` ${read.file} (${read.content.length} chars)` : ""}`,
+  );
+  if (read.state !== "ok") failures.push(`the plan file was not found: ${JSON.stringify(read)}`);
+  else if (read.content.trim() === "") failures.push("the plan file is empty");
+  if (!(await planOf(sessionId)).enabled) failures.push("plan mode was off during the proposal");
+  return request;
+}
+
+await scenario(
+  "plan-toggle",
+  "Count from 1 to 200, one number per line. No tools.",
+  (vm) => (vm.plan.enabled ? ["plan mode should be off after turning it off"] : []),
+  async (sessionId, from, failures) => {
+    await until("plan mode on", () =>
+      ops.some((o) => o.sessionId === sessionId && o.op.type === "plan.set" && o.op.plan.enabled),
+    );
+    if (!(await planOf(sessionId)).enabled)
+      failures.push("the snapshot does not say plan mode is on");
+    // The sidecar refuses a switch while the turn runs, in the direction that matters most here.
+    const turn = (await ask("session.subscribe", { sessionId })).snapshot.status;
+    if (turn === "streaming") {
+      const refusal = await ask("session.setPlanMode", { sessionId, enabled: false }).then(
+        () => undefined,
+        (error: unknown) => (error instanceof Error ? error.message : String(error)),
+      );
+      console.log(`  switch during the turn: ${refusal ?? "ACCEPTED"}`);
+      if (refusal !== "plan mode changes between turns") {
+        failures.push(`a switch during the turn was not refused: ${refusal}`);
+      }
+      if (!(await planOf(sessionId)).enabled) failures.push("a refused switch changed the state");
+    } else {
+      console.log("  switch during the turn: not tried (the turn was already over)");
+    }
+    // In plan mode the agent works toward a proposal and does not end the turn by itself.
+    await ask("session.cancel", { sessionId });
+    await until("the turn to end", () => {
+      const last = ops
+        .slice(from)
+        .filter((o) => o.sessionId === sessionId && o.op.type === "status.set")
+        .at(-1);
+      return last?.op.type === "status.set" && last.op.status !== "streaming";
+    });
+    await ask("session.setPlanMode", { sessionId, enabled: false });
+    if ((await planOf(sessionId)).enabled) failures.push("the snapshot still says plan mode is on");
+  },
+  { before: planSetup },
+);
+
+await scenario(
+  "plan-approve",
+  planPrompt("approved.txt"),
+  (vm) => [
+    ...(vm.plan.enabled ? ["plan mode is still on after approving"] : []),
+    ...(existsSync(target("approved.txt"))
+      ? []
+      : ["the work did not start: approved.txt was not created"]),
+    ...(decided(vm).join() === "answered" ? [] : [`decisions: ${decided(vm).join() || "none"}`]),
+    ...(vm.pending.length === 0 ? [] : ["a request is still pending"]),
+  ],
+  async (sessionId, from, failures) => {
+    const request = await proposal(sessionId, from, failures);
+    if (!request) return;
+    await ask("session.answerAsk", {
+      sessionId,
+      requestId: request.id,
+      action: "accept",
+      content: { value: "Approve and execute" },
+    });
+    await until("plan mode to end", () =>
+      ops
+        .slice(from)
+        .some((o) => o.sessionId === sessionId && o.op.type === "plan.set" && !o.op.plan.enabled),
+    );
+    console.log("  plan mode ended; waiting for the work to finish");
+  },
+  { before: planSetup },
+);
+
+await scenario(
+  "plan-refine",
+  planPrompt("refined.txt"),
+  (vm) => [
+    ...(vm.plan.enabled ? [] : ["plan mode ended after Refine plan"]),
+    ...(existsSync(target("refined.txt"))
+      ? ["the work started although the plan was only refined"]
+      : []),
+    ...(vm.status === "idle" ? [] : [`status is ${vm.status}, expected idle`]),
+  ],
+  async (sessionId, from, failures) => {
+    const request = await proposal(sessionId, from, failures);
+    if (!request) return;
+    const after = ops.length;
+    await ask("session.answerAsk", {
+      sessionId,
+      requestId: request.id,
+      action: "accept",
+      content: { value: "Refine plan" },
+    });
+    // The agent is told to update the plan and propose again: that second question is the proof
+    // that plan mode survived. It is left unanswered and the turn is stopped.
+    const again = await nextRequest(sessionId, after);
+    if (again.kind !== "ask" || again.id === request.id)
+      failures.push("no second proposal after Refine plan");
+    console.log(
+      `  second proposal: ${again.kind === "ask" ? JSON.stringify(again.message.slice(0, 100)) : again.kind}`,
+    );
+    await ask("session.cancel", { sessionId });
+  },
+  { before: planSetup },
+);
+
+// Cancelling the approval question is NOT the person stopping the agent, unlike the `ask` tool:
+// omp reads a dismissed question as "Refine plan" and keeps plan mode, so the agent goes on and
+// proposes again [V] acp-agent.ts:2400-2404. The turn is then stopped with session.cancel.
+await scenario(
+  "plan-cancel",
+  planPrompt("cancelled.txt"),
+  (vm) => [
+    ...(vm.plan.enabled ? [] : ["plan mode ended after cancelling the question"]),
+    ...(existsSync(target("cancelled.txt"))
+      ? ["the work started although the question was cancelled"]
+      : []),
+    ...(vm.status === "idle" ? [] : [`status is ${vm.status}, expected idle`]),
+    ...(vm.pending.length === 0 ? [] : ["a request is still pending"]),
+  ],
+  async (sessionId, from, failures) => {
+    const request = await proposal(sessionId, from, failures);
+    if (!request) return;
+    const after = ops.length;
+    await ask("session.answerAsk", { sessionId, requestId: request.id, action: "decline" });
+    // The turn is still running and the agent asks again: that proves cancel was a refine.
+    const again = await nextRequest(sessionId, after);
+    if (again.kind !== "ask" || again.id === request.id)
+      failures.push("no second proposal after cancelling the question");
+    console.log(
+      `  after cancel: ${again.kind === "ask" ? "the agent proposed again" : again.kind}`,
+    );
+    await ask("session.cancel", { sessionId });
+  },
+  { before: planSetup },
+);
 
 console.log(`\nsession directory: ${join(getAgentDir(), "sessions")}`);
 

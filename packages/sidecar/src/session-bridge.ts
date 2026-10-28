@@ -2,6 +2,7 @@ import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-sessi
 import type { SessionWarning } from "@omp-app/protocol";
 import { readStoredCommands } from "./command-entries";
 import { readContextFill } from "./context-fill";
+import { planOf } from "./plan-state";
 import { emptyViewModel } from "./reducer";
 import type { RequestAnswers } from "./request-registry";
 import type { SessionStore } from "./session-store";
@@ -112,6 +113,10 @@ export function attachSession(
         store.setThinking(id, thinkingOfSession(session));
       } else store.dispatch(id, event);
     });
+    // omp emits no event when plan mode turns on or off or when a proposal is approved (the
+    // handler flips the state itself, acp-agent.ts:2316 [V]), so the state is read after every
+    // event. `setPlan` publishes nothing when it did not change.
+    guarded(`plan state on ${event.type}`, () => store.setPlan(id, planOf(session)));
     // After the dispatch, so a request that ends with its turn leaves after the turn's ops.
     guarded(`request withdrawal on ${event.type}`, () => requests.agentEvent(id, event));
     if (CONTEXT_EVENTS.has(event.type)) {

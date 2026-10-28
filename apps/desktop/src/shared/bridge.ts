@@ -7,6 +7,7 @@ import type {
   McpSecretRef,
   McpServerInput,
   ModelOption,
+  PlanReadResult,
   PromptImage,
   QueueName,
   SessionOpEvent,
@@ -96,6 +97,10 @@ export type OmpBridge = {
       action: AskAction,
       content?: AskContent,
     ): Promise<void>;
+    /** Turns plan mode on or off. Rejects when omp's `plan.enabled` setting is off. */
+    setPlanMode(sessionId: string, enabled: boolean): Promise<void>;
+    /** The session's plan file as markdown. The sidecar picks the file; the window sends no path. */
+    readPlan(sessionId: string): Promise<PlanReadResult>;
     /** Sessions on disk, as the CLI picker lists them, newest first. Works in read-only mode. */
     list(): Promise<readonly StoredSession[]>;
     /** Opens a stored session with its full history; resolves with its id. Rejects in read-only mode. */
