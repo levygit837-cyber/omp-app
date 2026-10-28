@@ -1,0 +1,6 @@
+initial: {"toggle":"planoff","pressed":"false"}
+on: {"toggle":"planon","pressed":"true","open":"view plan"}
+after reload: {"toggle":"planon","pressed":"true","open":"view plan"}
+view note: No plan yet. In plan mode the agent reads the project, writes the plan and proposes it here.
+after esc, view open: false
+off: {"toggle":"planoff","pressed":"false"}

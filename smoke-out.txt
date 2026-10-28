@@ -1,0 +1,6 @@
+view: {"view":true,"band":true,"hint":"Answer in the band below: Approve and execute leaves plan mode and starts the work; Refine plan keeps plan mode.","timelineInert":true,"activeInBand":false}
+picked Refine plan true
+after refine: {"toggle":"planon","pressed":"true","view":true,"band":false,"decisions":[]}
+view: {"view":true,"band":true,"hint":"Answer in the band below: Approve and execute leaves plan mode and starts the work; Refine plan keeps plan mode.","timelineInert":true,"activeInBand":false}
+picked Approve and execute true
+after approve: {"toggle":"planoff","pressed":"false","view":false,"band":false,"decisions":[]}
