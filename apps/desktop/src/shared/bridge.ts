@@ -5,6 +5,10 @@ import type {
   DeletePreview,
   DeleteResult,
   Delivery,
+  FilesDiffResult,
+  FilesReadResult,
+  FilesStatusResult,
+  FilesTreeResult,
   McpChange,
   McpListing,
   McpSecretRef,
@@ -186,5 +190,13 @@ export type OmpBridge = {
     /** Skills as omp lists them for `sessionId`'s project (or only the user's when omitted). */
     list(sessionId?: string): Promise<SkillsListing>;
     setEnabled(name: string, enabled: boolean, sessionId?: string): Promise<SkillsChange>;
+  };
+  /** The Files page. Read-only: nothing here writes, and no call names a folder, only a path inside the session's. */
+  readonly files: {
+    status(sessionId: string): Promise<FilesStatusResult>;
+    /** One folder; `path` is relative to the session folder, empty for the root. */
+    tree(sessionId: string, path: string): Promise<FilesTreeResult>;
+    read(sessionId: string, path: string): Promise<FilesReadResult>;
+    diff(sessionId: string, path: string): Promise<FilesDiffResult>;
   };
 };

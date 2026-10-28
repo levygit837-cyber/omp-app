@@ -4,6 +4,7 @@ import {
   isAskContent,
   isPromptImage,
   isSessionOpEvent,
+  MAX_FILE_PATH_CHARS,
   MAX_FILE_QUERY_CHARS,
   type PromptImage,
   refuseImages,
@@ -14,6 +15,10 @@ import {
   AGENTS_PAUSE_STATE,
   AGENTS_SET_PAUSED,
   APP_OPEN_LINK,
+  FILES_DIFF,
+  FILES_READ,
+  FILES_STATUS,
+  FILES_TREE,
   JOB_CANCEL,
   MCP_ADD,
   MCP_LIST,
@@ -393,6 +398,35 @@ function registerExtensionsRelay(sidecar: SidecarSupervisor): void {
       "skills.list",
       sessionId === undefined ? {} : { sessionId: text(sessionId, "sessionId") },
     ),
+  );
+  // The Files page. The window names a session and a path RELATIVE to that session's folder; the
+  // sidecar resolves it against the folder it owns and refuses anything that leaves it.
+  const relativePath = (value: unknown): string => {
+    if (typeof value !== "string" || value.length > MAX_FILE_PATH_CHARS) {
+      throw new Error("path is not valid");
+    }
+    return value;
+  };
+  ipcMain.handle(FILES_STATUS, (_event, sessionId: unknown) =>
+    sidecar.request("files.status", { sessionId: ipcId(sessionId, "sessionId") }),
+  );
+  ipcMain.handle(FILES_TREE, (_event, sessionId: unknown, path: unknown) =>
+    sidecar.request("files.tree", {
+      sessionId: ipcId(sessionId, "sessionId"),
+      path: relativePath(path),
+    }),
+  );
+  ipcMain.handle(FILES_READ, (_event, sessionId: unknown, path: unknown) =>
+    sidecar.request("files.read", {
+      sessionId: ipcId(sessionId, "sessionId"),
+      path: relativePath(path),
+    }),
+  );
+  ipcMain.handle(FILES_DIFF, (_event, sessionId: unknown, path: unknown) =>
+    sidecar.request("files.diff", {
+      sessionId: ipcId(sessionId, "sessionId"),
+      path: relativePath(path),
+    }),
   );
   ipcMain.handle(
     SKILLS_SET_ENABLED,

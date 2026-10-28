@@ -33,6 +33,8 @@
  *
  * `settings.*` is served from `fake-settings.ts` (in memory; `read-only` refuses the writes).
  * `mcp.*` and `skills.*` come from `fake-extensions.ts` (same; FAKE_MCP=empty|broken picks the state).
+ * `files.*` comes from `fake-files.ts` (an invented project; FAKE_FILES=clean|empty|norepo|missing|
+ * truncated|error|timeout picks the state, FAKE_FILES_MS delays every answer).
  */
 
 import {
@@ -67,6 +69,7 @@ import {
 } from "./fake-commands";
 import { createDelegation } from "./fake-delegation";
 import { handleExtensions } from "./fake-extensions";
+import { handleFiles } from "./fake-files";
 import { handlePlan } from "./fake-plan";
 import {
   drainFollowUp,
@@ -630,7 +633,7 @@ Bun.listen<undefined>({
         const frame = decodeFrame(line);
         if (!frame.ok || !isRequestEnvelope(frame.envelope)) continue;
         const { id, method, params } = frame.envelope;
-        let response: ResponseEnvelope | undefined;
+        let response: ResponseEnvelope | Promise<ResponseEnvelope> | undefined;
         if (method === "handshake") {
           response = okResponse(id, {
             protocolVersion: mode === "old-protocol" ? PROTOCOL_VERSION + 1 : PROTOCOL_VERSION,
@@ -645,13 +648,16 @@ Bun.listen<undefined>({
           response =
             handleSettings(method, id, params, mode === "read-only", cwdOf) ??
             handleExtensions(method, id, params, mode === "read-only", cwdOf) ??
+            handleFiles(method, id, params) ??
             delegation.handle(method, id, params) ??
             handleSession(method, id, params, socket);
         }
-        send(
-          socket,
-          encodeFrame(
-            response ?? errorResponse(id, { code: "unknown_method", message: "unknown method" }),
+        void Promise.resolve(response).then((settled) =>
+          send(
+            socket,
+            encodeFrame(
+              settled ?? errorResponse(id, { code: "unknown_method", message: "unknown method" }),
+            ),
           ),
         );
       }

@@ -56,3 +56,8 @@ export const MCP_SET_ENABLED = "mcp:set-enabled";
 export const MCP_REVEAL = "mcp:reveal";
 export const SKILLS_LIST = "skills:list";
 export const SKILLS_SET_ENABLED = "skills:set-enabled";
+/** The Files page (read-only): git state, one folder of the tree, one file, one file's diff. */
+export const FILES_STATUS = "files:status";
+export const FILES_TREE = "files:tree";
+export const FILES_READ = "files:read";
+export const FILES_DIFF = "files:diff";
