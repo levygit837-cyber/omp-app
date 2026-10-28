@@ -30,7 +30,8 @@ export type Resolved =
 
 /**
  * `segments` under `realRoot` (already a `realpath`), when the path exists and no symbolic link
- * lies anywhere on it: the real path of the result must equal the lexical one. A link that points
+ * lies anywhere on it: the real path of the result must equal the lexical one (up to Unicode
+ * normalization form, see below). A link that points
  * inside the project is refused too; the listings never offer one, so nothing legitimate is lost,
  * and "no link on the way" is a rule that needs no reasoning about where a link leads.
  */
@@ -49,7 +50,13 @@ export async function resolveInside(
       reason: code === "ENOENT" || code === "ENOTDIR" ? "missing" : "outside_project",
     };
   }
-  if (real !== lexical) return { ok: false, reason: "outside_project" };
+  // macOS keeps a decomposed (NFD) name on disk while git lists it composed (NFC) and the volume
+  // answers to both spellings, so `realpath` can differ from the listed name in form alone. Equal
+  // after normalization means the same place, and still inside the root: any other difference is
+  // a link on the way.
+  if (real !== lexical && real.normalize("NFC") !== lexical.normalize("NFC")) {
+    return { ok: false, reason: "outside_project" };
+  }
   return { ok: true, absolute: lexical };
 }
 
@@ -68,12 +75,13 @@ export type OpenedFile =
   | { readonly ok: false; readonly reason: FileRefusal };
 
 /**
- * Opens a regular file inside the project for reading. `O_NOFOLLOW` makes the open itself refuse
- * a link at the last segment (no window between a check and the open); `O_NONBLOCK` keeps a named
- * pipe from hanging the open. After the open the descriptor is checked against the path again:
- * it must be a regular file, and the path must still resolve to the same file with no link on
- * the way, so a folder swapped for a link in between is caught. The remaining window is the
- * time between this check and the read, and the read only ever goes through the descriptor.
+ * Opens a regular file inside the project for reading. `O_NONBLOCK` keeps a named pipe from
+ * hanging the open. There is no `O_NOFOLLOW`: a link swapped in after the first check would be
+ * followed by the open, and the check after the open refuses it, because the descriptor must be a
+ * regular file and the path must still resolve, with no link on the way, to the very inode the
+ * descriptor holds (a different inode means the path was swapped). The flag could not be told
+ * apart from that check by any test, so it is left out. The remaining window is the time between
+ * this check and the read, and the read only ever goes through the descriptor.
  */
 export async function openRegular(
   realRoot: string,
@@ -83,15 +91,12 @@ export async function openRegular(
   if (!before.ok) return before;
   let handle: FileHandle;
   try {
-    handle = await open(
-      before.absolute,
-      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
-    );
+    handle = await open(before.absolute, constants.O_RDONLY | constants.O_NONBLOCK);
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     return {
       ok: false,
-      reason: code === "ENOENT" ? "missing" : code === "ELOOP" ? "outside_project" : "not_a_file",
+      reason: code === "ENOENT" ? "missing" : "not_a_file",
     };
   }
   try {
