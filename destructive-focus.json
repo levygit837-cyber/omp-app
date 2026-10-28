@@ -1,0 +1,22 @@
+{
+  "linesBefore": 0,
+  "/session delete palette field focused": true,
+  "/session delete confirm open": true,
+  "/session delete focus": "BUTTON:Cancel",
+  "/session delete after 2nd Enter: confirm still open": false,
+  "/session delete after 2nd Enter: palette open": true,
+  "/session delete after 2nd Enter: command lines": 0,
+  "/usage reset palette field focused": true,
+  "/usage reset confirm open": true,
+  "/usage reset focus": "BUTTON:Cancel",
+  "/usage reset after 2nd Enter: confirm still open": false,
+  "/usage reset after 2nd Enter: palette open": true,
+  "/usage reset after 2nd Enter: command lines": 0,
+  "/export palette field focused": true,
+  "/export confirm open": true,
+  "/export focus": "BUTTON:Run",
+  "/export after 2nd Enter: confirm still open": false,
+  "/export after 2nd Enter: palette open": false,
+  "/export after 2nd Enter: command lines": 1,
+  "/export after Enter on Run: command lines": 1
+}

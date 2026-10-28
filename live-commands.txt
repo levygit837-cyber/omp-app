@@ -2,7 +2,7 @@ sidecar up: omp 18.12.6, mode normal
   /switch kiro/claude-haiku-5.5 -> done: "Session-only model: kiro/claude-haiku-5.5."
   /effort -> done: "Thinking: medium\nAvailable: off, auto, minimal, low, medium, high, xhigh, max"
   /effort low -> done: "Thinking set to low."
-  /usage -> done: "```\nUsage (4m ago)\n\nGoogle Antigravity\n  Models with usage data\n    google-antigravity/claude-opus-4-5\n    google-antigr"
+  /usage -> done: "```\nUsage (1s ago)\n\nGoogle Antigravity\n  Models with usage data\n    google-antigravity/claude-opus-4-5\n    google-antigr"
   /effort -> done: "Thinking: low\nAvailable: off, auto, minimal, low, medium, high, xhigh, max"
   /effort medium -> done: "Thinking set to medium."
   /move /tmp -> failed: "Cannot move while streaming."
@@ -10,11 +10,13 @@ sidecar up: omp 18.12.6, mode normal
   /export without confirmed -> "confirmation required: /export"
   /fresh -> done: "Fresh provider session started (1 provider state pruned)."
   /effort -> done: "Thinking: medium\nAvailable: off, auto, minimal, low, medium, high, xhigh, max"
+  /force read /session delete -> failed: "Next turn forced to use read.\n/session delete needs a confirmation first. Nothing was run."
+  handed-back /session delete -> "Next turn forced to use read.\n/session delete needs a confirmation first. Nothing was run."
 
-== commands (01a18093-8894-77e4-b341-d8a9f98b752c): 9 items, 9 stored
+== commands (01a180c8-f38c-7790-967f-55cc63753a0d): 10 items, 10 stored
 
 session directory: ~/.omp/agent/sessions
-  commands: ~/.omp/agent/sessions/-tmp-omp-app-live-project-vvoLdr/2026-10-28T03-35-14-836Z_01a18093-8894-77e4-b341-d8a9f98b752c.jsonl
-resume: omp --resume 01a18093 -p "What did I ask first?"  (cwd /tmp/omp-app-live-project-vvoLdr)
+  commands: ~/.omp/agent/sessions/-tmp-omp-app-live-project-3CCoZv/2026-10-28T04-33-35-628Z_01a180c8-f38c-7790-967f-55cc63753a0d.jsonl
+resume: omp --resume 01a180c8 -p "What did I ask first?"  (cwd /tmp/omp-app-live-project-3CCoZv)
 
 live: all scenarios passed
