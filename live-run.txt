@@ -1,0 +1,14 @@
+bun run scripts/live.ts --only=model,steer,followup,stop-queue,image,file
+omp 18.12.6, real credentials, model kiro/claude-haiku-5.5, temp cwd, one-sentence prompts.
+models: 26 (google-antigravity, api-gateway, kiro)
+kiro/claude-haiku-5.5 efforts: ["minimal","low","medium","high","xhigh","max"]
+
+model     user "Reply with exactly one word: pong. No tools."  -> assistant "pong"  (thinking.set x2)
+steer     user "Count from 1 to 60 ..."; steer "Stop counting at 10 and say so in one short sentence."
+          -> second user item delivered; assistant "Parei em 10, como solicitado."  (queue.set x2)
+followup  user "Count from 1 to 60 ..."; follow-up "After that, reply with exactly one word: done."
+          -> assistant "done"  (queue.set x2)
+stop-queue queue after stop {"steering":[],"followUp":["Then say: later."],"liveSteered":0}, user items 1, status idle
+image     generated 16x16 red PNG -> assistant "red"
+file      "What is the password in @secret.txt? Answer with the password only." -> "BLUE-HERON-42"
+live: all scenarios passed
