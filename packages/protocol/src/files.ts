@@ -167,13 +167,15 @@ export type FilesDiffResult =
 const isString = (v: unknown): v is string => typeof v === "string";
 const isCount = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0;
 const isNullableCount = (v: unknown): boolean => v === null || isCount(v);
+/** A path a result carries: relative paths are capped the way the caller's are. */
+const isPath = (v: unknown): v is string => isString(v) && v.length <= MAX_FILE_PATH_CHARS;
 const isNullableString = (v: unknown): boolean => v === null || isString(v);
 
 function isFileChange(v: unknown): v is FileChange {
   return (
     isRecord(v) &&
-    isString(v.path) &&
-    (v.from === undefined || isString(v.from)) &&
+    isPath(v.path) &&
+    (v.from === undefined || isPath(v.from)) &&
     isChangeStatus(v.status) &&
     isNullableCount(v.added) &&
     isNullableCount(v.removed) &&
@@ -202,6 +204,7 @@ export function isFilesStatusResult(v: unknown): v is FilesStatusResult {
     return (
       isBranch(v.branch) &&
       Array.isArray(v.changes) &&
+      v.changes.length <= MAX_CHANGES &&
       v.changes.every(isFileChange) &&
       isTotals(v.totals) &&
       typeof v.truncated === "boolean"
@@ -211,14 +214,19 @@ export function isFilesStatusResult(v: unknown): v is FilesStatusResult {
 }
 
 function isTreeEntry(v: unknown): v is TreeEntry {
-  return isRecord(v) && isString(v.name) && (v.kind === "file" || v.kind === "dir");
+  return (
+    isRecord(v) && isPath(v.name) && v.name.length > 0 && (v.kind === "file" || v.kind === "dir")
+  );
 }
 
 export function isFilesTreeResult(v: unknown): v is FilesTreeResult {
   if (!isRecord(v)) return false;
   if (v.state === "ok") {
     return (
-      Array.isArray(v.entries) && v.entries.every(isTreeEntry) && typeof v.truncated === "boolean"
+      Array.isArray(v.entries) &&
+      v.entries.length <= MAX_TREE_ENTRIES &&
+      v.entries.every(isTreeEntry) &&
+      typeof v.truncated === "boolean"
     );
   }
   if (v.state === "refused") return isRefusal(v.reason);
@@ -229,7 +237,14 @@ export function isFilesReadResult(v: unknown): v is FilesReadResult {
   if (!isRecord(v)) return false;
   switch (v.state) {
     case "ok":
-      return isString(v.path) && isString(v.content) && isCount(v.bytes);
+      // A UTF-16 unit takes at least one byte, so the text is never longer than its byte count.
+      return (
+        isPath(v.path) &&
+        isString(v.content) &&
+        isCount(v.bytes) &&
+        v.bytes <= MAX_FILE_BYTES &&
+        v.content.length <= v.bytes
+      );
     case "binary":
       return isCount(v.bytes);
     case "too_large":
@@ -256,10 +271,11 @@ export function isFilesDiffResult(v: unknown): v is FilesDiffResult {
   switch (v.state) {
     case "ok":
       return (
-        isString(v.path) &&
-        (v.from === undefined || isString(v.from)) &&
+        isPath(v.path) &&
+        (v.from === undefined || isPath(v.from)) &&
         isChangeStatus(v.status) &&
         Array.isArray(v.rows) &&
+        v.rows.length <= MAX_DIFF_ROWS &&
         v.rows.every(isDiffRowShape) &&
         isCount(v.added) &&
         isCount(v.removed) &&
