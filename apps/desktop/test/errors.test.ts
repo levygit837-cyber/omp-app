@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { FILES_BAD_PATH_MESSAGE } from "@omp-app/protocol";
 import {
   describeConfigProblem,
   describeEngineFailure,
@@ -33,6 +34,14 @@ describe("describeError", () => {
       ),
     );
     expect(text).toBe("/session delete needs a confirmation first. Nothing was run.");
+  });
+
+  test("a path the main process refused becomes a sentence, not the raw refusal", () => {
+    // Thrown by the `files:*` handlers in main for a path that is not a string or is too long.
+    const text = describeError(
+      new Error(`Error invoking remote method 'files:read': Error: ${FILES_BAD_PATH_MESSAGE}`),
+    );
+    expect(text).toBe("That path isn’t inside the project.");
   });
 
   test("a dead sidecar becomes a sentence, not the IPC text", () => {

@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import {
+  FILES_BAD_PATH_MESSAGE,
   IMAGE_REFUSED_MESSAGE,
   isAskContent,
   isPromptImage,
@@ -403,7 +404,7 @@ function registerExtensionsRelay(sidecar: SidecarSupervisor): void {
   // sidecar resolves it against the folder it owns and refuses anything that leaves it.
   const relativePath = (value: unknown): string => {
     if (typeof value !== "string" || value.length > MAX_FILE_PATH_CHARS) {
-      throw new Error("path is not valid");
+      throw new Error(FILES_BAD_PATH_MESSAGE);
     }
     return value;
   };
