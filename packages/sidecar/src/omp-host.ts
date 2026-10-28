@@ -2,12 +2,18 @@ import { stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import {
+  clearPluginRootsAndCaches,
+  resolveActiveProjectRegistryPath,
+} from "@oh-my-pi/pi-coding-agent/discovery/helpers";
 import { createAcpConnection } from "@oh-my-pi/pi-coding-agent/modes/acp";
 import type { AcpSessionFactory } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-mode";
 import { createAgentSession, discoverAuthStorage } from "@oh-my-pi/pi-coding-agent/sdk";
 import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import type { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { executeAcpBuiltinSlashCommand } from "@oh-my-pi/pi-coding-agent/slash-commands/acp-builtins";
+import { refreshAgentDiscovery } from "@oh-my-pi/pi-coding-agent/task";
 import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
 import { ensureTheme } from "@oh-my-pi/pi-tui/theme";
 import {
@@ -18,6 +24,8 @@ import {
   type Stream,
 } from "@oh-my-pi/pi-utils/acp";
 import {
+  CONFIRM_REQUIRED_MESSAGE,
+  type CommandItem,
   type Delivery,
   type ModelOption,
   type PromptImage,
@@ -26,6 +34,9 @@ import {
   type StoredSession,
   UNKNOWN_SESSION_MESSAGE,
 } from "@omp-app/protocol";
+import { gatedPromptLine, listBuiltinCommands } from "./command-catalog";
+import { COMMAND_ENTRY_TYPE, storedCommandOf } from "./command-entries";
+import type { CommandControl } from "./command-runner";
 import { parseMcpFailure, resolveMcpServers } from "./mcp-config";
 import type { RequestRegistry } from "./request-registry";
 import { findStoredSession, listStoredSessions } from "./session-catalog";
@@ -48,7 +59,7 @@ export interface OmpHostOptions {
   readonly autoApprove?: boolean;
 }
 
-export interface OmpHost {
+export interface OmpHost extends CommandControl {
   /** Version reported by the hosted omp in its ACP `initialize` response. */
   readonly ompVersion: string;
   /** Sessions on disk, as the CLI picker lists them. Never touches `agent.db`. */
@@ -95,6 +106,8 @@ export interface OmpHost {
    * (`item.done`, `status.set` idle), and the pending `prompt` settles with `cancelled`.
    */
   cancel(sessionId: string): Promise<void>;
+  /** The builtins omp runs without a terminal, with what the palette needs to show them. */
+  commands(): ReturnType<typeof listBuiltinCommands>;
   /** Closes the in-memory transport; the AcpAgent disposes itself when it sees the close. */
   close(): Promise<void>;
   /**
@@ -260,12 +273,14 @@ export async function startOmpHost(options: OmpHostOptions): Promise<OmpHost> {
     if (session.isStreaming) throw new Error(SESSION_BUSY_MESSAGE);
   };
   const followMoves = (session: AgentSession, key: string): void => {
-    let current = session.sessionId;
+    // The manager's id is the session's identity. `session.sessionId` is the provider session id,
+    // which `/fresh` replaces without moving anything (`agent-session.ts:6245-6259` [V]).
+    let current = session.sessionManager.getSessionId();
     // A move that already happened (omp replays past notices on subscribe) shows as an id that
     // differs from ACP's key.
     if (current !== key) moved.set(current, key);
     session.sessionManager.onPersistenceNotice(() => {
-      const next = session.sessionId;
+      const next = session.sessionManager.getSessionId();
       if (next === current) return;
       moved.delete(current);
       moved.set(next, key);
@@ -303,8 +318,27 @@ export async function startOmpHost(options: OmpHostOptions): Promise<OmpHost> {
       options.onSessionCreated(session);
       followMoves(session, key);
       // The session's own id: it differs from ACP's key when omp moved it while opening.
-      return session.sessionId;
+      return session.sessionManager.getSessionId();
     });
+
+  /**
+   * Every open session reads its own clone of the settings (`cloneOf`). A builtin writes through
+   * its session's clone (`/browser visible`, `omp-host` `settings: session.settings`): save it,
+   * then make the other clones take what is on disk, as `settings.set` does.
+   */
+  const shareSettingsWrites = async (written: Settings): Promise<void> => {
+    await written.flush();
+    for (const settings of liveSettings.values()) {
+      if (settings === written) continue;
+      try {
+        await settings.reloadFromDisk();
+      } catch (error) {
+        console.error(
+          `[sidecar] settings reload failed: ${error instanceof Error ? error.message : error}`,
+        );
+      }
+    }
+  };
 
   return {
     ompVersion,
@@ -339,6 +373,11 @@ export async function startOmpHost(options: OmpHostOptions): Promise<OmpHost> {
         moved.delete(sessionId);
       }),
     async prompt(sessionId, text, images = []) {
+      // The one door to ACP's builtin dispatch: `session.prompt` (the composer) and the text a
+      // builtin hands back both come here, and a gated builtin only starts through
+      // `session.runCommand` with the person's answer.
+      const gated = gatedPromptLine(text);
+      if (gated !== null) throw new Error(`${CONFIRM_REQUIRED_MESSAGE}: ${gated}`);
       const result = await client.prompt({
         sessionId: keyOf(sessionId),
         prompt: [
@@ -387,6 +426,41 @@ export async function startOmpHost(options: OmpHostOptions): Promise<OmpHost> {
     removeQueued: (sessionId, queue, text) => sessionOf(sessionId).removeQueuedMessage(text, queue),
     cwdOf: (sessionId) => sessionOf(sessionId).sessionManager.getCwd(),
     cancel: (sessionId) => client.cancel({ sessionId: keyOf(sessionId) }),
+    commands: listBuiltinCommands,
+    async runCommand(sessionId, text, output, signal) {
+      const session = sessionOf(sessionId);
+      // Called directly, not through `session/prompt`: a prompt cancels the running turn
+      // (`acp-agent.ts:1014-1034` [V]) and builtins must not. This is the runtime the ACP agent
+      // builds (`acp-agent.ts:1195-1250` [V]) minus what only exists on its connection:
+      // `output` is the timeline instead of `sessionUpdate`, and the title and config pushes
+      // are not needed because the model comes from `model_changed` and titles from the catalog.
+      const result = await executeAcpBuiltinSlashCommand(text, {
+        session,
+        sessionManager: session.sessionManager,
+        settings: session.settings,
+        cwd: session.sessionManager.getCwd(),
+        signal,
+        output,
+        refreshCommands: () => {},
+        reloadPlugins: async () => {
+          const cwd = session.sessionManager.getCwd();
+          const projectPath = await resolveActiveProjectRegistryPath(cwd);
+          clearPluginRootsAndCaches(projectPath ? [projectPath] : undefined);
+          await refreshAgentDiscovery(cwd, session.effectiveExtensionRoots);
+          await session.refreshSkillsAndCommands();
+        },
+      });
+      if (result === false) throw new Error("not a builtin");
+      await shareSettingsWrites(session.settings);
+      return "prompt" in result ? { prompt: result.prompt } : { failed: result.failed === true };
+    },
+    saveCommand(sessionId, command: CommandItem) {
+      const manager = sessionOf(sessionId).sessionManager;
+      // `/session delete` removes the file while the session stays open; an append now would
+      // write it back (`session-manager.ts:2432-2439`, `3179-3181` [V]).
+      if (!manager.isSessionOnDisk()) return;
+      manager.appendCustomEntry(COMMAND_ENTRY_TYPE, storedCommandOf(command));
+    },
     close: async () => {
       await transport.client.writable.close().catch(() => {});
     },

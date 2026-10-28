@@ -44,8 +44,20 @@ function textOf(content: UserMessage["content"] | AssistantMessage["content"]): 
   return text;
 }
 
+/**
+ * The last item that is not a command the person ran. A command can land while a reply streams;
+ * the reply keeps growing in its own item, so it is never closed early or answered twice.
+ */
+function lastBesidesCommands(vm: SessionViewModel) {
+  for (let i = vm.timeline.length - 1; i >= 0; i--) {
+    const item = vm.timeline[i];
+    if (item?.kind !== "command") return item;
+  }
+  return undefined;
+}
+
 function openAssistant(vm: SessionViewModel) {
-  const last = vm.timeline[vm.timeline.length - 1];
+  const last = lastBesidesCommands(vm);
   return last?.kind === "assistant" && !last.done ? last : undefined;
 }
 
@@ -76,7 +88,7 @@ class Step {
 
 /** The streaming thinking item: it is open only while it ends the timeline. */
 function openThinking(vm: SessionViewModel) {
-  const last = vm.timeline[vm.timeline.length - 1];
+  const last = lastBesidesCommands(vm);
   return last?.kind === "thinking" && !last.done ? last : undefined;
 }
 
@@ -91,6 +103,7 @@ function assistantToClose(vm: SessionViewModel) {
       item?.kind === "thinking" ||
       item?.kind === "retry" ||
       item?.kind === "compaction" ||
+      item?.kind === "command" ||
       item?.kind === "decision"
     )
       continue;

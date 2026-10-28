@@ -1,4 +1,5 @@
 import type {
+  CommandItem,
   Item,
   PendingRequest,
   QueueState,
@@ -32,6 +33,16 @@ export const useCwd = (sessionId: string): string | undefined =>
   select((s) => s.sessions[sessionId]?.cwd);
 export const useSessionError = (sessionId: string): string | undefined =>
   select((s) => s.sessions[sessionId]?.error);
+/** The newest command line of the session, once it ended; undefined while it still runs. */
+export const useEndedCommand = (sessionId: string): CommandItem | undefined =>
+  select((s) => {
+    const timeline = s.sessions[sessionId]?.timeline ?? [];
+    for (let i = timeline.length - 1; i >= 0; i--) {
+      const item = timeline[i];
+      if (item?.kind === "command") return item.state === "running" ? undefined : item;
+    }
+    return undefined;
+  });
 export const useSyncError = (): string | null => select((s) => s.error);
 export const useWarnings = (sessionId: string): readonly SessionWarning[] | undefined =>
   select((s) => s.sessions[sessionId]?.warnings);

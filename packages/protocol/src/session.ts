@@ -16,6 +16,7 @@ import {
   type PendingRequest,
 } from "./requests";
 import {
+  type CommandItem,
   type CompactionItem,
   type ContextFill,
   isContextFill,
@@ -64,12 +65,14 @@ export type Item =
   | ThinkingItem
   | CompactionItem
   | RetryItem
+  | CommandItem
   | DecisionItem;
 
 /** The fields of a status event an `item.patch` may change. `kind` and `id` never change. */
 export type StatusItemPatch =
   | Partial<Omit<CompactionItem, "kind" | "id">>
-  | Partial<Omit<RetryItem, "kind" | "id">>;
+  | Partial<Omit<RetryItem, "kind" | "id">>
+  | Partial<Omit<CommandItem, "kind" | "id">>;
 
 /** The fields of a tool call an update may change. `toolCallId` never changes. */
 export type ToolCallPatch = Partial<Omit<ToolCall, "toolCallId">>;
@@ -156,7 +159,7 @@ export type SessionOp =
     }
   /** Tokens the provider has counted so far for an open thinking item. */
   | { readonly type: "thinking.tokens"; readonly itemId: string; readonly tokens: number }
-  /** Shallow-merges into a compaction or retry item. */
+  /** Shallow-merges into a compaction, retry or command item. */
   | { readonly type: "item.patch"; readonly itemId: string; readonly patch: StatusItemPatch }
   | { readonly type: "usage.set"; readonly usage: SessionUsage }
   | { readonly type: "context.set"; readonly context: ContextFill | null }
@@ -276,7 +279,7 @@ export function applyOp(vm: SessionViewModel, op: SessionOp): SessionViewModel {
       );
     case "item.patch":
       return updateItem(vm, op.itemId, (item) =>
-        item.kind === "compaction" || item.kind === "retry"
+        item.kind === "compaction" || item.kind === "retry" || item.kind === "command"
           ? ({ ...item, ...op.patch } as Item)
           : item,
       );

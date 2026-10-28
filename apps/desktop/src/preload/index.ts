@@ -9,10 +9,12 @@ import {
   MCP_REVEAL,
   MCP_SET_ENABLED,
   MCP_UPDATE,
+  PALETTE_OPEN,
   SESSION_ANSWER_ASK,
   SESSION_ANSWER_PERMISSION,
   SESSION_CANCEL,
   SESSION_CLOSE,
+  SESSION_COMMANDS,
   SESSION_CREATE,
   SESSION_FILES,
   SESSION_FORK,
@@ -23,6 +25,7 @@ import {
   SESSION_PROMPT,
   SESSION_REMOVE_QUEUED,
   SESSION_RESUME,
+  SESSION_RUN_COMMAND,
   SESSION_SET_MODEL,
   SESSION_SET_THINKING,
   SESSION_SUBSCRIBE,
@@ -82,11 +85,23 @@ const bridge: OmpBridge = {
     resume: (sessionId) => ipcRenderer.invoke(SESSION_RESUME, sessionId),
     fork: (sessionId) => ipcRenderer.invoke(SESSION_FORK, sessionId),
     close: (sessionId) => ipcRenderer.invoke(SESSION_CLOSE, sessionId),
+    commands: async (sessionId) => ipcRenderer.invoke(SESSION_COMMANDS, sessionId),
+    runCommand: (sessionId, text, confirmed) =>
+      ipcRenderer.invoke(SESSION_RUN_COMMAND, sessionId, text, confirmed),
     onOp: (listener) => {
       const handler = (_event: Electron.IpcRendererEvent, op: SessionOpEvent) => listener(op);
       ipcRenderer.on(SESSION_OP, handler);
       return () => {
         ipcRenderer.removeListener(SESSION_OP, handler);
+      };
+    },
+  },
+  palette: {
+    onOpenRequested: (listener) => {
+      const handler = () => listener();
+      ipcRenderer.on(PALETTE_OPEN, handler);
+      return () => {
+        ipcRenderer.removeListener(PALETTE_OPEN, handler);
       };
     },
   },

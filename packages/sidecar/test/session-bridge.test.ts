@@ -11,7 +11,12 @@ function fakeSession() {
   let listener: ((event: AgentSessionEvent) => void) | undefined;
   const session = {
     sessionId: "s",
-    sessionManager: { getCwd: () => "/w", onPersistenceNotice: () => () => {} },
+    sessionManager: {
+      getCwd: () => "/w",
+      getBranch: () => [],
+      getSessionId: () => "s",
+      onPersistenceNotice: () => () => {},
+    },
     buildTranscriptSessionContext: () => ({ messages: [] }),
     model: { provider: "p", id: "m", api: "anthropic-messages", input: ["text"], compat: {} },
     settings: Settings.isolated(),

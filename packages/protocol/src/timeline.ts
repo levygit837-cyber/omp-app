@@ -219,6 +219,28 @@ export interface RetryItem {
   readonly error: string;
 }
 
+/**
+ * A slash command the person ran from the palette. omp prints a builtin's answer as text and
+ * keeps no event for it, so the sidecar builds this item itself (`command-runner.ts`) and saves
+ * it in the session file so a resumed session shows it again.
+ */
+export interface CommandItem {
+  readonly kind: "command";
+  readonly id: string;
+  /** The line as sent, with its leading slash (`/model sonnet`). */
+  readonly text: string;
+  readonly state: ToolStatus;
+  /** What omp printed, as it printed it; empty while it has printed nothing. */
+  readonly output: string;
+  /** The output was cut at {@link COMMAND_OUTPUT_MAX} characters. */
+  readonly truncated?: boolean;
+  readonly startedAt: number;
+  readonly endedAt?: number;
+}
+
+/** Longest output a command item carries; `/dump` alone can print a whole transcript. */
+export const COMMAND_OUTPUT_MAX = 64_000;
+
 // -- Session-level facts -----------------------------------------------------------------------
 
 /** Tokens and cost the session has used, summed from the assistant messages of its timeline. */
@@ -385,7 +407,7 @@ export function isToolCall(v: unknown): v is ToolCall {
 /** The kinds this module owns; `isTimelineItem` answers for exactly these. */
 export function isTimelineItem(
   v: unknown,
-): v is ToolItem | ThinkingItem | CompactionItem | RetryItem {
+): v is ToolItem | ThinkingItem | CompactionItem | RetryItem | CommandItem {
   if (!isRecord(v) || !isString(v.id)) return false;
   switch (v.kind) {
     case "tool":
@@ -408,6 +430,16 @@ export function isTimelineItem(
         optNumber(v.tokensBefore) &&
         optString(v.summary) &&
         optString(v.error)
+      );
+    case "command":
+      return (
+        isString(v.text) &&
+        isString(v.state) &&
+        v.state in STATUSES &&
+        isString(v.output) &&
+        (v.truncated === undefined || v.truncated === true) &&
+        isNumber(v.startedAt) &&
+        optNumber(v.endedAt)
       );
     case "retry":
       return (

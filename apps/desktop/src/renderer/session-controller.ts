@@ -1,6 +1,7 @@
 import type { StoredSession } from "@omp-app/protocol";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SidecarStatus } from "../shared/bridge";
+import { commandEnded } from "./command-refresh";
 import { describeError } from "./errors";
 import { NONE, parse, type Reopened, rekey, reopen, serialize } from "./open-sessions";
 import {
@@ -150,6 +151,10 @@ export function useSessionController(sidecar: SidecarStatus): SessionController 
   // window regains focus (a CLI run may have added or changed sessions meanwhile).
   useEffect(() => {
     const unsubscribe = replicas.store.subscribe((state, previous) => {
+      if (commandEnded(previous, state)) {
+        void refresh();
+        return;
+      }
       for (const [id, before] of Object.entries(previous.sessions)) {
         if (before.status === "streaming" && state.sessions[id]?.status !== "streaming") {
           void refresh();

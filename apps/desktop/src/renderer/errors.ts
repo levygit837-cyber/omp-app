@@ -1,4 +1,9 @@
-import { SESSION_BUSY_MESSAGE, STALE_REQUEST_MESSAGE } from "@omp-app/protocol";
+import {
+  CONFIRM_REQUIRED_MESSAGE,
+  SESSION_BUSY_MESSAGE,
+  STALE_REQUEST_MESSAGE,
+  UNKNOWN_COMMAND_MESSAGE,
+} from "@omp-app/protocol";
 
 /** Electron prefixes errors thrown by an IPC handler with this; it means nothing to the user. */
 const IPC_PREFIX = /^Error invoking remote method '[^']*': (?:Error: )?/;
@@ -18,6 +23,14 @@ const KNOWN: readonly (readonly [RegExp, (match: RegExpMatchArray) => string])[]
   [
     /^folder no longer exists: (.+)$/s,
     (m) => `The session’s folder no longer exists (${m[1]}), so it can’t be opened here.`,
+  ],
+  [
+    new RegExp(`^${UNKNOWN_COMMAND_MESSAGE}: (\\S+)`),
+    (m) => `omp has no command called ${m[1]} that runs here.`,
+  ],
+  [
+    new RegExp(`^${CONFIRM_REQUIRED_MESSAGE}: (.+)`),
+    (m) => `${m[1]} needs a confirmation first. Nothing was run.`,
   ],
   [/^session not found: /, () => "That session is no longer on disk."],
   [/^unknown session/, () => "That session isn’t open in omp any more."],

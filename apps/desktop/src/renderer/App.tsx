@@ -5,6 +5,8 @@ import { ActionErrorNotice } from "./ActionError";
 import { Announcer } from "./Announcer";
 import { ExtensionsScreen } from "./ExtensionsScreen";
 import { enginePhase, useEngine } from "./engine";
+import { PaletteHost } from "./palette/PaletteHost";
+import { usePalette } from "./palette/use-palette";
 import { buildRows, recentFolders } from "./projects";
 import { RightPanel, RightPanelToggle } from "./right-panel/RightPanel";
 import { useRightPanel } from "./right-panel/use-right-panel";
@@ -56,6 +58,7 @@ export function App() {
     (sidebarOpen ? hideButton : showButton).current?.focus();
   }, [sidebarOpen]);
   const right = useRightPanel();
+  const palette = usePalette();
   const [readOnlyDismissed, setReadOnlyDismissed] = useState(false);
   const sessionId = controller.focused;
   const openCwds = useOpenCwds(controller.open);
@@ -120,7 +123,32 @@ export function App() {
 
   return (
     <EngineContext.Provider value={engine}>
-      <div className="flex h-full bg-bg-base text-size-md text-text-primary">
+      {/* The palette sits above everything, outside the inert subtree: it can open over Settings. */}
+      {palette.open && (
+        <PaletteHost
+          sessionId={sessionId}
+          stored={controller.stored}
+          openIds={controller.open}
+          openCwds={openCwds}
+          engine={engine}
+          readOnly={readOnly}
+          canOpen={canOpen}
+          sidebarOpen={sidebarOpen}
+          rightOpen={right.open}
+          settingsShortcut={palette.mac ? "⌘," : null}
+          onClose={palette.hide}
+          onSelectSession={(id) => {
+            setView("session");
+            void controller.select(id);
+          }}
+          onNewSession={open}
+          onOpenSettings={() => setView("settings")}
+          onToggleLeft={() => toggleSidebar(!sidebarOpen)}
+          onToggleRight={() => right.toggle(!right.open)}
+          onShowSession={() => setView("session")}
+        />
+      )}
+      <div className="flex h-full bg-bg-base text-size-md text-text-primary" inert={palette.open}>
         {sidebarOpen && (
           <aside
             aria-label="Sidebar"

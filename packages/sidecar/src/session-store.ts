@@ -1,5 +1,6 @@
 import type { AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-session-events";
 import type {
+  CommandItem,
   ContextFill,
   DecisionItem,
   PendingRequest,
@@ -118,6 +119,28 @@ export class SessionStore {
       requestId,
       ...(item ? { item } : {}),
     });
+  }
+
+  /** Appends a running `command` item for a line the person ran; returns its id. */
+  startCommand(sessionId: string, text: string): string {
+    const entry = this.#entry(sessionId);
+    const id = `i${entry.viewModel.timeline.length}`;
+    this.#apply(sessionId, {
+      type: "item.add",
+      item: { kind: "command", id, text, state: "running", output: "", startedAt: this.#now() },
+    });
+    return id;
+  }
+
+  /** Changes a command item (its output so far, or how it ended). The finished item, if any. */
+  patchCommand(
+    sessionId: string,
+    itemId: string,
+    patch: Partial<Omit<CommandItem, "kind" | "id">>,
+  ): CommandItem | undefined {
+    this.#apply(sessionId, { type: "item.patch", itemId, patch });
+    const item = this.#entry(sessionId).viewModel.timeline.find((i) => i.id === itemId);
+    return item?.kind === "command" ? item : undefined;
   }
 
   snapshot(sessionId: string): SessionSnapshot {

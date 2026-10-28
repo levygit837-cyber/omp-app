@@ -21,6 +21,7 @@ import { RequestRegistry } from "../src/request-registry";
 import { type Handlers, type Server, startServer } from "../src/server";
 import { sessionHandlers } from "../src/session-handlers";
 import { SessionStore } from "../src/session-store";
+import { noCommands } from "./fixtures/no-commands";
 import { noPromptControls } from "./harness";
 import { loadFixture, readGolden } from "./replay";
 
@@ -82,6 +83,7 @@ async function replayServer(name: string, readOnly = false, pauseAt = -1) {
   const paused = Promise.withResolvers<void>();
   const control = {
     ...noPromptControls,
+    ...noCommands,
     async createSession(cwd: string) {
       store.create(emptyViewModel({ id, cwd, model: fixture.header.model }));
       return id;
@@ -204,6 +206,22 @@ describe("session.* over the socket", () => {
     expect(await code(client.request("session.subscribe", { sessionId: id }))).toBe("internal");
     client.close();
   });
+
+  test("read_only: a builtin is refused (some write: /model, /compact, /move), listing them is not", async () => {
+    const { socketPath, id } = await replayServer("basic", true);
+    const client = await connect(socketPath);
+    const code = (p: Promise<unknown>) =>
+      p.then(
+        () => null,
+        (e: Error & { code?: string }) => e.code,
+      );
+    expect(
+      await code(client.request("session.runCommand", { sessionId: id, text: "/model" })),
+    ).toBe("read_only");
+    // Reaches the handler, which says the session does not exist: not refused as a write.
+    expect(await code(client.request("session.commands", { sessionId: id }))).toBe("internal");
+    client.close();
+  });
 });
 
 /** Lets other work run: one turn of the event loop, not a duration. */
@@ -228,6 +246,7 @@ async function multiServer(fixtureNames: readonly string[], readOnly = false) {
   let created = 0;
   const control = {
     ...noPromptControls,
+    ...noCommands,
     async createSession(cwd: string) {
       const fixture = fixtures[created++];
       if (!fixture) throw new Error("no more fixtures");

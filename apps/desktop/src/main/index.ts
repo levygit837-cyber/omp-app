@@ -18,10 +18,12 @@ import {
   MCP_REVEAL,
   MCP_SET_ENABLED,
   MCP_UPDATE,
+  PALETTE_OPEN,
   SESSION_ANSWER_ASK,
   SESSION_ANSWER_PERMISSION,
   SESSION_CANCEL,
   SESSION_CLOSE,
+  SESSION_COMMANDS,
   SESSION_CREATE,
   SESSION_FILES,
   SESSION_FORK,
@@ -32,6 +34,7 @@ import {
   SESSION_PROMPT,
   SESSION_REMOVE_QUEUED,
   SESSION_RESUME,
+  SESSION_RUN_COMMAND,
   SESSION_SET_MODEL,
   SESSION_SET_THINKING,
   SESSION_SUBSCRIBE,
@@ -231,6 +234,26 @@ function registerSessionRelay(sidecar: SidecarSupervisor): void {
   ipcMain.handle(SESSION_CLOSE, async (_event, sessionId: unknown) => {
     await sidecar.request("session.close", { sessionId: text(sessionId, "sessionId") });
   });
+  ipcMain.handle(
+    SESSION_COMMANDS,
+    async (_event, sessionId: unknown) =>
+      (await sidecar.request("session.commands", { sessionId: text(sessionId, "sessionId") }))
+        .commands,
+  );
+  ipcMain.handle(
+    SESSION_RUN_COMMAND,
+    async (_event, sessionId: unknown, line: unknown, confirmed: unknown) => {
+      const lineText = text(line, "text");
+      // The sidecar decides what is a builtin; this only keeps a stray string from being a line.
+      if (!lineText.startsWith("/")) throw new Error("text must start with a slash");
+      await sidecar.request("session.runCommand", {
+        sessionId: text(sessionId, "sessionId"),
+        text: lineText,
+        // Only a literal `true` is an answer; the sidecar checks whether one was needed.
+        ...(confirmed === true ? { confirmed } : {}),
+      });
+    },
+  );
 }
 
 /**
@@ -356,6 +379,9 @@ app.whenReady().then(() => {
   platform.installMenu({
     openSettings: () => {
       for (const win of BrowserWindow.getAllWindows()) win.webContents.send(SETTINGS_OPEN);
+    },
+    openPalette: () => {
+      for (const win of BrowserWindow.getAllWindows()) win.webContents.send(PALETTE_OPEN);
     },
   });
   const sidecar = new SidecarSupervisor({ command: sidecarCommand() });

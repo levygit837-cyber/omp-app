@@ -16,6 +16,9 @@
  *   stop-queue  Stop with a follow-up queued: what is left in the queue and whether a turn starts
  *   image   a generated PNG travels as base64; the model names its color
  *   file    an `@file` in the prompt: the agent answers from the file's content
+ *   commands    builtins through `session.runCommand`, idle and mid-stream, with and without an
+ *               argument; a refusal is omp's own sentence; a gated line is refused without
+ *               `confirmed`; `/fresh` keeps the session id; the output is in the session file
  *
  * Prints the observed ops and the session file each scenario left in the CLI's session
  * directory. Pass `--keep` to leave the sessions in place, e.g. to resume one with the CLI;
@@ -591,6 +594,109 @@ await joiningScenario(
     ];
   },
 );
+
+// Builtins run beside the turn and never through `session/prompt` (which would cancel it).
+// `/switch` is session-only (`setModelTemporary`, builtin-modes.ts:525 [V]) so the real
+// `config.yml` is not touched; `/effort` sets this session's thinking level.
+if (!only || only.includes("commands")) {
+  const { sessionId } = await ask("session.create", { cwd });
+  const sub = await ask("session.subscribe", { sessionId });
+  const from = ops.length;
+  const failures: string[] = [];
+  const view = () => replica(sub.snapshot, sessionId, from);
+  const commandItems = () => view().timeline.filter((i) => i.kind === "command");
+  const run = async (
+    line: string,
+    wanted: "done" | "failed" | "stopped" = "done",
+    confirmed?: true,
+  ) => {
+    const before = commandItems().length;
+    await ask("session.runCommand", { sessionId, text: line, ...(confirmed && { confirmed }) });
+    await until(`${line} to end`, () => {
+      const item = commandItems()[before];
+      return item !== undefined && item.state !== "running";
+    });
+    const item = commandItems()[before];
+    if (item?.kind !== "command") throw new Error("unreachable");
+    console.log(`  ${line} -> ${item.state}: ${JSON.stringify(item.output.slice(0, 120))}`);
+    if (item.state !== wanted) failures.push(`${line}: ${item.state}, wanted ${wanted}`);
+    return item;
+  };
+  const idle = () => view().status === "idle";
+
+  await run(`/switch ${process.env.LIVE_MODEL ?? "kiro/claude-haiku-5.5"}`);
+  const bare = await run("/effort");
+  if (bare.output === "") failures.push("/effort printed nothing");
+  const withArg = await run("/effort low");
+  if (!/low/i.test(withArg.output)) failures.push(`/effort low: ${withArg.output}`);
+  await run("/usage");
+  if (!idle()) failures.push("an idle command changed the status");
+
+  // Mid-stream: the turn keeps going, the command answers beside it.
+  await ask("session.prompt", {
+    sessionId,
+    text: "Count from 1 to 300, one number per line. No tools. Do not stop early.",
+  });
+  await until("answer text", () =>
+    view().timeline.some((i) => i.kind === "assistant" && i.text !== ""),
+  );
+  const midBare = await run("/effort");
+  const midArg = await run("/effort medium");
+  if (view().status !== "streaming") failures.push("a command stopped the running turn");
+  const refused = await run("/move /tmp", "failed", true);
+  console.log(`  mid-stream refusal sentence: ${JSON.stringify(refused.output)}`);
+  if (!/streaming/i.test(refused.output)) failures.push(`refusal is not omp's: ${refused.output}`);
+  if (midBare.output === "" || midArg.output === "")
+    failures.push("a mid-stream command was silent");
+  await ask("session.cancel", { sessionId });
+  await until("the cancelled turn to end", idle);
+  const assistants = view().timeline.filter((i) => i.kind === "assistant");
+  if (assistants.length !== 1)
+    failures.push(`the commands split the reply into ${assistants.length}`);
+
+  // A line that reaches beyond the session is refused by the sidecar without `confirmed`, and
+  // leaves no timeline item behind.
+  const itemsBefore = commandItems().length;
+  const refusal = await ask("session.runCommand", { sessionId, text: "/export" }).then(
+    () => null,
+    (error: Error) => error.message,
+  );
+  console.log(`  /export without confirmed -> ${JSON.stringify(refusal)}`);
+  if (!refusal?.startsWith("confirmation required"))
+    failures.push(`/export was not refused: ${refusal}`);
+  if (commandItems().length !== itemsBefore) failures.push("a refused line left an item");
+
+  // `/fresh` replaces the provider session id; the session keeps its own id and file.
+  await run("/fresh");
+  await run("/effort");
+  if (view().status !== "idle") failures.push(`status after /fresh: ${view().status}`);
+
+  // `/force` is not gated, but it hands its text back and omp would dispatch that as a builtin:
+  // the gate holds the handed-back line too, and the session file survives it.
+  const sessionFile = [
+    ...new Bun.Glob(`**/*${sessionId}*.jsonl`).scanSync({ cwd: join(getAgentDir(), "sessions") }),
+  ][0];
+  const handedBack = await run("/force read /session delete", "failed");
+  console.log(`  handed-back /session delete -> ${JSON.stringify(handedBack.output)}`);
+  if (!/needs a confirmation first/.test(handedBack.output))
+    failures.push(`handed-back line not stopped: ${handedBack.output}`);
+  if (!sessionFile || !existsSync(join(getAgentDir(), "sessions", sessionFile)))
+    failures.push("the session file is gone after a handed-back /session delete");
+
+  // Persisted: the session file carries the entries, and a resume replays them.
+  const stored = new Bun.Glob(`**/*${sessionId}*.jsonl`).scanSync({
+    cwd: join(getAgentDir(), "sessions"),
+  });
+  const file = [...stored][0];
+  const lines = file
+    ? (await Bun.file(join(getAgentDir(), "sessions", file)).text()).split("\n")
+    : [];
+  const entries = lines.filter((l) => l.includes('"omp-app/command"')).length;
+  console.log(`\n== commands (${sessionId}): ${commandItems().length} items, ${entries} stored`);
+  if (entries !== commandItems().length)
+    failures.push(`stored ${entries}, shown ${commandItems().length}`);
+  results.push({ scenario: "commands", sessionId, failures });
+}
 
 console.log(`\nsession directory: ${join(getAgentDir(), "sessions")}`);
 

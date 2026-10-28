@@ -539,3 +539,40 @@ describe("reduceEvent, prompt controls", () => {
     expect(ops).toEqual([{ type: "thinking.set", thinking: "auto" }]);
   });
 });
+
+describe("reduceEvent, a command line in the middle of a reply", () => {
+  // A builtin the person ran lands on the timeline while the reply streams (`session.runCommand`
+  // does not stop the turn): the next delta must grow the same reply, not open a second one.
+  const command = {
+    kind: "command" as const,
+    id: "i2",
+    text: "/usage",
+    state: "done" as const,
+    output: "x",
+    startedAt: 1,
+    endedAt: 2,
+  };
+  const midReply = (open: SessionViewModel["timeline"][number]): SessionViewModel => ({
+    ...start(),
+    status: "streaming",
+    timeline: [{ kind: "user", id: "i0", text: "go" }, open, command],
+  });
+
+  test("a text delta goes on growing the open reply", () => {
+    const { viewModel } = run(
+      [delta(" will")],
+      midReply({ kind: "assistant", id: "i1", text: "Sure, I", done: false }),
+    );
+    expect(viewModel.timeline.map((i) => i.kind)).toEqual(["user", "assistant", "command"]);
+    expect(viewModel.timeline[1]).toMatchObject({ text: "Sure, I will", done: false });
+  });
+
+  test("a thinking delta goes on growing the open reasoning", () => {
+    const { viewModel } = run(
+      [thinkingDelta(" more")],
+      midReply({ kind: "thinking", id: "i1", text: "Hmm", done: false, startedAt: 1 }),
+    );
+    expect(viewModel.timeline.map((i) => i.kind)).toEqual(["user", "thinking", "command"]);
+    expect(viewModel.timeline[1]).toMatchObject({ text: "Hmm more" });
+  });
+});

@@ -5,6 +5,7 @@ import { Composer } from "./Composer";
 import type { EnginePhase } from "./composer-state";
 import { EngineSlot } from "./EngineSlot";
 import type { EngineTrack } from "./engine";
+import { useFollowRequests } from "./follow-request";
 import { useSessionError, useSyncError, useWarnings } from "./session-hooks";
 import { useShownStatus } from "./shown-status";
 import { Timeline } from "./Timeline";
@@ -66,6 +67,8 @@ export function SessionPane({
   const syncError = useSyncError();
   // Bumped when a prompt is sent, so the timeline follows the answer even after a scroll up.
   const [sent, setSent] = useState(0);
+  // Output of a command run from the palette also brings the timeline to the newest line.
+  const asked = useFollowRequests(sessionId);
   const problem = sessionError ?? syncError;
 
   return (
@@ -73,7 +76,7 @@ export function SessionPane({
       <p data-testid="session-status" data-status={status} className="sr-only">
         Status: {status ?? "unknown"}
       </p>
-      <Timeline sessionId={sessionId} resume={sent} />
+      <Timeline sessionId={sessionId} resume={sent + asked} />
       <div className="flex justify-center px-(--space-48) empty:hidden">
         <div className="flex w-(--layout-chat-column) max-w-full flex-col gap-(--space-event) pt-(--space-event) empty:hidden">
           <Warnings sessionId={sessionId} />
