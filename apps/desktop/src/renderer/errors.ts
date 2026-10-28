@@ -1,5 +1,9 @@
 import {
+  ACTION_BUSY_MESSAGE,
+  ACTION_COMMAND_MESSAGE,
+  ACTION_SHELL_MESSAGE,
   CONFIRM_REQUIRED_MESSAGE,
+  FILE_OWNED_MESSAGE,
   PLAN_BUSY_MESSAGE,
   SESSION_BUSY_MESSAGE,
   STALE_REQUEST_MESSAGE,
@@ -43,6 +47,22 @@ const KNOWN: readonly (readonly [RegExp, (match: RegExpMatchArray) => string])[]
   // The sidecar refuses a plan switch while a turn runs; the toggle is disabled then, so this is
   // the answer to a click that raced the status change.
   [new RegExp(`^${PLAN_BUSY_MESSAGE}$`), () => "Plan mode changes between turns."],
+  [
+    new RegExp(`^${ACTION_BUSY_MESSAGE}$`),
+    () => "The agent is working. Stop it with Esc, or wait for the turn to end.",
+  ],
+  [
+    new RegExp(`^${ACTION_SHELL_MESSAGE}$`),
+    () => "A shell command is still running in this session. Wait for it, then try again.",
+  ],
+  [
+    new RegExp(`^${ACTION_COMMAND_MESSAGE}$`),
+    () => "A command is still running in this session. Wait for it to end, then try again.",
+  ],
+  [
+    new RegExp(`^${FILE_OWNED_MESSAGE}$`),
+    () => "Another omp process (the CLI, probably) has this session open. Close it there first.",
+  ],
   [
     /Could not restore model (\S+)/,
     (m) => `omp couldn’t restore the model this session used (${m[1]}). Check its credentials.`,

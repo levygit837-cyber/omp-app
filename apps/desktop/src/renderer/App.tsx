@@ -9,6 +9,7 @@ import { KillHost } from "./kill";
 import { PaletteHost } from "./palette/PaletteHost";
 import { usePalette } from "./palette/use-palette";
 import { buildRows, recentFolders } from "./projects";
+import { COMPOSER_ID } from "./requests-view";
 import { RightPanel, RightPanelToggle } from "./right-panel/RightPanel";
 import { useRightPanel } from "./right-panel/use-right-panel";
 import { SessionPane } from "./SessionPane";
@@ -103,6 +104,30 @@ export function App() {
     ).current?.focus();
   }, [view, sidebarOpen]);
 
+  // A deleted session takes its row, and the control that had the focus, out of the page. The
+  // focus goes where the work is (the composer of the session now on screen), or to the session
+  // area when none is left, so the next Tab starts from the window and not from <body>.
+  const sessionArea = useRef<HTMLElement>(null);
+  const deleting = useRef<string | null>(null);
+  const deleteSession = async (id: string) => {
+    deleting.current = id;
+    await controller.remove(id);
+  };
+  // A refused delete leaves the session open and the focus where it was; only a session that
+  // is really gone from the open set moves the focus.
+  useEffect(() => {
+    const id = deleting.current;
+    if (id === null) return;
+    if (controller.error) deleting.current = null;
+    if (controller.error || controller.open.includes(id)) return;
+    deleting.current = null;
+    const target =
+      view === "session"
+        ? (document.getElementById(COMPOSER_ID) ?? sessionArea.current)
+        : (view === "settings" ? settingsButton : extensionsButton).current;
+    target?.focus();
+  }, [controller.open, controller.error, view]);
+
   // ⌘R restarts the engine when it is stopped; ⌘O opens a folder. The menu leaves both free.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -186,6 +211,9 @@ export function App() {
               }}
               onFork={(id) => void controller.fork(id)}
               onClose={(id) => void controller.close(id)}
+              onClearContext={(id) => void controller.clearContext(id)}
+              onDelete={(id) => void deleteSession(id)}
+              previewDelete={controller.previewDelete}
             />
           </aside>
         )}
@@ -204,7 +232,12 @@ export function App() {
             className={cx("flex min-w-0 flex-1", view !== "session" && "invisible")}
             inert={view !== "session"}
           >
-            <main className="flex min-w-0 flex-1 flex-col" aria-label="Session">
+            <main
+              ref={sessionArea}
+              tabIndex={-1}
+              className="flex min-w-0 flex-1 flex-col outline-none"
+              aria-label="Session"
+            >
               <TabBar
                 sessionId={sessionId}
                 tabs={tabs}

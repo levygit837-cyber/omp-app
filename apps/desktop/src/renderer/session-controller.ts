@@ -46,6 +46,12 @@ export interface SessionController {
   fork(sessionId: string): Promise<void>;
   /** Remove a session from the open set. Its file stays on disk. */
   close(sessionId: string): Promise<void>;
+  /** Drops the agent's memory of a session; its timeline stays. Already confirmed by the person. */
+  clearContext(sessionId: string): Promise<void>;
+  /** Deletes a session and its files, and closes it. Already confirmed by the person. */
+  remove(sessionId: string): Promise<void>;
+  /** What deleting would take with the session (its subagent sessions), or null when it failed. */
+  previewDelete(sessionId: string): Promise<number | null>;
   /** Hides the last action error. */
   dismissError(): void;
 }
@@ -56,6 +62,13 @@ const api: ActionApi = {
   resume: (sessionId) => window.omp.session.resume(sessionId),
   fork: (sessionId) => window.omp.session.fork(sessionId),
   close: (sessionId) => window.omp.session.close(sessionId),
+  // The window asks the person before it gets here; the sidecar enforces the answer.
+  clearContext: async (sessionId) => {
+    await window.omp.session.clearContext(sessionId, true);
+  },
+  delete: async (sessionId) => {
+    await window.omp.session.delete(sessionId, true);
+  },
   attach: (sessionId) => replicas.open(sessionId),
   detach: (sessionId) => replicas.close(sessionId),
 };
@@ -200,7 +213,7 @@ export function useSessionController(sidecar: SidecarStatus): SessionController 
     }
   };
 
-  const run = (action: "resume" | "fork" | "close", sessionId: string) =>
+  const run = (action: "resume" | "fork" | "close" | "clear" | "delete", sessionId: string) =>
     act(`${action}:${sessionId}`, () =>
       perform(api, current.current.sessions, { action, sessionId }),
     );
@@ -218,6 +231,16 @@ export function useSessionController(sidecar: SidecarStatus): SessionController 
     select: (sessionId) => run("resume", sessionId),
     fork: (sessionId) => run("fork", sessionId),
     close: (sessionId) => run("close", sessionId),
+    clearContext: (sessionId) => run("clear", sessionId),
+    remove: (sessionId) => run("delete", sessionId),
+    previewDelete: async (sessionId) => {
+      try {
+        return (await window.omp.session.deletePreview(sessionId)).subagents;
+      } catch (e) {
+        setHeld((state) => ({ ...state, error: actionError("delete", e) }));
+        return null;
+      }
+    },
     dismissError: () => setHeld((state) => ({ ...state, error: null })),
   };
 }

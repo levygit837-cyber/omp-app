@@ -18,6 +18,11 @@ export interface ConfirmCardProps {
   onConfirm: () => void;
   /** Esc, Cancel, a press outside, a scroll or a resize. The owner unmounts the card and returns focus. */
   onCancel: () => void;
+  /**
+   * Which button takes the focus. A loss that cannot be undone starts on `cancel`, so a double
+   * tap of Enter backs out; ⌘↵ then confirms from anywhere in the card (Pen `Km69K`).
+   */
+  focus?: "confirm" | "cancel";
 }
 
 /**
@@ -31,11 +36,14 @@ export function ConfirmCard({
   confirmLabel,
   anchor,
   opener,
+  focus = "confirm",
   onConfirm,
   onCancel,
 }: ConfirmCardProps) {
   const root = useRef<HTMLDivElement>(null);
   const confirm = useRef<HTMLButtonElement>(null);
+  const cancelButton = useRef<HTMLButtonElement>(null);
+  const safe = focus === "cancel";
   const [place, setPlace] = useState<{ left: number; top: number } | null>(null);
   const cancel = useRef(onCancel);
   cancel.current = onCancel;
@@ -53,8 +61,8 @@ export function ConfirmCard({
 
   const placed = place !== null;
   useEffect(() => {
-    if (placed) confirm.current?.focus();
-  }, [placed]);
+    if (placed) (safe ? cancelButton : confirm).current?.focus();
+  }, [placed, safe]);
 
   const openerRef = useRef(opener);
   openerRef.current = opener;
@@ -84,6 +92,13 @@ export function ConfirmCard({
       event.stopPropagation();
       event.preventDefault();
       onCancel();
+      return;
+    }
+    // The way to confirm when the focus starts on Cancel: Enter there backs out.
+    if (safe && event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+      event.stopPropagation();
+      event.preventDefault();
+      onConfirm();
       return;
     }
     if (event.key !== "Tab") return;
@@ -117,10 +132,10 @@ export function ConfirmCard({
         <Button ref={confirm} variant="destructive" onClick={onConfirm}>
           {confirmLabel}
           <span aria-hidden="true" className="text-size-2xs">
-            ⏎
+            {safe ? "⌘↵" : "⏎"}
           </span>
         </Button>
-        <Button onClick={onCancel}>
+        <Button ref={cancelButton} onClick={onCancel}>
           Cancel
           <span aria-hidden="true" className="text-size-2xs text-text-dim">
             esc

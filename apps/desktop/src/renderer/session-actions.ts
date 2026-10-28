@@ -2,7 +2,7 @@ import { describeError } from "./errors";
 import { add, focus, type OpenSessions, remove } from "./open-sessions";
 
 /** What the user asked for; each one names its failure in its own words. */
-export type Action = "new" | "resume" | "fork" | "close";
+export type Action = "new" | "resume" | "fork" | "close" | "clear" | "delete";
 
 export interface ActionError {
   readonly action: Action;
@@ -17,6 +17,8 @@ const TITLES: Record<Action, string> = {
   resume: "Couldn’t open that session",
   fork: "Couldn’t fork that session",
   close: "Couldn’t close that session",
+  clear: "Couldn’t clear the context",
+  delete: "Couldn’t delete that session",
 };
 
 export function actionError(action: Action, error: unknown): ActionError {
@@ -41,6 +43,10 @@ export interface ActionApi {
   fork(sessionId: string): Promise<string>;
   /** Closes the session in the sidecar. The file stays on disk. */
   close(sessionId: string): Promise<void>;
+  /** Drops the agent's memory and keeps the session, its file and its timeline. */
+  clearContext(sessionId: string): Promise<void>;
+  /** Removes the session and its files from disk, and closes it in the sidecar. */
+  delete(sessionId: string): Promise<void>;
   /** Attaches the window to a session the sidecar holds; resolves with the id it is under. */
   attach(sessionId: string): Promise<string>;
   /** Stops the window's op stream for a session. */
@@ -49,7 +55,10 @@ export interface ActionApi {
 
 export type Request =
   | { readonly action: "new"; readonly cwd: string }
-  | { readonly action: "resume" | "fork" | "close"; readonly sessionId: string };
+  | {
+      readonly action: "resume" | "fork" | "close" | "clear" | "delete";
+      readonly sessionId: string;
+    };
 
 const opened =
   (id: string): Patch =>
@@ -82,9 +91,12 @@ export async function perform(
       }
       case "fork":
         return opened(await api.attach(await api.fork(request.sessionId)));
-      case "close": {
-        // The sidecar first: if it refuses, the session is still open and still attached.
-        await api.close(request.sessionId);
+      case "close":
+      case "delete": {
+        // The sidecar first: if it refuses, the session is still open and still attached. Both
+        // end with the session gone from the open set; delete also took its files.
+        if (request.action === "close") await api.close(request.sessionId);
+        else await api.delete(request.sessionId);
         // Stop the op stream before the replica goes, so nothing arrives for a replica that is gone.
         await api.detach(request.sessionId).catch(() => undefined);
         return (held) => ({
@@ -92,6 +104,12 @@ export async function perform(
           sessions: remove(held.sessions, request.sessionId),
           error: null,
         });
+      }
+      case "clear": {
+        // The timeline, the open set and the focus stay as they are: the sidecar adds the
+        // boundary line to the timeline and the replica receives it as any other op.
+        await api.clearContext(request.sessionId);
+        return (held) => ({ ...held, error: null });
       }
     }
   } catch (error) {

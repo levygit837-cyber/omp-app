@@ -133,18 +133,53 @@ export function Menu({ label, anchor, onDismiss, children }: MenuProps) {
   );
 }
 
-/** One action of a `Menu`. Arrow keys move between items, so none of them is a tab stop. */
-export function MenuItem({ className, type = "button", ...props }: ComponentProps<"button">) {
+export interface MenuItemProps extends ComponentProps<"button"> {
+  /** A loss that cannot be undone (Clear context, Delete session): the label takes the error color. */
+  danger?: boolean;
+}
+
+/**
+ * One action of a `Menu`. Arrow keys move between items, so none of them is a tab stop. An item
+ * that cannot run right now but has something to say uses `aria-disabled` (not `disabled`), so it
+ * stays reachable and its `aria-describedby` note is read; its click does nothing.
+ */
+export function MenuItem({
+  className,
+  type = "button",
+  danger = false,
+  onClick,
+  ...props
+}: MenuItemProps) {
+  const blocked = props["aria-disabled"] === true || props["aria-disabled"] === "true";
   return (
     <button
       type={type}
       role="menuitem"
       tabIndex={-1}
+      onClick={blocked ? undefined : onClick}
       className={cx(
-        "flex h-(--size-control) w-full items-center gap-(--space-8) rounded-sm px-(--space-8) text-left text-size-sm text-text-primary hover:bg-bg-hover focus-visible:bg-bg-hover",
+        "flex h-(--size-control) w-full items-center gap-(--space-8) rounded-sm px-(--space-8) text-left text-size-sm hover:bg-bg-hover focus-visible:bg-bg-hover",
+        danger ? "text-state-error" : "text-text-primary",
         "disabled:text-text-dim disabled:hover:bg-transparent",
+        "aria-disabled:text-text-dim aria-disabled:hover:bg-transparent",
         className,
       )}
+      {...props}
+    />
+  );
+}
+
+/** A hairline between two groups of items (Pen `QTqk0`). */
+export function MenuSeparator() {
+  return <hr className="mx-(--space-4) my-(--space-4) border-0 border-t border-border-hairline" />;
+}
+
+/** The reason an item is blocked, in words, for its `aria-describedby`. Not an item itself. */
+export function MenuNote({ className, ...props }: ComponentProps<"p">) {
+  return (
+    <p
+      role="presentation"
+      className={cx("px-(--space-8) py-(--space-4) text-size-xs text-text-dim", className)}
       {...props}
     />
   );
