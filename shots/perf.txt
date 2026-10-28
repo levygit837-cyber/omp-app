@@ -1,0 +1,3 @@
+baseline main streaming   frames=298 p50=8.3 p95=9.9 max=10.4 over50=0
+burst view open           frames=298 p50=8.3 p95=9.8 max=16.8 over50=0
+items in burst view: 380
