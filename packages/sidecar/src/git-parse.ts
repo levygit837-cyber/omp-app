@@ -37,8 +37,8 @@ function afterFields(line: string, skip: number): string {
 export function statusLetter(xy: string): ChangeStatus {
   const x = xy[0] ?? ".";
   const y = xy[1] ?? ".";
-  if (x === "A" || (x === "." && y === "A")) return "A";
   if (x === "D" || y === "D") return "D";
+  if (x === "A" || (x === "." && y === "A")) return "A";
   if (x === "R" || y === "R") return "R";
   if (x === "C" || y === "C") return "C";
   if (x === "T" || y === "T") return "T";

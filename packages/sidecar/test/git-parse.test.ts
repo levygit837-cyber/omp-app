@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { allAdded, parseNumstat, parseStatus, parseUnifiedDiff, totalsOf } from "../src/git-parse";
+import {
+  allAdded,
+  parseNumstat,
+  parseStatus,
+  parseUnifiedDiff,
+  statusLetter,
+  totalsOf,
+} from "../src/git-parse";
 
 const nul = (...fields: string[]) => `${fields.join("\0")}\0`;
 const oid = "a".repeat(40);
@@ -53,6 +60,21 @@ describe("parseStatus", () => {
   test("output cut at the cap drops the last, possibly partial, entry", () => {
     const cut = `${nul("? one.txt")}? tw`;
     expect(parseStatus(cut).entries.map((e) => e.path)).toEqual(["one.txt"]);
+  });
+});
+
+describe("statusLetter", () => {
+  test("a file deleted in either column is D, even when it was added to the index first", () => {
+    // `AD` is what real git prints for `git add new && rm new` (checked with git 2.55).
+    expect(statusLetter("AD")).toBe("D");
+    expect(statusLetter(".D")).toBe("D");
+    expect(statusLetter("D.")).toBe("D");
+  });
+
+  test("added then edited stays A; an edit alone is M", () => {
+    expect(statusLetter("AM")).toBe("A");
+    expect(statusLetter(".A")).toBe("A");
+    expect(statusLetter(".M")).toBe("M");
   });
 });
 
