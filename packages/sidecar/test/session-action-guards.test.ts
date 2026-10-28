@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { ACTION_COMMAND_MESSAGE } from "@omp-app/protocol";
+import { ACTION_COMMAND_MESSAGE, EMPTY_QUEUE } from "@omp-app/protocol";
 import { emptyViewModel } from "../src/reducer";
 import { type SessionControl, sessionHandlers } from "../src/session-handlers";
 import { SessionStore } from "../src/session-store";
@@ -41,7 +41,7 @@ function setup() {
       calls.push(`clear:${id}`);
       return {
         dropped: 0,
-        cleared: { at: 1, context: null, queue: { steer: [], followUp: [] }, todo: [] },
+        cleared: { at: 1, context: null, queue: EMPTY_QUEUE, todo: [] },
       };
     },
     deleteSession: async (id, beforeClose) => {
