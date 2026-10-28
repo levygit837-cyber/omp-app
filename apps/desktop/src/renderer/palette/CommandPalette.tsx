@@ -12,6 +12,7 @@ import { describeError } from "../errors";
 import { Shortcut } from "../Shortcut";
 import { useSessionMark } from "../shown-status";
 import {
+  type ActionId,
   activate,
   buildView,
   completion,
@@ -31,7 +32,18 @@ import {
 import { type Range, segments } from "./search";
 
 /** What the host carries out; the palette handles `complete`, `confirm` and `none` itself. */
-export type Action = Exclude<Outcome, { do: "complete" } | { do: "confirm" } | { do: "none" }>;
+export type Action = Exclude<
+  Outcome,
+  { do: "complete" } | { do: "confirm" } | { do: "ask" } | { do: "none" }
+>;
+
+/** What a session action asks before it runs, in the words of its confirmation window. */
+export interface Asked {
+  readonly question: string;
+  readonly because: string;
+  readonly confirm: string;
+  readonly destructive: boolean;
+}
 
 const PLACEHOLDER = {
   all: "Search sessions, commands, actions…",
@@ -220,19 +232,30 @@ export function CommandPalette({
   input,
   onDismiss,
   onAction,
+  onPrepare,
 }: {
   input: PaletteInput;
   /** Esc, a press on the veil. The host puts the focus back where it was. */
   onDismiss: () => void;
   /** Carries out a choice; rejects with the error to show. Resolves when the host has closed. */
   onAction: (action: Action) => Promise<void>;
+  /**
+   * The question for an action that asks first (Clear context, Delete session, Pause). Rejects
+   * with the reason when it cannot run now; the palette shows it as a sentence, with no card.
+   */
+  onPrepare: (id: ActionId) => Promise<Asked>;
 }) {
   const [raw, setRaw] = useState("");
   const [selected, setSelected] = useState(0);
   const [confirm, setConfirm] = useState<{
-    line: string;
+    /** The bold line; a command's is `Run /line?`. */
+    question: ReactNode;
+    /** The same line as text, for the screen reader. */
+    spoken: string;
     because: string;
     destructive: boolean;
+    label: string;
+    commit: Action;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -255,7 +278,7 @@ export function CommandPalette({
   }, [confirm]);
 
   useEffect(() => {
-    setSaid(confirm ? `Run ${confirm.line}? ${confirm.because}` : describeResults(view));
+    setSaid(confirm ? `${confirm.spoken} ${confirm.because}` : describeResults(view));
   }, [view, confirm]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll when the active row moves
@@ -283,6 +306,27 @@ export function CommandPalette({
     }
   };
 
+  const ask = async (id: ActionId) => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const asked = await onPrepare(id);
+      setConfirm({
+        question: asked.question,
+        spoken: asked.question,
+        because: asked.because,
+        destructive: asked.destructive,
+        label: asked.confirm,
+        commit: { do: "action", id, confirmed: true },
+      });
+    } catch (e) {
+      setError(describeError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const choose = (index: number) => {
     const row = rows[index];
     if (!row) return;
@@ -295,10 +339,20 @@ export function CommandPalette({
         return;
       case "confirm":
         setConfirm({
-          line: outcome.line,
+          question: (
+            <>
+              Run <span className="font-mono">{outcome.line}</span>?
+            </>
+          ),
+          spoken: `Run ${outcome.line}?`,
           because: outcome.because,
           destructive: outcome.destructive,
+          label: "Run",
+          commit: { do: "run", line: outcome.line, confirmed: true },
         });
+        return;
+      case "ask":
+        void ask(outcome.id);
         return;
       default:
         void submit(outcome);
@@ -398,18 +452,16 @@ export function CommandPalette({
           {confirm ? (
             <fieldset className="mt-(--space-8) flex flex-col gap-(--space-8) rounded-md bg-bg-palette-selected px-(--space-12) py-(--space-12)">
               <legend className="sr-only">Confirm</legend>
-              <p className="text-size-sm font-medium text-text-primary">
-                Run <span className="font-mono">{confirm.line}</span>?
-              </p>
+              <p className="text-size-sm font-medium text-text-primary">{confirm.question}</p>
               <p className="text-size-xs text-text-secondary">{confirm.because}</p>
               <div className="flex items-center gap-(--space-12)">
                 <Button
                   ref={runButton}
                   variant={confirm.destructive ? "destructive" : "primary"}
                   disabled={busy}
-                  onClick={() => void submit({ do: "run", line: confirm.line, confirmed: true })}
+                  onClick={() => void submit(confirm.commit)}
                 >
-                  Run
+                  {confirm.label}
                 </Button>
                 <Button ref={cancelButton} variant="ghost" onClick={() => setConfirm(null)}>
                   Cancel

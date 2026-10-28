@@ -174,6 +174,9 @@ export function App() {
           onToggleLeft={() => toggleSidebar(!sidebarOpen)}
           onToggleRight={() => right.toggle(!right.open)}
           onShowSession={() => setView("session")}
+          onFork={(id) => void controller.fork(id)}
+          onClearContext={(id) => void controller.clearContext(id)}
+          onDelete={(id) => void deleteSession(id)}
         />
       )}
       <div className="flex h-full bg-bg-base text-size-md text-text-primary" inert={palette.open}>
