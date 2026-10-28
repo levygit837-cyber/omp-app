@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { describeError } from "../src/renderer/errors";
+import { describeConfigProblem, describeError, describeMcpFailure } from "../src/renderer/errors";
 
 describe("describeError", () => {
   test("a dead sidecar becomes a sentence, not the IPC text", () => {
@@ -33,5 +33,43 @@ describe("describeError", () => {
     expect(via("ACP session fork is unavailable while a prompt is in progress: abc")).not.toContain(
       "abc",
     );
+  });
+});
+
+describe("describeConfigProblem", () => {
+  test("omp's validation text becomes sentences, one per objection", () => {
+    expect(describeConfigProblem('Server "x": stdio server requires "command" field')).toBe(
+      "This stdio server needs a command.",
+    );
+    expect(describeConfigProblem('Server "x": sse server requires "url" field')).toBe(
+      "This sse server needs a URL.",
+    );
+    expect(describeConfigProblem('Server "x": unknown server type "ws"')).toContain("“ws”");
+    expect(describeConfigProblem("Server name is too long (max 100 characters)")).toBe(
+      "That name is longer than 100 characters.",
+    );
+    const two = describeConfigProblem(
+      'Server "x": both "command" and "url" are set - server should be either stdio (command) OR http/sse (url), not both Server "x": stdio server requires "command" field',
+    );
+    expect(two).not.toContain("Server");
+    expect(two).toContain("Keep one.");
+    expect(two).toContain("needs a command");
+  });
+
+  test("the sidecar's own sentences pass through", () => {
+    expect(
+      describeConfigProblem("Another process is writing this file. Try again in a moment."),
+    ).toBe("Another process is writing this file. Try again in a moment.");
+  });
+});
+
+describe("describeMcpFailure", () => {
+  test("a connection failure is a sentence and never the process text", () => {
+    expect(describeMcpFailure("spawn npx ENOENT")).toContain("wasn’t found");
+    expect(describeMcpFailure("connect ECONNREFUSED 127.0.0.1:9")).toContain("reach the server");
+    expect(describeMcpFailure("HTTP 401 Unauthorized")).toContain("credentials");
+    expect(describeMcpFailure("Request timed out")).toContain("in time");
+    const unknown = describeMcpFailure("boom at /Users/someone/x.js:3");
+    expect(unknown).not.toContain("/Users");
   });
 });

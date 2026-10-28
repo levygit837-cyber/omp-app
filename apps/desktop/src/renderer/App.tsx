@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { SidecarStatus } from "../shared/bridge";
 import { ActionErrorNotice } from "./ActionError";
 import { Announcer } from "./Announcer";
+import { ExtensionsScreen } from "./ExtensionsScreen";
 import { enginePhase, useEngine } from "./engine";
 import { buildRows, recentFolders } from "./projects";
 import { RightPanel, RightPanelToggle } from "./right-panel/RightPanel";
@@ -65,12 +66,21 @@ export function App() {
 
   // The session view is home: leaving Settings returns to the session that was open, and a
   // session that starts or is selected while Settings is up takes the screen back.
-  const [view, setView] = useState<"session" | "settings">("session");
+  const [view, setView] = useState<"session" | "settings" | "extensions">("session");
+  const extensionsButton = useRef<HTMLButtonElement>(null);
+  const extensionsShowButton = useRef<HTMLButtonElement>(null);
+  const returnTo = useRef<"settings" | "extensions">("settings");
   const settingsButton = useRef<HTMLButtonElement>(null);
   const settingsShowButton = useRef<HTMLButtonElement>(null);
   const returnFocus = useRef(false);
   const closeSettings = () => {
     returnFocus.current = true;
+    returnTo.current = "settings";
+    setView("session");
+  };
+  const closeExtensions = () => {
+    returnFocus.current = true;
+    returnTo.current = "extensions";
     setView("session");
   };
   // biome-ignore lint/correctness/useExhaustiveDependencies: the trigger is the session id
@@ -79,7 +89,12 @@ export function App() {
   useEffect(() => {
     if (view !== "session" || !returnFocus.current) return;
     returnFocus.current = false;
-    (sidebarOpen ? settingsButton : showButton).current?.focus();
+    (sidebarOpen
+      ? returnTo.current === "extensions"
+        ? extensionsButton
+        : settingsButton
+      : showButton
+    ).current?.focus();
   }, [view, sidebarOpen]);
 
   // ⌘R restarts the engine when it is stopped; ⌘O opens a folder. The menu leaves both free.
@@ -129,6 +144,9 @@ export function App() {
               settingsOpen={view === "settings"}
               settingsRef={settingsButton}
               onOpenSettings={() => setView("settings")}
+              extensionsOpen={view === "extensions"}
+              extensionsRef={extensionsButton}
+              onOpenExtensions={() => setView("extensions")}
               onSelect={(id) => {
                 // Picking the focused row changes no session id, so the effect above would not fire.
                 setView("session");
@@ -207,6 +225,21 @@ export function App() {
               />
             )}
           </div>
+          {view === "extensions" && (
+            <main
+              className="absolute inset-0 z-10 flex flex-col bg-bg-base"
+              aria-label="MCP and skills"
+            >
+              <ExtensionsScreen
+                sidecar={sidecar}
+                sessionId={sessionId}
+                sidebarOpen={sidebarOpen}
+                toggleRef={extensionsShowButton}
+                onToggleSidebar={() => toggleSidebar(true)}
+                onClose={closeExtensions}
+              />
+            </main>
+          )}
           {view === "settings" && (
             <main className="absolute inset-0 z-10 flex flex-col bg-bg-base" aria-label="Settings">
               <SettingsScreen

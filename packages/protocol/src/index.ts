@@ -4,6 +4,18 @@
  */
 
 import { isSessionListResult, type SessionListResult } from "./catalog";
+import {
+  isMcpChange,
+  isMcpListing,
+  isSkillsChange,
+  isSkillsListing,
+  type McpChange,
+  type McpListing,
+  type McpSecretRef,
+  type McpServerInput,
+  type SkillsChange,
+  type SkillsListing,
+} from "./extensions";
 import { isRecord } from "./guards";
 import type { AskAction, AskContent } from "./requests";
 import { isSessionSnapshot, type SessionOpEvent, type SessionSnapshot } from "./session";
@@ -18,6 +30,7 @@ import {
 } from "./settings";
 
 export * from "./catalog";
+export * from "./extensions";
 export * from "./requests";
 export * from "./session";
 export * from "./settings";
@@ -178,6 +191,33 @@ export interface Methods {
     params: SettingsTarget & { readonly id: string };
     result: SettingsRevealResult;
   };
+  /**
+   * The servers of one scope's `mcp.json` (`global` is `<agent dir>/mcp.json`, `project` is
+   * `<cwd>/.omp/mcp.json` of the named session). Values of env and headers are withheld.
+   */
+  "mcp.list": { params: SettingsTarget; result: McpListing };
+  /** Through omp's `addMCPServer`: its validation, its file lock, its bytes. */
+  "mcp.add": { params: SettingsTarget & { readonly server: McpServerInput }; result: McpChange };
+  /** Through omp's `updateMCPServer`. Fields the form does not carry (timeout, auth) are kept. */
+  "mcp.update": { params: SettingsTarget & { readonly server: McpServerInput }; result: McpChange };
+  "mcp.remove": { params: SettingsTarget & { readonly name: string }; result: McpChange };
+  /** Through omp's `setMcpServerEnabled`, as `/mcp enable` and `/mcp disable` do. */
+  "mcp.setEnabled": {
+    params: SettingsTarget & { readonly name: string; readonly enabled: boolean };
+    result: McpChange;
+  };
+  /** The one way a stored MCP secret leaves the sidecar. */
+  "mcp.reveal": {
+    params: SettingsTarget & { readonly name: string; readonly secret: McpSecretRef };
+    result: SettingsRevealResult;
+  };
+  /** Skills as omp discovers them for the session's project, disabled ones included. */
+  "skills.list": { params: { readonly sessionId?: string }; result: SkillsListing };
+  /** Adds or removes `skill:<name>` in the global `disabledExtensions` setting. */
+  "skills.setEnabled": {
+    params: { readonly sessionId?: string; readonly name: string; readonly enabled: boolean };
+    result: SkillsChange;
+  };
 }
 
 /**
@@ -296,6 +336,15 @@ export const methodWrites: { [M in MethodName]: boolean } = {
   "settings.set": true,
   "settings.reset": true,
   "settings.reveal": false,
+  // Writes go to the shared mcp.json files and to config.yml. List and reveal only read.
+  "mcp.list": false,
+  "mcp.add": true,
+  "mcp.update": true,
+  "mcp.remove": true,
+  "mcp.setEnabled": true,
+  "mcp.reveal": false,
+  "skills.list": false,
+  "skills.setEnabled": true,
 };
 
 export function isDebugWriteResult(v: unknown): v is DebugWriteResult {
@@ -328,6 +377,14 @@ export const resultGuards: { [M in MethodName]: (v: unknown) => v is Methods[M][
   "settings.set": isSettingsChange,
   "settings.reset": isSettingsChange,
   "settings.reveal": isSettingsRevealResult,
+  "mcp.list": isMcpListing,
+  "mcp.add": isMcpChange,
+  "mcp.update": isMcpChange,
+  "mcp.remove": isMcpChange,
+  "mcp.setEnabled": isMcpChange,
+  "mcp.reveal": isSettingsRevealResult,
+  "skills.list": isSkillsListing,
+  "skills.setEnabled": isSkillsChange,
 };
 
 /** A request that failed: the sidecar answered with an error, or the reply was malformed. */

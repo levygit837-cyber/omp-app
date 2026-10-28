@@ -60,11 +60,13 @@ export const SETTINGS_CAPABILITIES = [
   "settings.reveal",
 ] as const;
 
-interface Target {
+export interface Target {
   readonly scope: SettingScope;
   readonly cwd?: string;
   /** The session runs where omp reads no project config: the scope lists but cannot be edited. */
   readonly projectUnavailable?: string;
+  /** The folder of a session that runs in the home directory (`cwd` stays unset there). */
+  readonly home?: string;
 }
 
 const HOME_MESSAGE =
@@ -89,7 +91,10 @@ function isHome(dir: string): boolean {
  * directory lists, with the project layer reported unavailable, because omp ignores a project
  * config there (`discovery/builtin.ts:64-67` [V]).
  */
-async function parseTarget(control: SettingsControl, params: SettingsTarget): Promise<Target> {
+export async function parseTarget(
+  control: SettingsControl,
+  params: SettingsTarget,
+): Promise<Target> {
   const { scope, sessionId } = params;
   if (scope !== "global" && scope !== "project") throw new Error(`unknown scope: ${String(scope)}`);
   if (sessionId === undefined) {
@@ -102,7 +107,7 @@ async function parseTarget(control: SettingsControl, params: SettingsTarget): Pr
     if (scope === "project") throw new Error(`unknown session: ${sessionId}`);
     return { scope };
   }
-  if (isHome(cwd)) return { scope, projectUnavailable: HOME_MESSAGE };
+  if (isHome(cwd)) return { scope, projectUnavailable: HOME_MESSAGE, home: cwd };
   const isDirectory = (await stat(cwd).catch(() => null))?.isDirectory() === true;
   if (isDirectory) return { scope, cwd };
   if (scope === "project") throw new Error(`project directory not found: ${cwd}`);

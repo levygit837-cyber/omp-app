@@ -1,11 +1,17 @@
 import type {
   AskAction,
   AskContent,
+  McpChange,
+  McpListing,
+  McpSecretRef,
+  McpServerInput,
   SessionOpEvent,
   SessionSnapshot,
   SettingsChange,
   SettingsListing,
   SettingsTarget,
+  SkillsChange,
+  SkillsListing,
   StoredSession,
 } from "@omp-app/protocol";
 
@@ -85,5 +91,21 @@ export type OmpBridge = {
     openConfigFile(): Promise<void>;
     /** Calls `listener` when the application menu asks for settings. Returns the unsubscribe function. */
     onOpenRequested(listener: () => void): () => void;
+  };
+  readonly mcp: {
+    /** The servers of one scope's mcp.json. Env and header values are withheld; see `reveal`. */
+    list(target: SettingsTarget): Promise<McpListing>;
+    /** A refusal comes back as `{ ok: false, message }`. Rejects in read-only mode. */
+    add(target: SettingsTarget, server: McpServerInput): Promise<McpChange>;
+    update(target: SettingsTarget, server: McpServerInput): Promise<McpChange>;
+    remove(target: SettingsTarget, name: string): Promise<McpChange>;
+    setEnabled(target: SettingsTarget, name: string, enabled: boolean): Promise<McpChange>;
+    /** One stored value (an env or header value, or the full URL), on demand. */
+    reveal(target: SettingsTarget, name: string, secret: McpSecretRef): Promise<string>;
+  };
+  readonly skills: {
+    /** Skills as omp lists them for `sessionId`'s project (or only the user's when omitted). */
+    list(sessionId?: string): Promise<SkillsListing>;
+    setEnabled(name: string, enabled: boolean, sessionId?: string): Promise<SkillsChange>;
   };
 };

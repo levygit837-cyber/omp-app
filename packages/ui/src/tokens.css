@@ -187,6 +187,9 @@
   --layout-setting-control: 300px;
   --layout-settings-search: 280px;
   --layout-popover: 340px;
+  /* MCP & skills (Pen f1ZYh8): the server list column, and the name column of a skill row. */
+  --layout-extensions-list: 420px;
+  --layout-skill-name: 210px;
   --size-field: 32px;
   --size-field-narrow: 120px;
   --size-toggle-width: 34px;

@@ -5,6 +5,7 @@ import {
   cx,
   FolderIcon,
   IconButton,
+  McpSkillsIcon,
   Menu,
   type MenuAnchor,
   MenuItem,
@@ -286,17 +287,34 @@ function Footer({
   settingsOpen,
   settingsRef,
   onOpenSettings,
+  extensionsOpen,
+  extensionsRef,
+  onOpenExtensions,
 }: {
   sidecar: SidecarStatus;
   versions: string;
   settingsOpen: boolean;
   settingsRef: Ref<HTMLButtonElement>;
   onOpenSettings: () => void;
+  extensionsOpen: boolean;
+  extensionsRef: Ref<HTMLButtonElement>;
+  onOpenExtensions: () => void;
 }) {
   const state = sidecar.state;
   return (
     <div className="flex flex-col gap-(--space-4) border-t border-border-hairline">
-      <div className="px-(--space-8) pt-(--space-8)">
+      <div className="flex flex-col gap-(--space-2) px-(--space-8) pt-(--space-8)">
+        <button
+          ref={extensionsRef}
+          type="button"
+          data-testid="open-extensions"
+          aria-current={extensionsOpen ? "page" : undefined}
+          onClick={onOpenExtensions}
+          className={`flex w-full items-center gap-(--space-10) rounded-sm px-(--space-10) py-(--space-8) text-left text-size-md hover:bg-bg-hover ${extensionsOpen ? "bg-bg-selected text-text-primary" : "text-text-secondary"}`}
+        >
+          <McpSkillsIcon />
+          MCP &amp; skills
+        </button>
         <button
           ref={settingsRef}
           type="button"
@@ -342,6 +360,9 @@ export function SidebarBody({
   settingsOpen,
   settingsRef,
   onOpenSettings,
+  extensionsOpen,
+  extensionsRef,
+  onOpenExtensions,
   ...actions
 }: {
   stored: readonly StoredSession[] | null;
@@ -356,6 +377,9 @@ export function SidebarBody({
   settingsOpen: boolean;
   settingsRef: Ref<HTMLButtonElement>;
   onOpenSettings: () => void;
+  extensionsOpen: boolean;
+  extensionsRef: Ref<HTMLButtonElement>;
+  onOpenExtensions: () => void;
 } & SessionActions) {
   const now = useNow();
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
@@ -429,6 +453,9 @@ export function SidebarBody({
         settingsOpen={settingsOpen}
         settingsRef={settingsRef}
         onOpenSettings={onOpenSettings}
+        extensionsOpen={extensionsOpen}
+        extensionsRef={extensionsRef}
+        onOpenExtensions={onOpenExtensions}
       />
     </>
   );

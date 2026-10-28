@@ -1,6 +1,12 @@
 import "./stdio";
 import { writeSync } from "node:fs";
 import { type HandshakeResult, PROTOCOL_VERSION } from "@omp-app/protocol";
+import {
+  MCP_CAPABILITIES,
+  mcpHandlers,
+  SKILLS_CAPABILITIES,
+  skillsHandlers,
+} from "./extensions-handlers";
 import { startOmpHost } from "./omp-host";
 import { RequestRegistry } from "./request-registry";
 import { AgentDbUnreadableError, checkSchema } from "./schema-guard";
@@ -40,6 +46,8 @@ async function main(): Promise<void> {
     "handshake",
     ...SESSION_CAPABILITIES,
     ...SETTINGS_CAPABILITIES,
+    ...MCP_CAPABILITIES,
+    ...SKILLS_CAPABILITIES,
     ...(DEBUG ? ["debug.logStdout", "debug.write"] : []),
   ];
   const handlers: Handlers = {
@@ -53,6 +61,8 @@ async function main(): Promise<void> {
     }),
     ...sessionHandlers(host, store, requests),
     ...settingsHandlers(settingsControl(host, store)),
+    ...mcpHandlers(settingsControl(host, store)),
+    ...skillsHandlers(settingsControl(host, store)),
   };
   if (DEBUG) {
     handlers["debug.logStdout"] = async ({ marker }) => {
