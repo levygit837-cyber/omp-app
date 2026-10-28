@@ -8,6 +8,7 @@ const app = await App.launch({
   FAKE_CHUNK_MS: "40",
   ...(mode === "fail" ? { FAKE_CANCEL_FAILS: "1" } : {}),
   ...(mode === "overflow" ? { FAKE_SUBAGENT_EXTRA: "4" } : {}),
+  ...(mode === "odd-id" ? { FAKE_SUBAGENT_ODD_ID: "1" } : {}),
   HOME: HOME_DIR,
 });
 const shot = (n: string) => app.shot(`${SHOTS_DIR}/${n}.png`);
@@ -140,6 +141,34 @@ try {
     await click("[data-testid=subagent-row][data-subagent-id=sa-extra-4]");
     await sleep(500);
     console.log("after sidebar pick of last:", await geo());
+  }
+  if (mode === "odd-id") {
+    // An id with a quote, a backslash and a bracket must not break the window: nothing may build a
+    // CSS selector from it. The first row-count wait above already passed with 3 rows.
+    await app.eval(`window.__errors = []; window.addEventListener('error', (e) => window.__errors.push(String(e.message)))`);
+    const odd = `[...document.querySelectorAll('[data-testid=subagent-row]')].find((r) => r.dataset.subagentId.includes('auth'))`;
+    await app.waitFor(odd);
+    await app.eval(`${odd}.click()`);
+    await sleep(600);
+    const state = () => app.eval(`JSON.stringify({
+      rootChildren: document.getElementById('root')?.children.length ?? 0,
+      tabs: [...document.querySelectorAll('[role=tab]')].map((t) => [t.dataset.tabKey, t.getAttribute('aria-selected')]),
+      errors: window.__errors,
+      active: document.activeElement?.dataset?.tabKey ?? document.activeElement?.tagName,
+    })`);
+    console.log("odd row picked:", await state());
+    await shot("16-odd-id-selected");
+    await app.eval(`document.querySelector('[role=tab][aria-selected=true]').focus()`);
+    await key("Home", 36);
+    for (let i = 0; i < 6; i++) await key("ArrowRight", 39);
+    await sleep(300);
+    console.log("after Home + 6x ArrowRight:", await state());
+    // Delete closes the odd tab and focus moves to a neighbour that stays.
+    await app.eval(`document.querySelector('[role=tab][data-tab-key*="auth"]').focus()`);
+    await key("Delete", 46);
+    await sleep(500);
+    console.log("after Delete on the odd tab:", await state());
+    await shot("17-odd-id-closed");
   }
   if (mode === "confirm-stream") {
     await click("[data-testid=subagent-row][data-subagent-id=sa-verify]");
