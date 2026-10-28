@@ -16,6 +16,8 @@ import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-sessi
 import { setAgentDir } from "@oh-my-pi/pi-utils";
 import {
   ACTION_BUSY_MESSAGE,
+  ACTION_COMMAND_MESSAGE,
+  ACTION_SHELL_MESSAGE,
   decodeFrame,
   FILE_OWNED_MESSAGE,
   FrameDecoder,
@@ -259,6 +261,68 @@ test("clearContext answers an unknown id and a read-only sidecar with their own 
   // Reading is allowed: the question can still be worded.
   expect(await errorMessage(ro.request("agents.pauseState"))).toBeNull();
   ro.close();
+});
+
+test("clearContext is refused while a shell command runs, with its own sentence", async () => {
+  const client = await connect(join(root, "s.sock"));
+  const id = await openWithTurn(client, "clear-shell");
+  const session = sessionOf(id);
+  const run = session.executeBash("sleep 30");
+  await until(() => session.isBashRunning, "the shell command to start");
+
+  expect(
+    await errorMessage(client.request("session.clearContext", { sessionId: id, confirmed: true })),
+  ).toBe(ACTION_SHELL_MESSAGE);
+  expect(kinds(id)).not.toContain("boundary");
+  expect(session.agent.state.messages.length).toBeGreaterThan(0);
+
+  session.abortBash();
+  await run.catch(() => {});
+  client.close();
+});
+
+test("clearContext is refused while a Python cell runs, with the shell's sentence", async () => {
+  const client = await connect(join(root, "s.sock"));
+  const id = await openWithTurn(client, "clear-eval");
+  const session = sessionOf(id);
+  // No Python kernel runs in tests: the session reports a cell in flight, as omp's own
+  // `isEvalRunning` does while `executePython` runs. Both the host and omp read the same getter.
+  Object.defineProperty(session, "isEvalRunning", { configurable: true, get: () => true });
+  try {
+    expect(
+      await errorMessage(
+        client.request("session.clearContext", { sessionId: id, confirmed: true }),
+      ),
+    ).toBe(ACTION_SHELL_MESSAGE);
+    expect(kinds(id)).not.toContain("boundary");
+  } finally {
+    // Drops the own property, so the prototype getter answers again.
+    Reflect.deleteProperty(session, "isEvalRunning");
+  }
+  client.close();
+});
+
+test("clearContext is refused while a compaction runs, which omp itself would not refuse", async () => {
+  const client = await connect(join(root, "s.sock"));
+  const id = await openWithTurn(client, "clear-compacting");
+  const session = sessionOf(id);
+  // A one-turn session is too small for omp to compact, so the compaction is reported the way
+  // omp's own getter reports one in flight. `resetSessionContext` checks only streaming, shell
+  // and Python (`agent-session.ts:6287` [V]): without the host's guard this clear would succeed.
+  Object.defineProperty(session, "isCompacting", { configurable: true, get: () => true });
+  try {
+    expect(
+      await errorMessage(
+        client.request("session.clearContext", { sessionId: id, confirmed: true }),
+      ),
+    ).toBe(ACTION_COMMAND_MESSAGE);
+    expect(kinds(id)).not.toContain("boundary");
+    expect(session.agent.state.messages.length).toBeGreaterThan(0);
+  } finally {
+    // Drops the own property, so the prototype getter answers again.
+    Reflect.deleteProperty(session, "isCompacting");
+  }
+  client.close();
 });
 
 // -- Delete session -----------------------------------------------------------------------------
