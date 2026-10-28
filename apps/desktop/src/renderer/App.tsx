@@ -5,6 +5,7 @@ import { ActionErrorNotice } from "./ActionError";
 import { Announcer } from "./Announcer";
 import { ExtensionsScreen } from "./ExtensionsScreen";
 import { enginePhase, useEngine } from "./engine";
+import { KillHost } from "./kill";
 import { PaletteHost } from "./palette/PaletteHost";
 import { usePalette } from "./palette/use-palette";
 import { buildRows, recentFolders } from "./projects";
@@ -18,6 +19,7 @@ import { useSessionController } from "./session-controller";
 import { useOpenCwds, useSyncError } from "./session-hooks";
 import { EngineContext } from "./shown-status";
 import { TabBar } from "./TabBar";
+import { useSessionTabs } from "./use-tabs";
 
 function useSidecarStatus(): SidecarStatus {
   const [status, setStatus] = useState<SidecarStatus>({ state: "starting" });
@@ -61,6 +63,7 @@ export function App() {
   const palette = usePalette();
   const [readOnlyDismissed, setReadOnlyDismissed] = useState(false);
   const sessionId = controller.focused;
+  const tabs = useSessionTabs(sessionId);
   const openCwds = useOpenCwds(controller.open);
   const ready = sidecar.state === "ready";
   const readOnly = ready && sidecar.mode === "read_only";
@@ -166,6 +169,7 @@ export function App() {
               open={controller.open}
               openCwds={openCwds}
               focused={sessionId}
+              shownSubagent={tabs.active.kind === "subagent" ? tabs.active.id : null}
               readOnly={readOnly}
               sidecar={sidecar}
               versions={`electron ${electron} · chrome ${chrome}`}
@@ -203,6 +207,7 @@ export function App() {
             <main className="flex min-w-0 flex-1 flex-col" aria-label="Session">
               <TabBar
                 sessionId={sessionId}
+                tabs={tabs}
                 sidebarOpen={sidebarOpen}
                 engineStopped={sidecar.state === "failed"}
                 readOnly={readOnly}
@@ -220,10 +225,12 @@ export function App() {
               {controller.error && (
                 <ActionErrorNotice error={controller.error} onDismiss={controller.dismissError} />
               )}
+              <KillHost focused={sessionId} />
               {sessionId ? (
                 <SessionPane
                   key={sessionId}
                   sessionId={sessionId}
+                  tabs={tabs}
                   sidecar={sidecar}
                   track={track}
                   engine={engine}

@@ -1,6 +1,8 @@
 import "./stdio";
 import { writeSync } from "node:fs";
 import { type HandshakeResult, PROTOCOL_VERSION } from "@omp-app/protocol";
+import { DelegationRegistry } from "./delegation";
+import { DELEGATION_CAPABILITIES, delegationHandlers } from "./delegation-handlers";
 import {
   MCP_CAPABILITIES,
   mcpHandlers,
@@ -37,10 +39,11 @@ async function main(): Promise<void> {
   const store = new SessionStore();
   const requests = new RequestRegistry(store);
   const planSessions = new PlanSessions((id) => store.has(id));
+  const delegations = new DelegationRegistry();
   const host = await startOmpHost({
     requests,
-    onSessionCreated: (session) => {
-      attachSession(store, session, requests);
+    onSessionCreated: (session, bus) => {
+      attachSession(store, session, requests, { bus, registry: delegations });
       planSessions.add(session);
     },
     onMcpFailure: (sessionId, server, message) => {
@@ -51,6 +54,7 @@ async function main(): Promise<void> {
     "handshake",
     ...SESSION_CAPABILITIES,
     ...PLAN_CAPABILITIES,
+    ...DELEGATION_CAPABILITIES,
     ...SETTINGS_CAPABILITIES,
     ...MCP_CAPABILITIES,
     ...SKILLS_CAPABILITIES,
@@ -67,6 +71,7 @@ async function main(): Promise<void> {
     }),
     ...sessionHandlers(host, store, requests),
     ...planHandlers(host, store, planSessions, requests),
+    ...delegationHandlers(delegations, store),
     ...settingsHandlers(settingsControl(host, store)),
     ...mcpHandlers(settingsControl(host, store)),
     ...skillsHandlers(settingsControl(host, store)),

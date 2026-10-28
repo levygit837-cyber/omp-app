@@ -23,6 +23,13 @@
  * - FAKE_COMMAND_MS: how long a command runs before it prints (default 40).
  * - FAKE_COMMAND_HOLD=1: a command stays `running` until `session.cancel` (then `stopped`).
  * - FAKE_STORED=<n>: n sessions "on disk" (`stored-<i>`, see fake-catalog.ts) for list/resume/fork.
+ * - FAKE_DELEGATION=1|running|frames: after the first subscribe of each session, two subagents
+ *   (`sa-explore`, `sa-verify` with a nested `sa-clock`) and one job (`job-1`) appear, each
+ *   subagent with its own read-only view (`view:<sessionId>:<id>`). Also serves
+ *   `subagent.cancel|job.cancel`. `frames` also bursts FAKE_SUBAGENT_FRAMES (400) ops into
+ *   `sa-verify`'s view on its first subscribe. FAKE_SUBAGENT_MS: `sa-explore` completes after
+ *   that many ms (default never). FAKE_CANCEL_FAILS=1: `subagent.cancel` rejects. See
+ *   fake-delegation.ts.
  *
  * `settings.*` is served from `fake-settings.ts` (in memory; `read-only` refuses the writes).
  * `mcp.*` and `skills.*` come from `fake-extensions.ts` (same; FAKE_MCP=empty|broken picks the state).
@@ -55,6 +62,7 @@ import {
   missingConfirmation,
   unknownCommand,
 } from "./fake-commands";
+import { createDelegation } from "./fake-delegation";
 import { handleExtensions } from "./fake-extensions";
 import { handlePlan } from "./fake-plan";
 import {
@@ -310,6 +318,24 @@ function openFake(sessionId: string, cwd: string, timeline: Item[]): void {
 function initialThinking(model: string): string | null {
   return (fakeModels().find((m) => m.id === model)?.efforts.length ?? 0) > 0 ? "off" : null;
 }
+const delegation = createDelegation<FakeSession>({
+  emit,
+  get: (id) => sessions.get(id),
+  open: (id, cwd, timeline, status) => {
+    const session: FakeSession = {
+      vm: { ...fakeViewModel({ id, cwd, model: MODEL, timeline }), status },
+      seq: 0,
+      subs: new Set(),
+      commands: new Map(),
+      turns: 0,
+      warned: false,
+    };
+    sessions.set(id, session);
+    return session;
+  },
+  remove: (id) => sessions.delete(id),
+  chunkMs: CHUNK_MS,
+});
 
 function readOnlyError(id: string, method: string): ResponseEnvelope {
   return errorResponse(id, {
@@ -327,6 +353,7 @@ function handleCatalog(method: string, id: string, params: unknown): ResponseEnv
     case "session.list":
       return okResponse(id, { sessions: stored });
     case "session.close":
+      delegation.dispose(sessionId);
       sessions.delete(sessionId);
       return okResponse(id, null);
     case "session.resume": {
@@ -384,11 +411,25 @@ function handleSession(
     return okResponse(id, { sessionId });
   }
 
+  // A subagent view is read-only: only subscribe/unsubscribe accept it (close, resume and fork
+  // included, so the catalog below never sees one).
+  const sessionId = param(params, "sessionId");
+  if (
+    delegation.isView(sessionId) &&
+    method.startsWith("session.") &&
+    method !== "session.subscribe" &&
+    method !== "session.unsubscribe"
+  ) {
+    return errorResponse(id, {
+      code: "internal",
+      message: `${UNKNOWN_SESSION_MESSAGE}: ${sessionId}`,
+    });
+  }
+
   const catalog = handleCatalog(method, id, params);
   if (catalog) return catalog;
 
   if (!method.startsWith("session.")) return undefined;
-  const sessionId = param(params, "sessionId");
   const session = sessions.get(sessionId);
   if (!session) {
     return errorResponse(id, {
@@ -412,6 +453,7 @@ function handleSession(
           0,
         );
       }
+      delegation.onSubscribe(sessionId, session);
       return okResponse(id, { snapshot: session.vm, seq: session.seq });
     }
     case "session.unsubscribe":
@@ -554,6 +596,7 @@ Bun.listen<undefined>({
           response =
             handleSettings(method, id, params, mode === "read-only", cwdOf) ??
             handleExtensions(method, id, params, mode === "read-only", cwdOf) ??
+            delegation.handle(method, id, params) ??
             handleSession(method, id, params, socket);
         }
         send(

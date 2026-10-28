@@ -7,6 +7,7 @@
  * Existing kinds and ops keep their shape; `applyOp` ignores ops it does not know, so an
  * older replica never breaks on a newer op.
  */
+import { isJobInfo, isSubagentInfo, type JobInfo, type SubagentInfo } from "./delegation";
 import { isRecord } from "./guards";
 import { isPlanState, type PlanState } from "./plan";
 import { type Attachment, isAttachment, isQueueState, type QueueState, sameQueue } from "./prompt";
@@ -130,6 +131,10 @@ export interface SessionViewModel {
    * write the mode to the session file, so there is nothing to resume it from.
    */
   readonly plan: PlanState;
+  /** Subagents the session started, in the order they first appeared. See `delegation.ts`. */
+  readonly subagents: readonly SubagentInfo[];
+  /** Background jobs the session owns: the running ones and the latest finished. */
+  readonly jobs: readonly JobInfo[];
 }
 
 /** A change to the view model. Discriminated by `type`. */
@@ -186,7 +191,11 @@ export type SessionOp =
    * saving to a new one. This op is delivered under the old id; every later op uses `id`, and
    * `seq` carries on. Applying it sets `vm.id`.
    */
-  | { readonly type: "session.moved"; readonly id: string };
+  | { readonly type: "session.moved"; readonly id: string }
+  /** Adds the subagent, or replaces the one with the same `id` in place. */
+  | { readonly type: "subagent.set"; readonly subagent: SubagentInfo }
+  /** Replaces the whole job list (omp has no job events; the sidecar reads the manager). */
+  | { readonly type: "jobs.set"; readonly jobs: readonly JobInfo[] };
 
 /** Full state of a session at `seq`: the number of ops applied since it was created. */
 export interface SessionSnapshot {
@@ -311,6 +320,15 @@ export function applyOp(vm: SessionViewModel, op: SessionOp): SessionViewModel {
     }
     case "session.moved":
       return { ...vm, id: op.id };
+    case "subagent.set": {
+      const at = vm.subagents.findIndex((s) => s.id === op.subagent.id);
+      if (at === -1) return { ...vm, subagents: [...vm.subagents, op.subagent] };
+      const subagents = vm.subagents.slice();
+      subagents[at] = op.subagent;
+      return { ...vm, subagents };
+    }
+    case "jobs.set":
+      return { ...vm, jobs: op.jobs };
     default:
       return vm;
   }
@@ -359,7 +377,11 @@ export function isSessionViewModel(v: unknown): v is SessionViewModel {
     v.todo.every(isTodoPhase) &&
     Array.isArray(v.pending) &&
     v.pending.every(isPendingRequest) &&
-    isPlanState(v.plan)
+    isPlanState(v.plan) &&
+    Array.isArray(v.subagents) &&
+    v.subagents.every(isSubagentInfo) &&
+    Array.isArray(v.jobs) &&
+    v.jobs.every(isJobInfo)
   );
 }
 

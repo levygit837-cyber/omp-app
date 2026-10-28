@@ -1,11 +1,13 @@
 import type {
   CommandItem,
   Item,
+  JobInfo,
   PendingRequest,
   PlanState,
   QueueState,
   SessionStatus,
   SessionWarning,
+  SubagentInfo,
 } from "@omp-app/protocol";
 import { useMemo } from "react";
 import { useStore } from "zustand";
@@ -51,6 +53,12 @@ export const usePending = (sessionId: string): readonly PendingRequest[] | undef
   select((s) => s.sessions[sessionId]?.pending);
 export const usePlan = (sessionId: string): PlanState | undefined =>
   select((s) => s.sessions[sessionId]?.plan);
+const NO_SUBAGENTS: readonly SubagentInfo[] = [];
+const NO_JOBS: readonly JobInfo[] = [];
+export const useSubagents = (sessionId: string): readonly SubagentInfo[] =>
+  select((s) => s.sessions[sessionId]?.subagents ?? NO_SUBAGENTS);
+export const useJobs = (sessionId: string): readonly JobInfo[] =>
+  select((s) => s.sessions[sessionId]?.jobs ?? NO_JOBS);
 export const useItemKind = (sessionId: string, index: number): Item["kind"] | undefined =>
   select((s) => s.sessions[sessionId]?.timeline[index]?.kind);
 export const useModel = (sessionId: string | null): string | null | undefined =>

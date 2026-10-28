@@ -18,6 +18,9 @@ export const SESSION_ANSWER_ASK = "session:answer-ask";
 export const SESSION_SET_PLAN_MODE = "session:set-plan-mode";
 export const SESSION_READ_PLAN = "session:read-plan";
 export const SESSION_OP = "session:op";
+/** Kills a subagent or a background job. Separate from `session:cancel`: Esc never reaches these. */
+export const SUBAGENT_CANCEL = "subagent:cancel";
+export const JOB_CANCEL = "job:cancel";
 export const APP_OPEN_LINK = "app:open-link";
 export const SESSION_LIST = "session:list";
 export const SESSION_RESUME = "session:resume";

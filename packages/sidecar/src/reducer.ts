@@ -608,5 +608,7 @@ export function emptyViewModel(init: {
     thinking: init.thinking ?? null,
     queue: EMPTY_QUEUE,
     plan: { enabled: false, planFile: null },
+    subagents: [],
+    jobs: [],
   };
 }

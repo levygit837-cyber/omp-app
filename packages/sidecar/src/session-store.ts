@@ -3,13 +3,16 @@ import type {
   CommandItem,
   ContextFill,
   DecisionItem,
+  JobInfo,
   PendingRequest,
   PlanState,
   SessionOp,
   SessionOpEvent,
   SessionSnapshot,
+  SessionStatus,
   SessionViewModel,
   SessionWarning,
+  SubagentInfo,
 } from "@omp-app/protocol";
 import { applyOp, UNKNOWN_SESSION_MESSAGE } from "@omp-app/protocol";
 import { type Reduced, reduceEvent, reduceModel, reduceThinking } from "./reducer";
@@ -22,6 +25,13 @@ interface Entry {
   seq: number;
   /** One sink per subscriber key (a connection). Insertion order is delivery order. */
   readonly sinks: Map<unknown, OpSink>;
+  /**
+   * A read-only view of work the sidecar observes (a subagent's timeline), not a session omp
+   * drives: it can be subscribed to, and nothing else is accepted for it.
+   */
+  readonly view: boolean;
+  /** Run when the entry is removed, whatever id it lives under by then. */
+  readonly onRemove: Set<() => void>;
 }
 
 /**
@@ -43,7 +53,36 @@ export class SessionStore {
   create(viewModel: SessionViewModel): void {
     if (this.#sessions.has(viewModel.id))
       throw new Error(`session already exists: ${viewModel.id}`);
-    this.#sessions.set(viewModel.id, { viewModel, seq: 0, sinks: new Map() });
+    this.#sessions.set(viewModel.id, {
+      viewModel,
+      seq: 0,
+      sinks: new Map(),
+      view: false,
+      onRemove: new Set(),
+    });
+  }
+
+  /** Registers a read-only view (see `Entry.view`). Ops that happen later are numbered from 1. */
+  createView(viewModel: SessionViewModel): void {
+    if (this.#sessions.has(viewModel.id))
+      throw new Error(`session already exists: ${viewModel.id}`);
+    this.#sessions.set(viewModel.id, {
+      viewModel,
+      seq: 0,
+      sinks: new Map(),
+      view: true,
+      onRemove: new Set(),
+    });
+  }
+
+  /** Whether the id is a read-only view. Such an id is not a session for anything that drives one. */
+  isView(sessionId: string): boolean {
+    return this.#sessions.get(sessionId)?.view === true;
+  }
+
+  /** Runs `fn` when the entry is removed, so what hangs off a session goes with it. */
+  onRemove(sessionId: string, fn: () => void): void {
+    this.#entry(sessionId).onRemove.add(fn);
   }
 
   has(sessionId: string): boolean {
@@ -76,6 +115,28 @@ export class SessionStore {
       viewModel: applyOp(entry.viewModel, op),
       ops: [op],
     });
+  }
+
+  /** Sets the status of a view whose events do not end on their own (a subagent that was killed). */
+  setStatus(sessionId: string, status: SessionStatus): void {
+    const entry = this.#entry(sessionId);
+    if (entry.viewModel.status === status) return;
+    this.#apply(sessionId, { type: "status.set", status });
+  }
+
+  /** Adds or updates a subagent of the session. No op when nothing about it changed. */
+  setSubagent(sessionId: string, subagent: SubagentInfo): void {
+    const entry = this.#entry(sessionId);
+    const before = entry.viewModel.subagents.find((s) => s.id === subagent.id);
+    if (before && JSON.stringify(before) === JSON.stringify(subagent)) return;
+    this.#apply(sessionId, { type: "subagent.set", subagent });
+  }
+
+  /** Replaces the session's job list. No op when it is the same list. */
+  setJobs(sessionId: string, jobs: readonly JobInfo[]): void {
+    const entry = this.#entry(sessionId);
+    if (JSON.stringify(entry.viewModel.jobs) === JSON.stringify(jobs)) return;
+    this.#apply(sessionId, { type: "jobs.set", jobs });
   }
 
   /** Records a non-blocking problem; the session keeps running. */
@@ -198,7 +259,17 @@ export class SessionStore {
 
   /** Forgets a closed session and its subscribers. Later requests for it are `unknown session`. */
   remove(sessionId: string): void {
+    const entry = this.#sessions.get(sessionId);
     this.#sessions.delete(sessionId);
+    for (const run of entry?.onRemove ?? []) {
+      try {
+        run();
+      } catch (error) {
+        console.error(
+          `[sidecar] cleanup failed: ${error instanceof Error ? error.message : error}`,
+        );
+      }
+    }
     for (const [old, now] of this.#moved) if (now === sessionId) this.#moved.delete(old);
   }
 

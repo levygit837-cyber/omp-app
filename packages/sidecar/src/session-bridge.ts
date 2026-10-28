@@ -2,6 +2,7 @@ import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-sessi
 import type { SessionWarning } from "@omp-app/protocol";
 import { readStoredCommands } from "./command-entries";
 import { readContextFill } from "./context-fill";
+import { type DelegationHooks, trackDelegation } from "./delegation";
 import { planOf } from "./plan-state";
 import { emptyViewModel } from "./reducer";
 import type { RequestAnswers } from "./request-registry";
@@ -53,6 +54,7 @@ export function attachSession(
   store: SessionStore,
   session: AgentSession,
   requests: Pick<RequestAnswers, "agentEvent">,
+  delegation?: DelegationHooks,
 ): void {
   // The id the store knows the session by: the manager's, which omp changes when it moves the
   // session to a new file (see the persistence notice below). `session.sessionId` is the provider
@@ -104,6 +106,13 @@ export function attachSession(
     warnings,
   });
   created = true;
+  if (delegation) {
+    delegation.registry.add(
+      () => id,
+      trackDelegation(store, session, delegation, () => id),
+      store,
+    );
+  }
   session.subscribe((event) => {
     guarded(`reducer on ${event.type}`, () => {
       if (event.type === "model_changed") {

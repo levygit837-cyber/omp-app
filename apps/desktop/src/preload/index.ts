@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { OmpBridge, SidecarStatus } from "../shared/bridge";
 import {
   APP_OPEN_LINK,
+  JOB_CANCEL,
   MCP_ADD,
   MCP_LIST,
   MCP_REMOVE,
@@ -43,6 +44,7 @@ import {
   SIDECAR_STATUS,
   SKILLS_LIST,
   SKILLS_SET_ENABLED,
+  SUBAGENT_CANCEL,
 } from "../shared/channels";
 
 const bridge: OmpBridge = {
@@ -93,6 +95,9 @@ const bridge: OmpBridge = {
     commands: async (sessionId) => ipcRenderer.invoke(SESSION_COMMANDS, sessionId),
     runCommand: (sessionId, text, confirmed) =>
       ipcRenderer.invoke(SESSION_RUN_COMMAND, sessionId, text, confirmed),
+    cancelSubagent: (sessionId, subagentId) =>
+      ipcRenderer.invoke(SUBAGENT_CANCEL, sessionId, subagentId),
+    cancelJob: (sessionId, jobId) => ipcRenderer.invoke(JOB_CANCEL, sessionId, jobId),
     onOp: (listener) => {
       const handler = (_event: Electron.IpcRendererEvent, op: SessionOpEvent) => listener(op);
       ipcRenderer.on(SESSION_OP, handler);

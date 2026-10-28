@@ -2,12 +2,16 @@
  * Dev script (local, needs credentials in the shared `~/.omp`): runs a real prompt against the
  * pinned omp and writes the raw `AgentSessionEvent` stream as JSONL to `test/fixtures/`.
  *
- *   bun run scripts/record.ts basic|cancel|tools|search|failures|todo|thinking|compaction|steering
+ *   bun run scripts/record.ts basic|cancel|tools|search|failures|todo|thinking|compaction|steering|subagent
  *
  * Line 1 is a header (`fixture: 1`) with what the replay needs to start from; every other line
  * is one event, verbatim except for scrubbing: the home directory becomes `~`, the temp working
  * directory becomes `/work/project`, and the script refuses to write anything that looks like a
  * credential.
+ *
+ * The `subagent` scenario records two streams in one file, in arrival order: each line is
+ * `{"ch": "session" | <bus channel>, "data": ...}`. `session` is the parent's `AgentSessionEvent`;
+ * the others are the three `task:subagent:*` frames of the session's `subagentEventBus`.
  */
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
@@ -49,6 +53,8 @@ interface Scenario {
   readonly joinAfterDeltas?: number;
   readonly followUp?: string;
   readonly steer?: string;
+  /** Record the subagent bus frames too, every line tagged with its channel. */
+  readonly withSubagentBus?: boolean;
 }
 
 const SCENARIOS: Record<string, Scenario> = {
@@ -122,6 +128,15 @@ const SCENARIOS: Record<string, Scenario> = {
     followUp: "After that, reply with exactly one word: done.",
     steer: "Stop counting at 10 and say so in one short sentence.",
   },
+  // One subagent doing one shell command: lifecycle, progress and event frames of the task tool.
+  subagent: {
+    prompt:
+      "Use the task tool exactly once to start one subagent. Its assignment: run `echo hello` with " +
+      "the bash tool and report the output in one short sentence. Then reply with one short sentence.",
+    cancelAfterDeltas: 0,
+    withSubagentBus: true,
+    model: "kiro/claude-haiku-5.5",
+  },
   // A run whose model reasons before answering.
   thinking: {
     prompt:
@@ -167,6 +182,11 @@ function scrub(text: string): string {
   return out;
 }
 
+const SUBAGENT_CHANNELS = [
+  "task:subagent:lifecycle",
+  "task:subagent:progress",
+  "task:subagent:event",
+] as const;
 const events: string[] = [];
 let session: AgentSession | undefined;
 let deltas = 0;
@@ -179,10 +199,16 @@ const host = await startOmpHost({
   autoApprove: true,
   requests: new RequestRegistry(new SessionStore()),
   onMcpFailure: () => {},
-  onSessionCreated: (created) => {
+  onSessionCreated: (created, bus) => {
     session = created;
+    if (scenario.withSubagentBus) {
+      for (const ch of SUBAGENT_CHANNELS)
+        bus.on(ch, (data) => events.push(JSON.stringify({ ch, data })));
+    }
     created.subscribe((event) => {
-      events.push(JSON.stringify(event));
+      events.push(
+        JSON.stringify(scenario.withSubagentBus ? { ch: "session", data: event } : event),
+      );
       if (
         scenario.cancelAfterDeltas > 0 &&
         event.type === "message_update" &&
@@ -210,6 +236,12 @@ sessionId = await host.createSession(cwd);
 const created = session;
 if (!created) throw new Error("session was not created");
 
+if (scenario.model) {
+  const [provider, ...rest] = scenario.model.split("/");
+  const model = created.modelRegistry.find(provider ?? "", rest.join("/"));
+  if (!model) throw new Error(`model not found: ${scenario.model}`);
+  await created.setModelTemporary(model);
+}
 if (scenario.compactAtTokens !== undefined) {
   cfgCompactionThresholdTokens.override(created.settings, scenario.compactAtTokens);
 }
@@ -254,7 +286,23 @@ console.error(
   `recorded ${events.length} events, stop reason ${stopReason}, ${lines.join("\n").length} bytes -> ${outFile}`,
 );
 
+// The subagent's own transcript, for the persisted-replay tests. The lifecycle frame names its
+// file; it must be copied before the session directory is deleted below.
+if (scenario.withSubagentBus) {
+  const frame = events
+    .map((e) => JSON.parse(e) as { ch: string; data?: { sessionFile?: unknown } })
+    .find((e) => e.ch === "task:subagent:lifecycle" && typeof e.data?.sessionFile === "string");
+  const file = frame?.data?.sessionFile;
+  if (typeof file !== "string") throw new Error("no subagent lifecycle frame with a sessionFile");
+  const transcript = (await Bun.file(file).text()).trimEnd().split("\n").map(scrub);
+  writeFileSync(join(outDir, "subagent-transcript.jsonl"), `${transcript.join("\n")}\n`);
+}
+
 // The recording session is throwaway; do not leave it among the user's real sessions.
-if (sessionFile) rmSync(sessionFile, { force: true });
+if (sessionFile) {
+  rmSync(sessionFile, { force: true });
+  // Subagent transcripts and outputs sit in a directory named like the session file.
+  rmSync(sessionFile.slice(0, -".jsonl".length), { recursive: true, force: true });
+}
 rmSync(cwd, { recursive: true, force: true });
 process.exit(0);

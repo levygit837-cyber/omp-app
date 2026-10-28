@@ -23,6 +23,8 @@ const empty: SessionViewModel = {
   thinking: null,
   queue: { steering: [], followUp: [], liveSteered: 0 },
   plan: { enabled: false, planFile: null },
+  subagents: [],
+  jobs: [],
 };
 
 const fold = (ops: readonly SessionOp[], from = empty) => ops.reduce(applyOp, from);
