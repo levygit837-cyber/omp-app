@@ -128,6 +128,12 @@ export async function diffBase(
   return branch.head === null ? emptyTree(root, signal) : "HEAD";
 }
 
+/**
+ * `diff-index`, never `diff`: the porcelain `git diff` refreshes stat data in the index and
+ * writes it back even with `--no-optional-locks` (measured: the index file changes when a file's
+ * mtime is stale), while the plumbing command only reads. `--ignore-submodules=all` and
+ * `--no-ext-diff --no-textconv` keep the repository's config from naming a program.
+ */
 const DIFF_FLAGS = [
   "--no-ext-diff",
   "--no-textconv",
@@ -142,7 +148,7 @@ export async function readNumstat(
   base: string,
   signal: AbortSignal,
 ): Promise<Map<string, NumstatEntry> | null> {
-  const out = await runGit(root, ["diff", base, ...DIFF_FLAGS, "--numstat", "-z", "--"], {
+  const out = await runGit(root, ["diff-index", ...DIFF_FLAGS, "--numstat", "-z", base, "--"], {
     signal,
     maxBytes: STATUS_MAX_BYTES,
     timeoutMs: 15_000,
@@ -160,7 +166,7 @@ export async function readDiff(
   signal: AbortSignal,
   maxBytes: number,
 ): Promise<GitOutcome> {
-  const out = await runGit(root, ["diff", base, ...DIFF_FLAGS, "-U3", "--", ...paths], {
+  const out = await runGit(root, ["diff-index", ...DIFF_FLAGS, "-p", "-U3", base, "--", ...paths], {
     signal,
     maxBytes,
     timeoutMs: 15_000,

@@ -264,7 +264,7 @@ export function filesHandlers(
         };
       }),
 
-    "files.tree": ({ sessionId, path }) => {
+    "files.tree": async ({ sessionId, path }) => {
       const segments = segmentsOf(path, true);
       return run(sessionId, false, async (_id, root, signal): Promise<FilesTreeResult> => {
         if (root === null) return { state: "missing" };
@@ -295,7 +295,7 @@ export function filesHandlers(
       });
     },
 
-    "files.read": ({ sessionId, path }) => {
+    "files.read": async ({ sessionId, path }) => {
       const segments = segmentsOf(path, false);
       return run(sessionId, false, async (_id, root): Promise<FilesReadResult> => {
         if (root === null) return { state: "refused", reason: "missing" };
@@ -310,7 +310,7 @@ export function filesHandlers(
       });
     },
 
-    "files.diff": ({ sessionId, path }) => {
+    "files.diff": async ({ sessionId, path }) => {
       const segments = segmentsOf(path, false);
       return run(sessionId, false, async (_id, root, signal): Promise<FilesDiffResult> => {
         if (root === null) return { state: "refused", reason: "missing" };
