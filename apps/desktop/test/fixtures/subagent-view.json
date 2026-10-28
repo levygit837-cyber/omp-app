@@ -1,0 +1,65 @@
+{
+  "info": {
+    "id": "EchoHello",
+    "viewId": "__VIEW__",
+    "agent": "task",
+    "description": "Run echo hello with bash tool",
+    "status": "completed",
+    "startedAt": 5000000,
+    "tokens": 24,
+    "endedAt": 5001000
+  },
+  "view": {
+    "id": "__VIEW__",
+    "cwd": "/work/project",
+    "status": "idle",
+    "model": "kiro/claude-sonnet-5.5",
+    "timeline": [
+      {
+        "kind": "user",
+        "id": "i0",
+        "text": "Complete assignment thoroughly:\n\n# Target\nNone; read-only.\n# Change\nUse the bash tool to run `echo hello`. Do not run any other command.\n# Acceptance\nReport the output of `echo hello` in one short sentence."
+      },
+      {
+        "kind": "tool",
+        "id": "i1",
+        "tool": "bash",
+        "intent": "Running echo hello",
+        "calls": [
+          {
+            "toolCallId": "toolu_bdrk_01Gd5ri3k3NhZ3Cvmg5ModCk",
+            "status": "done",
+            "startedAt": 1013000,
+            "target": "echo hello",
+            "output": {
+              "kind": "shell",
+              "wallTimeMs": 75,
+              "lines": ["hello"],
+              "linesOmitted": 0
+            },
+            "endedAt": 1013400
+          }
+        ]
+      },
+      {
+        "kind": "assistant",
+        "id": "i2",
+        "text": "`echo hello` printed `hello`.",
+        "done": true
+      }
+    ],
+    "warnings": [],
+    "usage": {
+      "inputTokens": 0,
+      "outputTokens": 24,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "cost": 0.00024000000000000003
+    },
+    "context": null,
+    "todo": [],
+    "pending": [],
+    "subagents": [],
+    "jobs": []
+  }
+}

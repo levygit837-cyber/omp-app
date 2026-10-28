@@ -189,6 +189,10 @@
   --layout-menu-list-max: 320px;
   /* Tallest suggestion list over the input bar (@ file references). Not in the Pen file. */
   --layout-suggest-max: 240px;
+  /* Confirmation card (Pen Km69K: 300 wide). */
+  --layout-confirm: 300px;
+  /* Widest a tab of the top bar grows before its label is cut. Not in the Pen file: the design shows short labels only. */
+  --layout-tab-max: 200px;
   /* Where the native traffic lights end, so the sidebar toggle sits at the same x open or closed */
   --layout-traffic-lights: 78px;
   --layout-indicator-height: 56px;

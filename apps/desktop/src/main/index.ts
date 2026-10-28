@@ -12,6 +12,7 @@ import {
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, shell } from "electron";
 import {
   APP_OPEN_LINK,
+  JOB_CANCEL,
   MCP_ADD,
   MCP_LIST,
   MCP_REMOVE,
@@ -52,9 +53,11 @@ import {
   SIDECAR_STATUS,
   SKILLS_LIST,
   SKILLS_SET_ENABLED,
+  SUBAGENT_CANCEL,
 } from "../shared/channels";
 import { flag, mcpSecretRef, mcpServerInput } from "./extensions-input";
 import { externalUrl } from "./external-url";
+import { ipcId } from "./ipc-id";
 import { platform } from "./platform";
 import { SidecarSupervisor } from "./sidecar-supervisor";
 
@@ -231,6 +234,20 @@ function registerSessionRelay(sidecar: SidecarSupervisor): void {
   ipcMain.handle(SESSION_READ_PLAN, (_event, sessionId: unknown) =>
     sidecar.request("session.readPlan", { sessionId: text(sessionId, "sessionId") }),
   );
+  ipcMain.handle(SUBAGENT_CANCEL, async (_event, sessionId: unknown, subagentId: unknown) => {
+    const result = await sidecar.request("subagent.cancel", {
+      sessionId: ipcId(sessionId, "sessionId"),
+      subagentId: ipcId(subagentId, "subagentId"),
+    });
+    return result.cancelled;
+  });
+  ipcMain.handle(JOB_CANCEL, async (_event, sessionId: unknown, jobId: unknown) => {
+    const result = await sidecar.request("job.cancel", {
+      sessionId: ipcId(sessionId, "sessionId"),
+      jobId: ipcId(jobId, "jobId"),
+    });
+    return result.cancelled;
+  });
   ipcMain.handle(SESSION_LIST, async () => (await sidecar.request("session.list")).sessions);
   ipcMain.handle(SESSION_RESUME, async (_event, sessionId: unknown) => {
     const opened = await sidecar.request("session.resume", {

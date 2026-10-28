@@ -72,6 +72,15 @@ describe("describeError", () => {
       "abc",
     );
   });
+
+  test("a subagent that could not be stopped says so and never shows omp's wording", () => {
+    const raw = new Error(
+      "Error invoking remote method 'session:cancelSubagent': Error: could not stop subagent",
+    );
+    const text = describeError(raw);
+    expect(text).not.toContain("could not stop subagent");
+    expect(text).toContain("still running");
+  });
 });
 
 describe("describeConfigProblem", () => {

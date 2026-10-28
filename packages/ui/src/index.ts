@@ -2,6 +2,7 @@ export { Button, type ButtonProps, type ButtonVariant, IconButton } from "./butt
 export { Caret } from "./caret";
 export { Chip, type ChipProps } from "./chip";
 export { CodeBlock, type CodeBlockProps } from "./code-block";
+export { ConfirmCard, type ConfirmCardProps } from "./confirm-card";
 export { cx } from "./cx";
 export type { DiffLine } from "./diff";
 export { DiffView, type DiffViewProps } from "./diff-view";

@@ -5,6 +5,7 @@
 
 import { isSessionListResult, type SessionListResult } from "./catalog";
 import { isSessionCommandsResult, type SessionCommandsResult } from "./commands";
+import { type CancelResult, isCancelResult } from "./delegation";
 import {
   isMcpChange,
   isMcpListing,
@@ -44,6 +45,7 @@ import {
 
 export * from "./catalog";
 export * from "./commands";
+export * from "./delegation";
 export * from "./extensions";
 export * from "./plan";
 export * from "./prompt";
@@ -250,6 +252,22 @@ export interface Methods {
     params: { readonly sessionId: string; readonly text: string; readonly confirmed?: true };
     result: null;
   };
+  /**
+   * Kills one running subagent of the session (omp's `cancel_subagent`: release with a tombstone
+   * plus abort). `{ cancelled: false }` when it had already finished. `session.cancel` never does
+   * this: Esc stops the parent's turn and leaves detached delegated work running (ADR 0001). A
+   * `blocking` agent runs inline under the parent's abort signal and ends with it
+   * (`task/index.ts:888-889,1607` [V], `live.ts` scenario `blocking-subagent`).
+   */
+  "subagent.cancel": {
+    params: { readonly sessionId: string; readonly subagentId: string };
+    result: CancelResult;
+  };
+  /** Cancels one background job the session owns. `{ cancelled: false }` when it had settled. */
+  "job.cancel": {
+    params: { readonly sessionId: string; readonly jobId: string };
+    result: CancelResult;
+  };
   /** Registry-driven listing with effective values; secrets are withheld. */
   "settings.list": { params: SettingsTarget; result: SettingsListing };
   /** A refused value comes back as `{ ok: false, message }`, not as an error. */
@@ -423,6 +441,9 @@ export const methodWrites: { [M in MethodName]: boolean } = {
   // omp's business, not ours. No session can be open in read-only mode (create, resume and fork
   // are refused), so gating the whole method is the same as refusing every writing builtin.
   "session.runCommand": true,
+  // Stops running work; omp leaves a tombstone beside the subagent's own transcript.
+  "subagent.cancel": true,
+  "job.cancel": true,
   // Writes go to the shared config.yml / project config.yml. Reveal only reads.
   "settings.list": false,
   "settings.set": true,
@@ -474,6 +495,8 @@ export const resultGuards: { [M in MethodName]: (v: unknown) => v is Methods[M][
   "session.close": isNull,
   "session.commands": isSessionCommandsResult,
   "session.runCommand": isNull,
+  "subagent.cancel": isCancelResult,
+  "job.cancel": isCancelResult,
   "settings.list": isSettingsListing,
   "settings.set": isSettingsChange,
   "settings.reset": isSettingsChange,

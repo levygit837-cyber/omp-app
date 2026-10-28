@@ -58,11 +58,12 @@ import {
 import { ownsLiveSessionDir, stopThenClean } from "./live-cleanup";
 
 const keep = process.argv.includes("--keep");
-/** `--only=model,steer` runs just those scenarios. */
+/** `--only=model,steer` runs just those scenarios; without it all of them run. */
 const only = process.argv
   .find((arg) => arg.startsWith("--only="))
-  ?.slice(7)
+  ?.slice("--only=".length)
   .split(",");
+const wanted = (name: string) => only === undefined || only.includes(name);
 const entry = join(import.meta.dir, "../src/main.ts");
 const runtimeDir = mkdtempSync(join(tmpdir(), "omp-app-live-"));
 const socketPath = join(runtimeDir, "s.sock");
@@ -192,7 +193,7 @@ async function scenario(
     images?: { mimeType: string; data: string }[];
   } = {},
 ) {
-  if (only && !only.includes(name)) return;
+  if (!wanted(name)) return;
   const { sessionId } = await ask("session.create", { cwd });
   const sub = await ask("session.subscribe", { sessionId });
   let vm = sub.snapshot;
@@ -633,7 +634,7 @@ await joiningScenario(
 // Builtins run beside the turn and never through `session/prompt` (which would cancel it).
 // `/switch` is session-only (`setModelTemporary`, builtin-modes.ts:525 [V]) so the real
 // `config.yml` is not touched; `/effort` sets this session's thinking level.
-if (!only || only.includes("commands")) {
+if (wanted("commands")) {
   const { sessionId } = await ask("session.create", { cwd });
   const sub = await ask("session.subscribe", { sessionId });
   const from = ops.length;
@@ -898,6 +899,307 @@ await scenario(
   },
   { before: planSetup },
 );
+
+/** Runs a hand-driven scenario: a throw or timeout becomes a failure, and the session is closed. */
+async function manual(
+  name: string,
+  body: (sessionId: string, failures: string[]) => Promise<void>,
+  prompt: string,
+) {
+  if (!wanted(name)) return;
+  const { sessionId } = await ask("session.create", { cwd });
+  const failures: string[] = [];
+  console.log(`\n== ${name} (${sessionId})`);
+  // A gated `sleep` is not what these scenarios test: allow every permission once.
+  let handled = ops.length;
+  const gate = setInterval(() => {
+    for (const o of ops.slice(handled)) {
+      if (o.sessionId !== sessionId || o.op.type !== "request.add") continue;
+      const { request } = o.op;
+      const allow =
+        request.kind === "permission" && request.options.find((x) => x.kind === "allow_once");
+      if (allow) {
+        console.log(`  allowing ${JSON.stringify(request.title)}`);
+        void ask("session.answerPermission", {
+          sessionId,
+          requestId: request.id,
+          optionId: allow.optionId,
+        });
+      }
+    }
+    handled = ops.length;
+  }, 100);
+  try {
+    await ask("session.subscribe", { sessionId });
+    await ask("session.prompt", { sessionId, text: prompt });
+    await body(sessionId, failures);
+  } catch (e) {
+    failures.push(`threw: ${e instanceof Error ? e.message : String(e)}`);
+    const state = await ask("session.subscribe", { sessionId }).catch(() => undefined);
+    for (const i of state?.snapshot.timeline ?? []) {
+      const detail =
+        i.kind === "tool"
+          ? `${i.tool} ${JSON.stringify(i.calls.map((c) => [c.status, c.target]))}`
+          : "text" in i
+            ? i.text.slice(0, 120)
+            : i.kind;
+      console.log(`  parent ${i.kind}: ${detail}`);
+    }
+    console.log(`  parent jobs: ${JSON.stringify(state?.snapshot.jobs)}`);
+    console.log(`  parent pending: ${JSON.stringify(state?.snapshot.pending)}`);
+  }
+  clearInterval(gate);
+  await ask("session.close", { sessionId }).catch(() => undefined);
+  results.push({ scenario: name, sessionId, failures });
+}
+
+/** The parent's view model as a subscriber would hold it: initial empty snapshot plus all ops. */
+async function liveParent(sessionId: string): Promise<() => SessionViewModel> {
+  const sub = await ask("session.subscribe", { sessionId });
+  const from = ops.length;
+  return () =>
+    ops
+      .slice(from)
+      .filter((o) => o.sessionId === sessionId && o.seq > sub.seq)
+      .reduce((vm, o) => applyOp(vm, o.op), sub.snapshot);
+}
+
+/** The error message of a request the sidecar refuses, or null when it was accepted. */
+async function refusal(request: Promise<unknown>): Promise<string | null> {
+  try {
+    await request;
+    return null;
+  } catch (e) {
+    return e instanceof Error ? e.message : String(e);
+  }
+}
+
+const UNKNOWN = "unknown session";
+const bashRunning = (vm: SessionViewModel) =>
+  vm.timeline.some(
+    (i) => i.kind === "tool" && i.tool === "bash" && i.calls.some((c) => c.status === "running"),
+  );
+const sleepers = async () =>
+  (await Bun.$`pgrep -f ${"sleep 25"}`.nothrow().text()).trim().split("\n").filter(Boolean);
+let sleepBaseline = (await sleepers()).length;
+console.log(`sleep 25 processes before: ${sleepBaseline}`);
+/**
+ * Every scenario that starts a `sleep 25` must leave none behind: more of them than before it ran
+ * is that scenario's failure, whichever scenarios were selected. The count is then the new baseline.
+ */
+async function noOrphans(scenario: string) {
+  await Bun.sleep(1500);
+  const now = (await sleepers()).length;
+  console.log(`sleep 25 processes after ${scenario}: ${now}`);
+  const result = results.find((r) => r.scenario === scenario);
+  if (result && now > sleepBaseline) {
+    result.failures.push(`${now - sleepBaseline} sleep 25 process(es) outlived the scenario`);
+  }
+  sleepBaseline = now;
+}
+
+// The parent runs on the default model of the shared config (sonnet): the protocol has no model
+// switch and the config must stay untouched, so these prompts are kept tiny.
+await manual(
+  "subagent",
+  async (sessionId, failures) => {
+    const parent = await liveParent(sessionId);
+    const seen: string[] = [];
+    let scanned = ops.length;
+    const track = () => {
+      for (const o of ops.slice(scanned)) {
+        if (o.sessionId === sessionId && o.op.type === "subagent.set") {
+          const s = o.op.subagent.status;
+          if (seen.at(-1) !== s) seen.push(s);
+        }
+      }
+      scanned = ops.length;
+    };
+    await until("a running subagent", () => parent().subagents.length > 0);
+    const first = parent().subagents[0];
+    if (!first) throw new Error("unreachable");
+    const viewId = first.viewId;
+    const view = await ask("session.subscribe", { sessionId: viewId });
+    const viewFrom = ops.length;
+    await until("the subagent to complete", () => {
+      track();
+      return parent().subagents.some((s) => s.status !== "running");
+    });
+    await until("the parent to go idle", () => parent().status === "idle");
+    await Bun.sleep(300);
+    track();
+    const vmParent = parent();
+    if (vmParent.subagents.length !== 1) failures.push(`subagents: ${vmParent.subagents.length}`);
+    const sub = vmParent.subagents[0];
+    console.log(`  statuses seen: ${seen.join("->")}; ${JSON.stringify(sub)}`);
+    for (const o of ops) {
+      if (o.sessionId === sessionId && o.op.type === "subagent.set") {
+        const s = o.op.subagent;
+        console.log(`    seq ${o.seq} subagent.set ${s.id} ${s.status} tokens=${s.tokens}`);
+      }
+    }
+    if (seen.join(">") !== "running>completed") failures.push(`statuses ${seen.join("->")}`);
+    if (sub?.status !== "completed") failures.push("subagent not completed");
+    if (sub && !(sub.tokens > 0)) failures.push(`tokens ${sub.tokens}`);
+    // The label is best-effort in omp: a tiny model writes it off the spawn's critical path and a
+    // run can end without one (`task/executor.ts:1650-1661` [V]). Only report what was seen.
+    console.log(
+      `  description: ${sub?.description === null ? "none (omp did not label it)" : JSON.stringify(sub?.description)}`,
+    );
+    if (sub && sub.viewId !== viewId) failures.push("viewId changed");
+
+    const server = await ask("session.subscribe", { sessionId: viewId });
+    const replicaOfView = ops
+      .slice(viewFrom)
+      .filter((o) => o.sessionId === viewId && o.seq > view.seq)
+      .reduce((vm, o) => applyOp(vm, o.op), view.snapshot);
+    if (JSON.stringify(replicaOfView) !== JSON.stringify(server.snapshot)) {
+      failures.push("view replica differs from the sidecar's snapshot");
+    }
+    const timeline = server.snapshot.timeline;
+    if (!timeline.some((i) => i.kind === "tool" && i.tool === "bash")) {
+      failures.push("view timeline has no bash tool item");
+    }
+    const answer = timeline.findLast((i) => i.kind === "assistant");
+    if (!(answer?.kind === "assistant" && answer.done && answer.text !== "")) {
+      failures.push("view timeline has no final assistant answer");
+    }
+    for (const i of timeline) {
+      const body = "text" in i ? i.text.slice(0, 80) : i.kind === "tool" ? i.tool : i.kind;
+      console.log(`  view ${i.kind}: ${JSON.stringify(body)}`);
+    }
+    const refusals = await Promise.all([
+      refusal(ask("session.prompt", { sessionId: viewId, text: "hi" })),
+      refusal(ask("session.cancel", { sessionId: viewId })),
+      refusal(ask("session.close", { sessionId: viewId })),
+    ]);
+    for (const [n, r] of ["prompt", "cancel", "close"].map((n, k) => [n, refusals[k]] as const)) {
+      console.log(`  ${n} on view: ${r}`);
+      if (!r?.includes(UNKNOWN)) failures.push(`${n} on the view was not refused: ${r}`);
+    }
+    await ask("session.close", { sessionId });
+    const after = await refusal(ask("session.subscribe", { sessionId: viewId }));
+    console.log(`  subscribe view after parent close: ${after}`);
+    if (!after?.includes(UNKNOWN)) failures.push(`view survived its parent: ${after}`);
+  },
+  "Use the task tool to start exactly one subagent (agent: task, description: 'echo hello') whose assignment is: run `echo hello` with the bash tool, then reply with its output. When it returns, reply 'done'.",
+);
+
+// Esc only stops the parent's turn (ADR 0001); killing delegated work is its own request.
+await manual(
+  "cancel-with-subagent",
+  async (sessionId, failures) => {
+    const parent = await liveParent(sessionId);
+    await until("a running subagent", () => parent().subagents.some((s) => s.status === "running"));
+    const sub = parent().subagents[0];
+    if (!sub) throw new Error("unreachable");
+    const view = await ask("session.subscribe", { sessionId: sub.viewId });
+    const viewFrom = ops.length;
+    await until("a running bash call in the view", () =>
+      bashRunning(
+        ops
+          .slice(viewFrom)
+          .filter((o) => o.sessionId === sub.viewId && o.seq > view.seq)
+          .reduce((vm, o) => applyOp(vm, o.op), view.snapshot),
+      ),
+    );
+    await ask("session.cancel", { sessionId });
+    await until("the parent to go idle", () => parent().status === "idle");
+    const cancelledAt = Date.now();
+    await Bun.sleep(8000);
+    const after = parent().subagents.find((s) => s.id === sub.id);
+    const secs = ((Date.now() - cancelledAt) / 1000).toFixed(1);
+    console.log(`  ${secs}s after session.cancel the subagent is ${after?.status}`);
+    if (after?.status !== "running") failures.push(`subagent is ${after?.status} after Esc`);
+    const killed = await ask("subagent.cancel", { sessionId, subagentId: sub.id });
+    if (!killed.cancelled) failures.push("subagent.cancel returned false");
+    await until("the subagent to be aborted", () =>
+      parent().subagents.some((s) => s.id === sub.id && s.status === "aborted"),
+    );
+    const again = await ask("subagent.cancel", { sessionId, subagentId: sub.id });
+    if (again.cancelled) failures.push("a second subagent.cancel returned true");
+    const ghost = await refusal(
+      ask("subagent.cancel", { sessionId: "no-such-session", subagentId: sub.id }),
+    );
+    console.log(`  subagent.cancel on an unknown session: ${ghost}`);
+    if (!ghost?.includes(UNKNOWN)) failures.push(`unknown session not refused: ${ghost}`);
+  },
+  "Use the task tool to start exactly one subagent (agent: task, description: 'sleeper') whose assignment is: run `sleep 25` with the bash tool, then reply 'woke'. Wait for it.",
+);
+await noOrphans("cancel-with-subagent");
+
+// omp detaches a run only when async is on, a job manager exists and the agent is not `blocking`
+// (`task/index.ts:888-889` [V]); a blocking agent runs inline and the parent's abort signal is
+// attached to it (`task/spawn-run.ts:105-117`, `task/index.ts:1607` [V]). So Esc may end it, unlike
+// the detached case above. The agent file lives in the temp project, which the run deletes.
+if (wanted("blocking-subagent")) {
+  const agents = join(cwd, ".omp", "agents");
+  mkdirSync(agents, { recursive: true });
+  writeFileSync(
+    join(agents, "waiter.md"),
+    [
+      "---",
+      "name: waiter",
+      "description: Runs one shell command and reports it",
+      "blocking: true",
+      "---",
+      "Run the command you are given with the bash tool, then reply with one word.",
+      "",
+    ].join("\n"),
+  );
+}
+await manual(
+  "blocking-subagent",
+  async (sessionId, failures) => {
+    const parent = await liveParent(sessionId);
+    await until("a running subagent", () => parent().subagents.some((s) => s.status === "running"));
+    const sub = parent().subagents[0];
+    if (!sub) throw new Error("unreachable");
+    console.log(`  subagent: ${JSON.stringify(sub)}`);
+    await Bun.sleep(3000); // let its bash call start
+    await ask("session.cancel", { sessionId });
+    await until("the parent to go idle", () => parent().status === "idle");
+    await Bun.sleep(3000);
+    const after = parent().subagents.find((s) => s.id === sub.id);
+    console.log(`  3s after session.cancel the blocking subagent is ${after?.status}`);
+    // A blocking agent runs inline under the parent's abort signal (`task/index.ts:1607`,
+    // `spawn-run.ts:105-117` [V]): Esc ends it, and the tracker must say so.
+    if (after?.status !== "aborted") {
+      failures.push(`blocking subagent is ${after?.status} 3 s after Esc, expected aborted`);
+      // Do not leave its `sleep 25` behind either way.
+      if (after?.status === "running") {
+        await ask("subagent.cancel", { sessionId, subagentId: sub.id }).catch(() => undefined);
+      }
+    }
+  },
+  "Use the task tool to start exactly one subagent (agent: waiter, description: 'blocking sleeper') whose assignment is: run `sleep 25` with the bash tool. Wait for it.",
+);
+await noOrphans("blocking-subagent");
+
+// A bash call becomes a job with `async: true` [V] tools/bash.ts:345,1039,1190.
+await manual(
+  "job-cancel",
+  async (sessionId, failures) => {
+    const parent = await liveParent(sessionId);
+    await until("a running job", () => parent().jobs.some((j) => j.status === "running"));
+    const job = parent().jobs.find((j) => j.status === "running");
+    if (!job) throw new Error("unreachable");
+    console.log(`  job: ${JSON.stringify(job)}`);
+    if (job.label === "") failures.push("job has no label");
+    const unknown = await ask("job.cancel", { sessionId, jobId: "no-such-job" });
+    if (unknown.cancelled) failures.push("unknown job id returned true");
+    const done = await ask("job.cancel", { sessionId, jobId: job.id });
+    if (!done.cancelled) failures.push("job.cancel returned false");
+    await until("the job to be cancelled", () =>
+      parent().jobs.some((j) => j.id === job.id && j.status === "cancelled"),
+    );
+    const again = await ask("job.cancel", { sessionId, jobId: job.id });
+    if (again.cancelled) failures.push("a second job.cancel returned true");
+    await until("the parent to go idle", () => parent().status === "idle");
+  },
+  "Call the bash tool once with command `sleep 25` and async set to true (a background job). Do not wait for it; reply 'started' right away.",
+);
+await noOrphans("job-cancel");
 
 console.log(`\nsession directory: ${join(getAgentDir(), "sessions")}`);
 

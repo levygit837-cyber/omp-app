@@ -1,29 +1,7 @@
-import {
-  ChatIcon,
-  cx,
-  IconButton,
-  SidebarLeftExpandIcon,
-  StateMark,
-  StatusPill,
-} from "@omp-app/ui";
+import { cx, IconButton, SidebarLeftExpandIcon, StateMark, StatusPill } from "@omp-app/ui";
 import type { ReactNode, Ref } from "react";
-import { useSessionTitle } from "./session-hooks";
-import { useSessionMark } from "./shown-status";
-
-function ChatTab({ sessionId }: { sessionId: string }) {
-  const mark = useSessionMark(sessionId);
-  const title = useSessionTitle(sessionId);
-  return (
-    <div
-      aria-current="true"
-      className="app-no-drag flex h-(--layout-bar-height) max-w-full items-center gap-(--space-8) border-b border-accent px-(--space-12) text-size-sm"
-    >
-      <StateMark state={mark} />
-      <ChatIcon className="text-icon-neutral" />
-      <span className="min-w-0 truncate">{title}</span>
-    </div>
-  );
-}
+import { SessionTabs } from "./SessionTabs";
+import type { SessionTabs as Tabs } from "./use-tabs";
 
 /**
  * 44 px bar over the center column. With the sidebar closed it also carries the traffic-light
@@ -31,6 +9,7 @@ function ChatTab({ sessionId }: { sessionId: string }) {
  */
 export function TabBar({
   sessionId,
+  tabs,
   sidebarOpen,
   engineStopped,
   readOnly,
@@ -39,6 +18,7 @@ export function TabBar({
   rightToggle,
 }: {
   sessionId: string | null;
+  tabs: Tabs;
   sidebarOpen: boolean;
   engineStopped: boolean;
   readOnly: boolean;
@@ -76,7 +56,7 @@ export function TabBar({
         </div>
       )}
       <div className="flex min-w-0 items-stretch">
-        {sessionId && <ChatTab sessionId={sessionId} />}
+        {sessionId && <SessionTabs sessionId={sessionId} tabs={tabs} />}
       </div>
       <span className="flex-1" />
       {readOnly && (

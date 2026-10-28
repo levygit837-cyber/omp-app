@@ -19,6 +19,7 @@ import { type Ref, useEffect, useMemo, useRef, useState } from "react";
 import type { SidecarStatus } from "../shared/bridge";
 import { relativeTime } from "./format";
 import { buildRows, groupProjects, projectLabels, type SessionRowData } from "./projects";
+import { SubagentRows } from "./SubagentRows";
 import { useSessionTitle } from "./session-hooks";
 import { useSessionMark, useShownStatus } from "./shown-status";
 
@@ -81,6 +82,8 @@ interface RowProps extends SessionActions {
   row: SessionRowData;
   open: boolean;
   focused: boolean;
+  /** The subagent whose tab is on screen in this session, if it is the focused one. */
+  shownSubagent: string | null;
   /** Opening or forking writes; a read-only app can only show what it already holds. */
   readOnly: boolean;
   now: number;
@@ -133,7 +136,17 @@ function SessionMenu({
   );
 }
 
-function SessionRow({ row, open, focused, readOnly, now, onSelect, onFork, onClose }: RowProps) {
+function SessionRow({
+  row,
+  open,
+  focused,
+  shownSubagent,
+  readOnly,
+  now,
+  onSelect,
+  onFork,
+  onClose,
+}: RowProps) {
   const status = useShownStatus(row.id);
   const mark = useSessionMark(row.id);
   const replicaTitle = useSessionTitle(row.id);
@@ -199,6 +212,7 @@ function SessionRow({ row, open, focused, readOnly, now, onSelect, onFork, onClo
           <MoreIcon />
         </IconButton>
       )}
+      {open && <SubagentRows sessionId={row.id} shown={shownSubagent} onSelect={onSelect} />}
       {anchor && (
         <SessionMenu
           anchor={anchor}
@@ -230,11 +244,12 @@ function Project({
   collapsed: boolean;
   onToggle: () => void;
   focusedId: string | null;
+  shownSubagent: string | null;
   open: ReadonlySet<string>;
   readOnly: boolean;
   now: number;
 } & SessionActions) {
-  const { open, readOnly, now, onSelect, onFork, onClose } = rest;
+  const { open, shownSubagent, readOnly, now, onSelect, onFork, onClose } = rest;
   const holdsFocused = rows.some((row) => row.id === focusedId);
   return (
     <li>
@@ -267,6 +282,7 @@ function Project({
               row={row}
               open={open.has(row.id)}
               focused={row.id === focusedId}
+              shownSubagent={row.id === focusedId ? shownSubagent : null}
               readOnly={readOnly}
               now={now}
               onSelect={onSelect}
@@ -354,6 +370,7 @@ export function SidebarBody({
   open,
   openCwds,
   focused,
+  shownSubagent,
   readOnly,
   sidecar,
   versions,
@@ -371,6 +388,8 @@ export function SidebarBody({
   /** Folder of every open session, from its replica. */
   openCwds: ReadonlyMap<string, string>;
   focused: string | null;
+  /** The subagent whose tab is on screen in the focused session, if any. */
+  shownSubagent: string | null;
   readOnly: boolean;
   sidecar: SidecarStatus;
   versions: string;
@@ -420,6 +439,7 @@ export function SidebarBody({
                 collapsed={collapsed.has(group.cwd)}
                 onToggle={() => toggle(group.cwd)}
                 focusedId={focused}
+                shownSubagent={shownSubagent}
                 open={openSet}
                 readOnly={readOnly}
                 now={now}

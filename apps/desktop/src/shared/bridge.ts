@@ -117,6 +117,13 @@ export type OmpBridge = {
      * and for one the sidecar asks about (`confirmationOf`) unless `confirmed` is true.
      */
     runCommand(sessionId: string, text: string, confirmed?: true): Promise<void>;
+    /**
+     * Kills a running subagent of the session. Resolves with false when it had already ended.
+     * `cancel` (Esc) leaves subagents running; this is the explicit way to stop one.
+     */
+    cancelSubagent(sessionId: string, subagentId: string): Promise<boolean>;
+    /** Kills a running background job the session owns. Resolves with false when it had ended. */
+    cancelJob(sessionId: string, jobId: string): Promise<boolean>;
     /** Calls `listener` for every op of every subscribed session. Returns the unsubscribe function. */
     onOp(listener: (event: SessionOpEvent) => void): () => void;
   };

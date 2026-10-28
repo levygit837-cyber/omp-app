@@ -51,7 +51,7 @@ export interface OmpHostOptions {
    * Called once per opened session (new, resumed or forked) before the call that opened it
    * resolves and before any prompt can run, so a subscriber never misses the first event.
    */
-  readonly onSessionCreated: (session: AgentSession) => void;
+  readonly onSessionCreated: (session: AgentSession, subagentBus: EventBus) => void;
   /** An MCP server failed to connect for this session. The session carries on without it. */
   readonly onMcpFailure: (sessionId: string, server: string, message: string) => void;
   /**
@@ -191,10 +191,13 @@ export async function startOmpHost(options: OmpHostOptions): Promise<OmpHost> {
   const liveSettings = new Map<string, Settings>();
   /** The clone the factory made for a session, until `open` registers both under the key. */
   const cloneOf = new WeakMap<AgentSession, Settings>();
+  /** The bus the session's subagents publish their frames on; `AgentSession` exposes no getter. */
+  const busOf = new WeakMap<AgentSession, EventBus>();
   const factory: AcpSessionFactory = async (cwd, factoryOptions) => {
     const { settings, authStorage, modelRegistry } = await openContext();
     const sessionSettings = await settings.cloneForCwd(cwd);
     const sessionManager = SessionManager.create(cwd);
+    const subagentEventBus = new EventBus();
     const { session, setToolUIContext } = await createAgentSession({
       cwd,
       sessionManager,
@@ -207,9 +210,10 @@ export async function startOmpHost(options: OmpHostOptions): Promise<OmpHost> {
       autoApprove: options.autoApprove === true,
       enableMCP: false,
       eventBus: new EventBus(),
-      subagentEventBus: new EventBus(),
+      subagentEventBus,
     });
     cloneOf.set(session, sessionSettings);
+    busOf.set(session, subagentEventBus);
     built = session;
     return { session, setToolUIContext };
   };
@@ -324,7 +328,9 @@ export async function startOmpHost(options: OmpHostOptions): Promise<OmpHost> {
       const clone = cloneOf.get(session);
       if (clone) liveSettings.set(key, clone);
       sessions.set(key, session);
-      options.onSessionCreated(session);
+      const bus = busOf.get(session);
+      if (!bus) throw new Error("omp built a session without the subagent bus the factory set");
+      options.onSessionCreated(session, bus);
       followMoves(session, key);
       // The session's own id: it differs from ACP's key when omp moved it while opening.
       return session.sessionManager.getSessionId();

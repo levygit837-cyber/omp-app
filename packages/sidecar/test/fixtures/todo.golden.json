@@ -984,7 +984,9 @@
       "plan": {
         "enabled": false,
         "planFile": null
-      }
+      },
+      "subagents": [],
+      "jobs": []
     },
     "seq": 80
   }

@@ -78,9 +78,15 @@ export function sessionHandlers(
 ): Pick<Required<Handlers>, (typeof SESSION_CAPABILITIES)[number]> {
   // A session that omp moved to a new file answers to its new id; a caller still holding the old
   // one (a prompt in flight, a remembered open set) is sent to the successor.
-  const known = (sessionId: string): string => {
+  // A subagent's view is read-only: it can be subscribed to (`watched`), and nothing drives it.
+  const watched = (sessionId: string): string => {
     const id = store.current(sessionId);
     if (!store.has(id)) throw new Error(`${UNKNOWN_SESSION_MESSAGE}: ${sessionId}`);
+    return id;
+  };
+  const known = (sessionId: string): string => {
+    const id = watched(sessionId);
+    if (store.isView(id)) throw new Error(`${UNKNOWN_SESSION_MESSAGE}: ${sessionId}`);
     return id;
   };
   // Lifecycle calls run one at a time, so "is it open?" and what follows from the answer are one
@@ -117,17 +123,23 @@ export function sessionHandlers(
     "session.resume": ({ sessionId }) =>
       inOrder(async () => {
         const open = store.current(sessionId);
+        if (store.isView(open)) throw new Error(`${UNKNOWN_SESSION_MESSAGE}: ${sessionId}`);
         return { sessionId: store.has(open) ? open : await control.resumeSession(sessionId) };
       }),
 
     "session.fork": ({ sessionId }) =>
-      inOrder(async () => ({ sessionId: await control.forkSession(store.current(sessionId)) })),
+      inOrder(async () => {
+        const open = store.current(sessionId);
+        if (store.isView(open)) throw new Error(`${UNKNOWN_SESSION_MESSAGE}: ${sessionId}`);
+        return { sessionId: await control.forkSession(open) };
+      }),
 
     "session.close": ({ sessionId }) =>
       inOrder(async () => {
         const open = store.current(sessionId);
         // Idempotent: closing what is not open is already done.
         if (!store.has(open)) return null;
+        if (store.isView(open)) throw new Error(`${UNKNOWN_SESSION_MESSAGE}: ${sessionId}`);
         await control.closeSession(open);
         store.remove(open);
         return null;
@@ -233,7 +245,7 @@ export function sessionHandlers(
     },
 
     "session.subscribe": async ({ sessionId }, client) =>
-      store.subscribe(known(sessionId), client, (event) => client.emit("session.op", event)),
+      store.subscribe(watched(sessionId), client, (event) => client.emit("session.op", event)),
 
     "session.unsubscribe": async ({ sessionId }, client) => {
       store.unsubscribe(store.current(sessionId), client);

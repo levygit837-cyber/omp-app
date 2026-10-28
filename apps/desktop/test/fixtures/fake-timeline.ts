@@ -22,6 +22,8 @@ export function fakeViewModel(init: {
     pending: [],
     queue: { steering: [], followUp: [], liveSteered: 0 },
     plan: { enabled: false, planFile: null },
+    subagents: [],
+    jobs: [],
   };
 }
 

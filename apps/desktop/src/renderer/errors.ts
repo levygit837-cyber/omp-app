@@ -72,6 +72,10 @@ const KNOWN: readonly (readonly [RegExp, (match: RegExpMatchArray) => string])[]
   ],
   [/^invalid (?:prompt|model|thinking level|queue entry|query)/, () => "That couldn’t be sent."],
   [
+    /could not stop subagent/,
+    () => "omp couldn’t stop that subagent. It is still running; try again.",
+  ],
+  [
     /database is newer than this app supports/,
     () => "omp-app is read-only: your omp data is newer than this version supports.",
   ],
