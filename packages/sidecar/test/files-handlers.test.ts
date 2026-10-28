@@ -672,6 +672,60 @@ describe("a hostile repository", () => {
     });
   }
 
+  // `[filter ""]` yields the key `filter..clean`; the others are names whose dots look like the
+  // end of the name. Each driver is attached to one file by the attribute file, and each file has a
+  // stale-stat index entry, so git must run the driver unless it is overridden by that exact name.
+  test("a driver with an empty name, or a name made of dots, never runs", async () => {
+    const dir = project();
+    const marker = join(base, `shape-marker${counter++}`);
+    mkdirSync(marker);
+    const names = ["", ".", "a.", ".a", "x.clean", "x.required", "x.process"];
+    names.forEach((_, i) => {
+      write(dir, `f${i}.txt`, "same\n");
+    });
+    commitAll(dir);
+    names.forEach((name, i) => {
+      git(dir, "config", `filter.${name}.clean`, `sh -c "touch '${join(marker, `d${i}`)}'; cat"`);
+      git(dir, "config", `filter.${name}.required`, "true");
+    });
+    writeFileSync(
+      join(dir, ".git/info/attributes"),
+      `${names.map((name, i) => `f${i}.txt filter=${name}`).join("\n")}\n`,
+    );
+    await Bun.sleep(1100);
+    names.forEach((_, i) => {
+      write(dir, `f${i}.txt`, "same\n");
+    });
+    // Same size, other bytes: a size change would tell git the file differs without hashing it,
+    // and the driver would never be asked.
+    write(dir, "f0.txt", "sane\n");
+    const session = open(dir);
+    const status = okStatus(await session.status());
+    expect(status.changes.map((c) => [c.path, c.status, c.added])).toEqual([["f0.txt", "M", 1]]);
+    const diff = await session.diff("f0.txt");
+    expect(diff.state).toBe("ok");
+    expect(readdirSync(marker)).toEqual([]);
+  });
+
+  // Deliberate trade-off, pinned so nobody "fixes" it by running filters again: a legitimate
+  // repository filter is not run, so a file that only differs from the index by what its clean
+  // filter would undo is listed as modified here while plain `git status` calls it clean.
+  test("a legitimate local filter is not run, so the page may list what git calls clean", async () => {
+    const dir = project();
+    git(dir, "config", "filter.up.clean", "tr a-z A-Z");
+    git(dir, "config", "filter.up.smudge", "cat");
+    write(dir, ".gitattributes", "*.txt filter=up\n");
+    write(dir, "note.txt", "hello\n");
+    commitAll(dir);
+    await Bun.sleep(1100);
+    write(dir, "note.txt", "hello\n");
+    // Plain git runs the filter: the index holds HELLO, the clean filter turns the file into
+    // HELLO again, and nothing is modified.
+    expect(git(dir, "status", "--porcelain")).toBe("");
+    const status = okStatus(await open(dir).status());
+    expect(status.changes.map((c) => [c.path, c.status])).toEqual([["note.txt", "M"]]);
+  });
+
   test("a .git file that points at a work tree or a submodule still works", async () => {
     const main = project();
     write(main, "a.txt", "a\n");

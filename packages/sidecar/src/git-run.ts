@@ -84,7 +84,11 @@ function gitEnv(): Record<string, string> {
  * listed: the caller must then not run git at all.
  */
 export function filterOverrides(listing: Buffer): Record<string, string> | null {
-  const fields = listing.toString("utf8").split("\0");
+  const text = listing.toString("utf8");
+  // A name that is not valid UTF-8 cannot travel as an environment string without changing, and
+  // the override would then name a driver that does not exist: refuse rather than miss it.
+  if (!Buffer.from(text, "utf8").equals(listing)) return null;
+  const fields = text.split("\0");
   const names = new Set<string>();
   // `--show-scope --name-only -z` prints `scope NUL name NUL` pairs.
   for (let i = 0; i + 1 < fields.length; i += 2) {
@@ -92,8 +96,10 @@ export function filterOverrides(listing: Buffer): Record<string, string> | null 
     const key = fields[i + 1] ?? "";
     if (scope !== "local" && scope !== "worktree") continue;
     if (!key.startsWith("filter.")) continue;
+    // `filter.<name>.<variable>`: the variable is what follows the LAST dot, and the name is
+    // everything between (it may be empty, hold dots, or look like a variable itself).
     const variable = key.lastIndexOf(".");
-    if (variable <= "filter.".length) continue;
+    if (variable < "filter.".length) continue;
     const name = key.slice("filter.".length, variable);
     if (name.includes("\n")) return null;
     names.add(name);
