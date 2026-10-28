@@ -13,7 +13,7 @@ import {
 } from "@omp-app/protocol";
 
 /** Electron prefixes errors thrown by an IPC handler with this; it means nothing to the user. */
-const IPC_PREFIX = /^Error invoking remote method '[^']*': (?:Error: )?/;
+const IPC_PREFIX = /^Error invoking remote method '[^']*': (?:(?:Protocol(?:Request)?)?Error: )?/;
 
 /**
  * Messages the sidecar and the main process raise for an answer that is not valid. The window

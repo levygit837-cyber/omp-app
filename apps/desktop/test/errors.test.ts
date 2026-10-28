@@ -16,6 +16,13 @@ describe("describeEngineFailure", () => {
   test("the supervisor's own reasons pass through", () => {
     expect(describeEngineFailure("sidecar exited with code 1")).toBe("sidecar exited with code 1");
   });
+
+  test("an error the sidecar answered with loses its class name and git's text (Files page)", () => {
+    const raw = `Error invoking remote method 'files:status': ProtocolRequestError: files unavailable: fatal: boom /Users/someone/private`;
+    expect(describeError(new Error(raw))).toBe(
+      "omp couldn’t read this project’s files. Try again in a moment.",
+    );
+  });
 });
 
 describe("describeError", () => {

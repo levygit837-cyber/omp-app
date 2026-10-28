@@ -84,7 +84,7 @@ export function FilePanel({ sessionId, path }: { sessionId: string; path: string
           </span>
         )}
         <span className="text-size-xs text-text-dim">Read-only</span>
-        {changed && !deleted && (
+        {changed && !deleted && !change.binary && (
           <Button
             variant="ghost"
             aria-pressed={mode === "diff"}
