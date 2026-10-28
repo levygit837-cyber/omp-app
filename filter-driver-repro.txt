@@ -1,0 +1,16 @@
+Reproduction of the review finding (P1): a repository filter driver ran from the Files page.
+Script: a temp repo, one committed a.txt, `filter.evil.clean = sh -c "touch MARK; cat"`,
+`filter.evil.required = true`, `*.txt filter=evil` in .git/info/attributes, then the file is
+rewritten with the same bytes and a newer mtime before each call (stale stat, so git rehashes).
+Each line says whether MARK exists after the sidecar function ran. git 2.55.0, macOS arm64.
+
+=== BEFORE (packages/sidecar/src/git-run.ts at be3b4b7)
+status     marker: true
+numstat    marker: true
+diff       marker: true
+ls-files   marker: false
+=== AFTER (6510bdb: repository drivers blanked by name through GIT_CONFIG_*)
+status     marker: false
+numstat    marker: false
+diff       marker: false
+ls-files   marker: false
