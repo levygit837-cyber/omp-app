@@ -3,8 +3,6 @@
  * Pure types and codecs: no runtime dependencies, safe to import from any package.
  */
 
-import { isSessionListResult, type SessionListResult } from "./catalog";
-import { isSessionCommandsResult, type SessionCommandsResult } from "./commands";
 import {
   type ClearContextResult,
   type DeletePreview,
@@ -15,6 +13,8 @@ import {
   isPauseState,
   type PauseState,
 } from "./actions";
+import { isSessionListResult, type SessionListResult } from "./catalog";
+import { isSessionCommandsResult, type SessionCommandsResult } from "./commands";
 import { type CancelResult, isCancelResult } from "./delegation";
 import {
   isMcpChange,
@@ -53,9 +53,9 @@ import {
   type SettingsRevealResult,
 } from "./settings";
 
+export * from "./actions";
 export * from "./catalog";
 export * from "./commands";
-export * from "./actions";
 export * from "./delegation";
 export * from "./extensions";
 export * from "./plan";

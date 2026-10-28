@@ -1241,7 +1241,9 @@ if (wanted("clear")) {
   });
   await until("the turn after the clear", () => {
     const vm = view();
-    return vm.status !== "streaming" && vm.timeline.filter((i) => i.kind === "assistant").length === 2;
+    return (
+      vm.status !== "streaming" && vm.timeline.filter((i) => i.kind === "assistant").length === 2
+    );
   });
   const vm = view();
   // Reasoning lines depend on the model; the order of the rest is the check.
@@ -1256,7 +1258,9 @@ if (wanted("clear")) {
     failures.push("the session file has no reset_boundary entry");
   }
   console.log(`\n== clear (${sessionId})`);
-  console.log(`  timeline: ${kinds}; dropped ${dropped}; after: ${JSON.stringify(after?.kind === "assistant" ? after.text : "")}`);
+  console.log(
+    `  timeline: ${kinds}; dropped ${dropped}; after: ${JSON.stringify(after?.kind === "assistant" ? after.text : "")}`,
+  );
   results.push({ scenario: "clear", sessionId, failures });
 }
 
@@ -1269,7 +1273,8 @@ if (wanted("delete")) {
   const result = await ask("session.delete", { sessionId, confirmed: true });
   if (result.subagents !== preview.subagents) failures.push("preview and result disagree");
   if (file && existsSync(file)) failures.push("the session file is still on disk");
-  if (file && existsSync(file.slice(0, -".jsonl".length))) failures.push("the artifacts are still on disk");
+  if (file && existsSync(file.slice(0, -".jsonl".length)))
+    failures.push("the artifacts are still on disk");
   const { sessions } = await ask("session.list");
   if (sessions.some((s) => s.id === sessionId)) failures.push("session.list still lists it");
   const again = await refusal(ask("session.delete", { sessionId, confirmed: true }));
@@ -1277,7 +1282,9 @@ if (wanted("delete")) {
   await Bun.sleep(1_000);
   if (file && existsSync(file)) failures.push("the session file came back");
   console.log(`\n== delete (${sessionId})`);
-  console.log(`  file ${file}: ${file && existsSync(file) ? "STILL THERE" : "gone"}; subagents ${result.subagents}`);
+  console.log(
+    `  file ${file}: ${file && existsSync(file) ? "STILL THERE" : "gone"}; subagents ${result.subagents}`,
+  );
   results.push({ scenario: "delete", sessionId, failures, deleted: true });
 }
 
@@ -1291,7 +1298,8 @@ if (wanted("pause")) {
   const before = replies();
 
   const refused = await refusal(ask("agents.setPaused", { sessionId, paused: true }));
-  if (!refused?.startsWith("confirmation required")) failures.push(`pause without the answer: ${refused}`);
+  if (!refused?.startsWith("confirmation required"))
+    failures.push(`pause without the answer: ${refused}`);
   const paused = await ask("agents.setPaused", { sessionId, paused: true, confirmed: true });
   if (!paused.paused || !(await ask("agents.pauseState")).paused) failures.push("not paused");
 
@@ -1309,7 +1317,10 @@ if (wanted("pause")) {
 
   // Resume: a new turn runs to the end.
   await ask("agents.setPaused", { sessionId, paused: false });
-  await ask("session.prompt", { sessionId, text: "Reply with exactly one word: resumed. No tools." });
+  await ask("session.prompt", {
+    sessionId,
+    text: "Reply with exactly one word: resumed. No tools.",
+  });
   await until("the turn after the resume", () => {
     const vm = view();
     return vm.status !== "streaming" && /resumed/i.test(textOf(vm));
@@ -1317,7 +1328,9 @@ if (wanted("pause")) {
   const lines = view().timeline.flatMap((i) => (i.kind === "command" ? [i.text] : []));
   if (lines.join(",") !== "/pause,/resume") failures.push(`trace lines ${lines.join(",")}`);
   console.log(`\n== pause (${sessionId})`);
-  console.log(`  text while paused: ${frozenText} chars; trace: ${lines.join(", ")}; status ${view().status}`);
+  console.log(
+    `  text while paused: ${frozenText} chars; trace: ${lines.join(", ")}; status ${view().status}`,
+  );
   results.push({ scenario: "pause", sessionId, failures });
 }
 

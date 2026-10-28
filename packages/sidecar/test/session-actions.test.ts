@@ -241,7 +241,9 @@ test("clearContext is refused while a turn runs, with a sentence, and the turn g
 test("clearContext answers an unknown id and a read-only sidecar with their own refusals", async () => {
   const client = await connect(join(root, "s.sock"));
   expect(
-    await errorMessage(client.request("session.clearContext", { sessionId: "nope", confirmed: true })),
+    await errorMessage(
+      client.request("session.clearContext", { sessionId: "nope", confirmed: true }),
+    ),
   ).toStartWith("unknown session");
   client.close();
   const ro = await connect(join(root, "ro.sock"));
@@ -286,7 +288,9 @@ test("delete removes the file, the artifacts and the subagent transcripts, and n
   writeFileSync(join(artifacts, "1-Second.jsonl"), line("1-Second"));
   const settingsBefore = host.liveSessionSettings().length;
 
-  expect(await client.request("session.deletePreview", { sessionId: id })).toEqual({ subagents: 2 });
+  expect(await client.request("session.deletePreview", { sessionId: id })).toEqual({
+    subagents: 2,
+  });
   const result = await client.request("session.delete", { sessionId: id, confirmed: true });
   expect(result).toEqual({ subagents: 2 });
 
@@ -316,7 +320,9 @@ test("delete removes the file, the artifacts and the subagent transcripts, and n
 test("delete of a session that has no file yet only closes it", async () => {
   const client = await connect(join(root, "s.sock"));
   const id = await openSession("delete-draft");
-  expect(await client.request("session.deletePreview", { sessionId: id })).toEqual({ subagents: 0 });
+  expect(await client.request("session.deletePreview", { sessionId: id })).toEqual({
+    subagents: 0,
+  });
   expect(await client.request("session.delete", { sessionId: id, confirmed: true })).toEqual({
     subagents: 0,
   });

@@ -1,5 +1,4 @@
 import {
-  type CommandItem,
   type CompactionItem,
   type Item,
   joinsItem,
