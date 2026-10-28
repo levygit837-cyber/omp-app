@@ -1,0 +1,5 @@
+FrameDecoder cap (MAX_FRAME_CHARS): 33554432 characters.
+Worst tool item at omp-app's own output caps (edit, 160-row diff, 240-char lines): 45113 chars -> 743 of them fit in one frame.
+Burst item of the perf run (bash, no output): 135 chars; 400 frames = 0.08% of the cap.
+Recorded real-omp subagent stream (subagent.jsonl): 348984 bytes.
+Item count is not capped by the sidecar; the bound is the cap itself, and a view above it fails the same way a parent session does (FrameTooLongError).

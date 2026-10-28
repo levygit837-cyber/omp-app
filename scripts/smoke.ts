@@ -170,6 +170,48 @@ try {
     console.log("after Delete on the odd tab:", await state());
     await shot("17-odd-id-closed");
   }
+  if (mode === "merged") {
+    // The merged UI (#37 extensions, #40 prompt controls, #41 palette) around a subagent tab.
+    const keyMod = async (k: string, code: number, modifiers: number) => {
+      await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: k, code: `Key${k.toUpperCase()}`, windowsVirtualKeyCode: code, modifiers });
+      await app.send("Input.dispatchKeyEvent", { type: "keyUp", key: k, code: `Key${k.toUpperCase()}`, windowsVirtualKeyCode: code, modifiers });
+    };
+    const state = () => app.eval(`JSON.stringify({
+      palette: !!document.querySelector('[data-testid=command-palette]'),
+      running: !!document.querySelector('[aria-label=Running]'),
+      selected: document.querySelector('[role=tab][aria-selected=true]')?.dataset.tabKey ?? null,
+      active: document.activeElement?.dataset?.tabKey ?? document.activeElement?.getAttribute('aria-label') ?? document.activeElement?.tagName,
+      settings: !!document.querySelector('[data-testid=settings-view], [data-testid=settings]'),
+      sessionInert: document.querySelector('[data-testid=tabpanel]')?.closest('[inert]') != null,
+    })`);
+    await app.prompt("Check the payments handshake");
+    await sleep(900);
+    await click("[data-testid=subagent-row][data-subagent-id=sa-verify]");
+    await app.waitFor(`document.querySelector('[data-testid=tabpanel]')`);
+    await sleep(700);
+    await app.eval(`document.querySelector('[role=tab][aria-selected=true]').focus()`);
+    console.log("subagent tab open:", await state());
+    await shot("19-merged-subagent-tab");
+    await keyMod("k", 75, 4);
+    await app.waitFor(`document.querySelector('[data-testid=command-palette]')`);
+    await sleep(400);
+    console.log("after Cmd+K:", await state());
+    await shot("20-palette-over-subagent-tab");
+    await key("ArrowDown", 40);
+    await key("Escape", 27);
+    await sleep(500);
+    console.log("after Esc in palette:", await state());
+    await click("[data-testid=open-settings]");
+    await sleep(700);
+    console.log("settings open:", await state());
+    await shot("21-settings-over-subagent-tab");
+    await key("Escape", 27);
+    await sleep(700);
+    console.log("after Esc in settings:", await state());
+    await shot("22-back-from-settings");
+    // Geometry: the tab strip must not overlap anything else in the chrome row.
+    console.log("rects:", await app.eval(`JSON.stringify([...document.querySelectorAll('[role=tablist], [data-testid=open-extensions], [data-testid=open-settings]')].map((e) => { const r = e.getBoundingClientRect(); return [e.getAttribute('role') ?? e.dataset.testid, Math.round(r.left), Math.round(r.top), Math.round(r.right), Math.round(r.bottom)]; }))`));
+  }
   if (mode === "confirm-stream") {
     await click("[data-testid=subagent-row][data-subagent-id=sa-verify]");
     await app.waitFor(`document.querySelector('[data-testid=tabpanel]')`);
