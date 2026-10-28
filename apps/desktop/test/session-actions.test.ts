@@ -22,6 +22,8 @@ function api(fail: Partial<Record<keyof ActionApi, string>> = {}): ActionApi & {
     resume: step("resume", "resumed-id"),
     fork: step("fork", "fork-id"),
     close: step("close", undefined),
+    clearContext: step("clearContext", undefined),
+    delete: step("delete", undefined),
     attach: async (id) => {
       calls.push(`attach:${id}`);
       return id;
@@ -56,12 +58,17 @@ describe("a failed action leaves a visible error and everything else as it was",
   });
 
   test("each action names its own failure", async () => {
-    const title = async (action: "fork" | "close", key: "fork" | "close") =>
+    const title = async (
+      action: "fork" | "close" | "clear" | "delete",
+      key: "fork" | "close" | "clearContext" | "delete",
+    ) =>
       (await perform(api({ [key]: "boom" }), set(["a"], "a"), { action, sessionId: "a" }))(
         held(set(["a"], "a")),
       ).error?.title;
     expect(await title("fork", "fork")).toBe("Couldn’t fork that session");
     expect(await title("close", "close")).toBe("Couldn’t close that session");
+    expect(await title("clear", "clearContext")).toBe("Couldn’t clear the context");
+    expect(await title("delete", "delete")).toBe("Couldn’t delete that session");
     const created = await perform(api({ create: "boom" }), NONE, { action: "new", cwd: "/p" });
     expect(created(held(NONE)).error?.title).toBe("Couldn’t start a session");
   });
@@ -71,6 +78,63 @@ describe("a failed action leaves a visible error and everything else as it was",
     const patch = await perform(fake, set(["a"], "a"), { action: "close", sessionId: "a" });
     expect(patch(held(set(["a"], "a"))).sessions).toEqual(set(["a"], "a"));
     expect(fake.calls).not.toContain("detach:a");
+  });
+});
+
+describe("clear context and delete", () => {
+  test("a refused delete keeps the session open, attached and focused", async () => {
+    const fake = api({ delete: "action refused: a turn is running" });
+    const patch = await perform(fake, set(["a", "b"], "a"), { action: "delete", sessionId: "a" });
+    const after = patch(held(set(["a", "b"], "a")));
+    expect(after.sessions).toEqual(set(["a", "b"], "a"));
+    expect(after.error?.message).toBe(
+      "The agent is working. Stop it with Esc, or wait for the turn to end.",
+    );
+    expect(fake.calls).not.toContain("detach:a");
+  });
+
+  test("a delete removes the session from the open set after the sidecar did, and detaches", async () => {
+    const fake = api();
+    const patch = await perform(fake, set(["a", "b"], "a"), { action: "delete", sessionId: "a" });
+    expect(patch(held(set(["a", "b"], "a"))).sessions).toEqual(set(["b"], "b"));
+    expect(fake.calls).toEqual(["delete:a", "detach:a"]);
+  });
+
+  test("deleting the last session leaves nothing focused", async () => {
+    const patch = await perform(api(), set(["a"], "a"), { action: "delete", sessionId: "a" });
+    expect(patch(held(set(["a"], "a"))).sessions).toEqual(NONE);
+  });
+
+  test("a clear changes neither the open set nor the focus, and does not detach", async () => {
+    const fake = api();
+    const patch = await perform(fake, set(["a", "b"], "b"), { action: "clear", sessionId: "a" });
+    expect(patch(held(set(["a", "b"], "b"))).sessions).toEqual(set(["a", "b"], "b"));
+    expect(fake.calls).toEqual(["clearContext:a"]);
+  });
+
+  test("a refused clear says why and changes nothing", async () => {
+    const patch = await perform(
+      api({ clearContext: "action refused: a shell command is running" }),
+      set(["a"], "a"),
+      {
+        action: "clear",
+        sessionId: "a",
+      },
+    );
+    const after = patch(held(set(["a"], "a")));
+    expect(after.sessions).toEqual(set(["a"], "a"));
+    expect(after.error?.message).toBe(
+      "A shell command is still running in this session. Wait for it, then try again.",
+    );
+  });
+
+  test("a delete refused because another process owns the file names that process", async () => {
+    const patch = await perform(
+      api({ delete: "action refused: another omp process owns the session file" }),
+      set(["a"], "a"),
+      { action: "delete", sessionId: "a" },
+    );
+    expect(patch(held(set(["a"], "a"))).error?.message).toContain("Another omp process");
   });
 });
 
