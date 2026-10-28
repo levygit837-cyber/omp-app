@@ -1,43 +1,43 @@
-[sidecar] ready: sidecar 0.0.0, omp 18.12.6, mode normal, socket /tmp/omp-app-live-coadrq/s.sock
+[sidecar] ready: sidecar 0.0.0, omp 18.12.6, mode normal, socket /tmp/omp-app-live-SbYiu3/s.sock
 sidecar up: omp 18.12.6, mode normal
 sleep 25 processes before: 0
 
-== subagent (01a1810d-ec91-7613-96fd-0a2cac0a2fdb)
-  statuses seen: running->completed; {"id":"EchoHello","viewId":"view:acp:01a1810d-ec91-7613-96fd-0a2cac0a2fdb:EchoHello","agent":"task","description":"Run echo hello with bash and report output","status":"completed","startedAt":1793166539541,"tokens":29,"endedAt":1793166545700}
-    seq 9 subagent.set EchoHello running tokens=0
-    seq 13 subagent.set EchoHello running tokens=16
-    seq 14 subagent.set EchoHello running tokens=29
-    seq 15 subagent.set EchoHello completed tokens=29
-  description: "Run echo hello with bash and report output"
-  view user: "Complete assignment thoroughly:\n\n# Target\nNo files.\n\n# Change\nRun `echo hello` w"
+== subagent (01a1812b-bab7-7639-a50a-7fe88e3570a0)
+  statuses seen: running->completed; {"id":"EchoHello","viewId":"view:acp:01a1812b-bab7-7639-a50a-7fe88e3570a0:EchoHello","agent":"task","description":"Run echo hello command in bash","status":"completed","startedAt":1793168493506,"tokens":17,"endedAt":1793168500765}
+    seq 35 subagent.set EchoHello running tokens=0
+    seq 39 subagent.set EchoHello running tokens=16
+    seq 40 subagent.set EchoHello running tokens=17
+    seq 41 subagent.set EchoHello completed tokens=17
+  description: "Run echo hello command in bash"
+  view user: "Complete assignment thoroughly:\n\n# Target\nNo files.\n# Change\nRun `echo hello` wi"
   view tool: "bash"
-  view assistant: "Saída de `echo hello`:\n\n```\nhello\n```"
-  prompt on view: unknown session: view:acp:01a1810d-ec91-7613-96fd-0a2cac0a2fdb:EchoHello
-  cancel on view: unknown session: view:acp:01a1810d-ec91-7613-96fd-0a2cac0a2fdb:EchoHello
-  close on view: unknown session: view:acp:01a1810d-ec91-7613-96fd-0a2cac0a2fdb:EchoHello
-  subscribe view after parent close: unknown session: view:acp:01a1810d-ec91-7613-96fd-0a2cac0a2fdb:EchoHello
+  view assistant: "hello"
+  prompt on view: unknown session: view:acp:01a1812b-bab7-7639-a50a-7fe88e3570a0:EchoHello
+  cancel on view: unknown session: view:acp:01a1812b-bab7-7639-a50a-7fe88e3570a0:EchoHello
+  close on view: unknown session: view:acp:01a1812b-bab7-7639-a50a-7fe88e3570a0:EchoHello
+  subscribe view after parent close: unknown session: view:acp:01a1812b-bab7-7639-a50a-7fe88e3570a0:EchoHello
 
-== cancel-with-subagent (01a1810e-20fe-729d-94d2-ea0b2932ef76)
+== cancel-with-subagent (01a1812c-0eef-73ca-b62e-28c4d3be0d35)
   8.0s after session.cancel the subagent is running
   subagent.cancel on an unknown session: unknown session: no-such-session
 sleep 25 processes after cancel-with-subagent: 0
 
-== blocking-subagent (01a1810e-58c0-73f6-881f-2e2448000c07)
-  subagent: {"id":"BlockingSleeper","viewId":"view:acp:01a1810e-58c0-73f6-881f-2e2448000c07:BlockingSleeper","agent":"waiter","description":null,"status":"running","startedAt":1793166570261,"tokens":0}
+== blocking-subagent (01a1812c-576f-707c-b32a-b37343a83a37)
+  subagent: {"id":"BlockingSleeper","viewId":"view:acp:01a1812c-576f-707c-b32a-b37343a83a37:BlockingSleeper","agent":"waiter","description":null,"status":"running","startedAt":1793168536980,"tokens":0}
   3s after session.cancel the blocking subagent is aborted
 sleep 25 processes after blocking-subagent: 0
 
-== job-cancel (01a1810e-90d0-750d-8a1f-1a5c8a4a9a10)
+== job-cancel (01a1812c-933b-72aa-b932-14553bde8ad6)
   allowing "sleep 25"
-  job: {"id":"bg_1","type":"bash","status":"running","label":"sleep 25","startTime":1793166579509}
+  job: {"id":"bg_1","type":"bash","status":"running","label":"sleep 25","startTime":1793168552699}
 sleep 25 processes after job-cancel: 0
 
 session directory: /home/user/.omp/agent/sessions
-  subagent: /home/user/.omp/agent/sessions/-tmp-omp-app-live-project-9M3aAF/2026-10-28T05-48-55-825Z_01a1810d-ec91-7613-96fd-0a2cac0a2fdb.jsonl
-  cancel-with-subagent: /home/user/.omp/agent/sessions/-tmp-omp-app-live-project-9M3aAF/2026-10-28T05-49-09-246Z_01a1810e-20fe-729d-94d2-ea0b2932ef76.jsonl
-  blocking-subagent: /home/user/.omp/agent/sessions/-tmp-omp-app-live-project-9M3aAF/2026-10-28T05-49-23-520Z_01a1810e-58c0-73f6-881f-2e2448000c07.jsonl
-  job-cancel: /home/user/.omp/agent/sessions/-tmp-omp-app-live-project-9M3aAF/2026-10-28T05-49-37-872Z_01a1810e-90d0-750d-8a1f-1a5c8a4a9a10.jsonl
-resume: omp --resume 01a1810d -p "What did I ask first?"  (cwd /tmp/omp-app-live-project-9M3aAF)
+  subagent: /home/user/.omp/agent/sessions/-tmp-omp-app-live-project-s00ncZ/2026-10-28T06-21-29-143Z_01a1812b-bab7-7639-a50a-7fe88e3570a0.jsonl
+  cancel-with-subagent: /home/user/.omp/agent/sessions/-tmp-omp-app-live-project-s00ncZ/2026-10-28T06-21-50-703Z_01a1812c-0eef-73ca-b62e-28c4d3be0d35.jsonl
+  blocking-subagent: /home/user/.omp/agent/sessions/-tmp-omp-app-live-project-s00ncZ/2026-10-28T06-22-09-263Z_01a1812c-576f-707c-b32a-b37343a83a37.jsonl
+  job-cancel: /home/user/.omp/agent/sessions/-tmp-omp-app-live-project-s00ncZ/2026-10-28T06-22-24-571Z_01a1812c-933b-72aa-b932-14553bde8ad6.jsonl
+resume: omp --resume 01a1812b -p "What did I ask first?"  (cwd /tmp/omp-app-live-project-s00ncZ)
 [sidecar] exiting: client disconnected
 
 live: all scenarios passed

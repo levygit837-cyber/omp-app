@@ -212,6 +212,50 @@ try {
     // Geometry: the tab strip must not overlap anything else in the chrome row.
     console.log("rects:", await app.eval(`JSON.stringify([...document.querySelectorAll('[role=tablist], [data-testid=open-extensions], [data-testid=open-settings]')].map((e) => { const r = e.getBoundingClientRect(); return [e.getAttribute('role') ?? e.dataset.testid, Math.round(r.left), Math.round(r.top), Math.round(r.right), Math.round(r.bottom)]; }))`));
   }
+  if (mode === "plan") {
+    // Plan view open on the main tab, then a subagent tab, then back: the two `inert` layers compose.
+    const layers = () => app.eval(`JSON.stringify({
+      selected: document.querySelector('[role=tab][aria-selected=true]')?.dataset.tabKey ?? null,
+      planView: !!document.querySelector('[data-testid=plan-view]'),
+      planViewInert: document.querySelector('[data-testid=plan-view]')?.closest('[inert]') != null,
+      timelineInert: document.querySelector('[data-testid=timeline]')?.closest('[inert]') != null,
+      tabpanel: !!document.querySelector('[data-testid=tabpanel]'),
+      toggle: document.querySelector('[data-testid=plan-toggle]')?.getAttribute('aria-pressed') ?? null,
+      open: document.querySelector('[data-testid=plan-open]')?.textContent ?? null,
+      composerInert: document.querySelector('[data-testid=prompt-input]')?.closest('[inert]') != null,
+    })`);
+    await click("[data-testid=plan-toggle]");
+    await app.waitFor(`document.querySelector('[data-testid=plan-open]')`);
+    await click("[data-testid=plan-open]");
+    await app.waitFor(`document.querySelector('[data-testid=plan-view]')`);
+    await sleep(500);
+    console.log("plan view on main:", await layers());
+    await shot("23-plan-view-main");
+    await click("[data-testid=subagent-row][data-subagent-id=sa-verify]");
+    await app.waitFor(`document.querySelector('[data-testid=tabpanel]')`);
+    await sleep(600);
+    console.log("subagent tab over plan view:", await layers());
+    await shot("24-subagent-tab-over-plan-view");
+    await app.eval(`document.querySelector('[data-tab-key=main]').click()`);
+    await sleep(600);
+    console.log("back on main:", await layers());
+    await shot("25-back-on-main-plan-view");
+    await click("[data-testid=plan-open]");
+    await sleep(400);
+    console.log("plan view closed:", await layers());
+    // The plan toggle area: no two controls of the bar overlap each other.
+    console.log("overlaps:", await app.eval(`(() => {
+      const bar = document.querySelector('[data-testid=plan-toggle]').closest('div');
+      const els = [...bar.parentElement.querySelectorAll('button, [role=button]')].filter((e) => e.offsetParent !== null);
+      const rects = els.map((e) => [e.dataset.testid ?? e.getAttribute('aria-label') ?? e.textContent.trim().slice(0, 12), e.getBoundingClientRect()]);
+      const hits = [];
+      for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
+        const a = rects[i][1], b = rects[j][1];
+        if (a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom) hits.push([rects[i][0], rects[j][0]]);
+      }
+      return JSON.stringify({ controls: rects.length, overlapping: hits });
+    })()`));
+  }
   if (mode === "confirm-stream") {
     await click("[data-testid=subagent-row][data-subagent-id=sa-verify]");
     await app.waitFor(`document.querySelector('[data-testid=tabpanel]')`);
