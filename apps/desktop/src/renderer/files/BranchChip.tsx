@@ -12,7 +12,7 @@ export function BranchChip({ sessionId }: { sessionId: string }) {
     <span
       data-testid="branch-chip"
       title={chip.label}
-      className="flex items-center gap-(--space-4) font-mono text-size-xs whitespace-nowrap text-text-dim"
+      className="flex h-(--size-control) items-center gap-(--space-6) rounded-sm border border-border-control px-(--space-8) font-mono text-size-xs whitespace-nowrap text-text-dim"
     >
       <BranchIcon className="text-icon-neutral" />
       <span aria-hidden="true">{chip.counts ? `${chip.name} ${chip.counts}` : chip.name}</span>

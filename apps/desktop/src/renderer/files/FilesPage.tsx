@@ -1,7 +1,9 @@
 import type { FileChange, FilesStatusResult } from "@omp-app/protocol";
 import { BranchIcon, Button, cx } from "@omp-app/ui";
 import { useEffect, useMemo, useState } from "react";
+import { projectName } from "../format";
 import { SECTION_LABEL } from "../right-panel/styles";
+import { useCwd } from "../session-hooks";
 import { showTab } from "../use-tabs";
 import { FilesSearch } from "./FilesSearch";
 import { FilesTree } from "./FilesTree";
@@ -132,6 +134,7 @@ function Changes({
  */
 export function FilesPage({ sessionId, openPath }: { sessionId: string; openPath: string | null }) {
   const page = usePage(sessionId);
+  const cwd = useCwd(sessionId);
   const [query, setQuery] = useState("");
 
   useEffect(() => {
@@ -198,8 +201,8 @@ export function FilesPage({ sessionId, openPath }: { sessionId: string; openPath
         </p>
       )}
       <section aria-labelledby="files-tree" className="flex flex-col gap-(--space-8)">
-        <h3 id="files-tree" className={SECTION_LABEL}>
-          Project
+        <h3 id="files-tree" className={SECTION_LABEL} title={cwd}>
+          {cwd ? projectName(cwd) : "Project"}
         </h3>
         <FilesSearch
           sessionId={sessionId}
@@ -222,7 +225,7 @@ export function FilesPage({ sessionId, openPath }: { sessionId: string; openPath
         )}
       </section>
       {legend.length > 0 && (
-        <p className="flex flex-wrap gap-x-(--space-12) font-mono text-size-2xs text-text-dim">
+        <p className="mt-auto flex flex-wrap gap-x-(--space-12) font-mono text-size-2xs text-text-dim">
           {legend.map((letter) => (
             <span key={letter}>
               {letter} {STATUS_WORDS[letter]}

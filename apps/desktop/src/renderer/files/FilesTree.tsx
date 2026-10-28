@@ -65,6 +65,7 @@ function Row({
       >
         {row.name}
       </span>
+      {selected && !isDir && <span className="shrink-0 text-size-2xs text-text-dim">open</span>}
       {row.dot && (
         <span
           aria-hidden="true"

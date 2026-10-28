@@ -2,10 +2,10 @@
  * `files.*` for the fake sidecar: a small invented project, so the Files page can be driven (and
  * photographed) without a live omp or a repository. Nothing here touches the disk.
  *
- * FAKE_FILES picks the state: `default` (a repository with changes), `clean` (a repository with no
+ * FAKE_GIT picks the state: `default` (a repository with changes), `clean` (a repository with no
  * change), `empty` (a repository with an empty folder), `norepo` (a folder that is not a
  * repository), `missing` (the folder is gone), `truncated` (more changes and entries than the
- * sidecar lists), `error` (every call fails), `timeout` (git did not answer). FAKE_FILES_MS delays
+ * sidecar lists), `error` (every call fails), `timeout` (git did not answer). FAKE_GIT_MS delays
  * every answer (the loading state).
  */
 
@@ -23,8 +23,8 @@ import {
   type TreeEntry,
 } from "@omp-app/protocol";
 
-const mode = process.env.FAKE_FILES ?? "default";
-const DELAY_MS = Number(process.env.FAKE_FILES_MS ?? 0);
+const mode = process.env.FAKE_GIT ?? "default";
+const DELAY_MS = Number(process.env.FAKE_GIT_MS ?? 0);
 
 const CHANGES: FileChange[] = [
   { path: "src/session.ts", status: "M", added: 18, removed: 4 },
@@ -198,7 +198,7 @@ const text = (params: unknown, name: string): string => {
   return typeof value === "string" ? value : "";
 };
 
-/** `files.*`; undefined for any other method. Answers after FAKE_FILES_MS when set. */
+/** `files.*`; undefined for any other method. Answers after FAKE_GIT_MS when set. */
 export function handleFiles(
   method: string,
   id: string,

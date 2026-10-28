@@ -33,8 +33,8 @@
  *
  * `settings.*` is served from `fake-settings.ts` (in memory; `read-only` refuses the writes).
  * `mcp.*` and `skills.*` come from `fake-extensions.ts` (same; FAKE_MCP=empty|broken picks the state).
- * `files.*` comes from `fake-files.ts` (an invented project; FAKE_FILES=clean|empty|norepo|missing|
- * truncated|error|timeout picks the state, FAKE_FILES_MS delays every answer).
+ * `files.*` comes from `fake-files.ts` (an invented project; FAKE_GIT=clean|empty|norepo|missing|
+ * truncated|error|timeout picks the state, FAKE_GIT_MS delays every answer).
  */
 
 import {
