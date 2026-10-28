@@ -1,7 +1,32 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
+import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
-const DESKTOP = "<repo-parent>/omp-app-worktrees/16-subagents-jobs/apps/desktop";
-const PORT = 9343;
+/**
+ * Drives the built Electron app over CDP. Settings, all from the environment:
+ *   OMP_APP_REPO  checkout (or worktree) of omp-app with `apps/desktop` built; required
+ *   EV_WORK       scratch directory for the temp HOME, project, wrapper and screenshots
+ *   EV_PORT       remote debugging port (default 9343)
+ */
+const repo = process.env.OMP_APP_REPO;
+if (!repo) throw new Error("set OMP_APP_REPO to the omp-app checkout that was built");
+const DESKTOP = join(repo, "apps/desktop");
+const PORT = Number(process.env.EV_PORT ?? 9343);
+export const WORK = process.env.EV_WORK ?? join(tmpdir(), "omp-app-evidence");
+export const HOME_DIR = join(WORK, "home");
+export const PROJECT_DIR = join(WORK, "proj", "payments-api");
+export const SHOTS_DIR = join(WORK, "shots");
+for (const dir of [HOME_DIR, PROJECT_DIR, SHOTS_DIR]) mkdirSync(dir, { recursive: true });
+
+/** An executable that starts the fake sidecar with the bun that runs this script. */
+export function fakeSidecarBin(): string {
+  const bin = join(WORK, "fake-sidecar.sh");
+  const script = join(DESKTOP, "test/fixtures/fake-sidecar.ts");
+  writeFileSync(bin, `#!/bin/sh\nexec "${process.execPath}" "${script}" "$@"\n`);
+  chmodSync(bin, 0o755);
+  return bin;
+}
 
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -89,7 +114,7 @@ export class App {
     try { this.ws.close(); } catch {}
     this.proc.kill("SIGTERM");
     await sleep(1500);
-    Bun.spawnSync(["pkill", "-f", "remote-debugging-port=9343"]);
+    Bun.spawnSync(["pkill", "-f", `remote-debugging-port=${PORT}`]);
     Bun.spawnSync(["pkill", "-f", "fixtures/fake-sidecar.ts"]);
     await sleep(500);
   }
