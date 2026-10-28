@@ -108,7 +108,7 @@ function Changes({
       {changes.length === 0 ? (
         <p className="text-size-sm text-text-dim">No changes against HEAD.</p>
       ) : (
-        <ul className="flex flex-col">
+        <ul className="flex max-h-(--layout-changes-max) flex-col overflow-y-auto">
           {shown.map((change) => (
             <ChangeRow
               key={change.path}
