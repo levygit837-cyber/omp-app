@@ -9,16 +9,24 @@
  *   allow   the same call -> allow once -> the command runs
  *   ask     the `ask` tool raises a form -> pick an option -> the agent repeats it
  *   ask-cancel  the same form -> cancel it -> omp aborts the turn, the session ends idle
+ *   model   session.models lists real models; switching model and thinking shows in the view
+ *           model and the next turn runs on the new model; both are refused while a turn runs
+ *   steer   a message sent mid-turn is injected: queue.set shows it, then a `steered` user item
+ *   followup  a follow-up sent mid-turn waits in the queue, then runs as its own turn
+ *   stop-queue  Stop with a follow-up queued: what is left in the queue and whether a turn starts
+ *   image   a generated PNG travels as base64; the model names its color
+ *   file    an `@file` in the prompt: the agent answers from the file's content
  *
  * Prints the observed ops and the session file each scenario left in the CLI's session
  * directory. Pass `--keep` to leave the sessions in place, e.g. to resume one with the CLI;
  * without it the run deletes its own session directory (named after its temp cwd) on every exit.
  *
- *   bun run scripts/live.ts [--keep]
+ *   bun run scripts/live.ts [--keep] [--only=model,steer,...]
  */
 import { existsSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
+import { deflateSync } from "node:zlib";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { getAgentDir } from "@oh-my-pi/pi-utils";
 import {
@@ -35,6 +43,11 @@ import {
 } from "@omp-app/protocol";
 
 const keep = process.argv.includes("--keep");
+/** `--only=model,steer` runs just those scenarios. */
+const only = process.argv
+  .find((arg) => arg.startsWith("--only="))
+  ?.slice(7)
+  .split(",");
 const entry = join(import.meta.dir, "../src/main.ts");
 const runtimeDir = mkdtempSync(join(tmpdir(), "omp-app-live-"));
 const socketPath = join(runtimeDir, "s.sock");
@@ -136,13 +149,21 @@ async function scenario(
   prompt: string,
   check: (vm: SessionViewModel, mine: SessionOpEvent[]) => string[],
   drive?: (sessionId: string, from: number, failures: string[]) => Promise<void>,
+  options: {
+    /** Runs after the session exists and before the prompt (choose a model, for instance). */
+    before?: (sessionId: string, failures: string[]) => Promise<void>;
+    images?: { mimeType: string; data: string }[];
+  } = {},
 ) {
+  if (only && !only.includes(name)) return;
   const { sessionId } = await ask("session.create", { cwd });
   const sub = await ask("session.subscribe", { sessionId });
   let vm = sub.snapshot;
   const from = ops.length;
-  await ask("session.prompt", { sessionId, text: prompt });
-  const failures: string[] = [];
+  const early: string[] = [];
+  await options.before?.(sessionId, early);
+  await ask("session.prompt", { sessionId, text: prompt, images: options.images });
+  const failures: string[] = [...early];
   await drive?.(sessionId, from, failures);
 
   if (name === "cancel") {
@@ -322,6 +343,252 @@ await scenario(
     const request = await nextRequest(sessionId, from);
     if (request.kind !== "ask") return void failures.push(`expected an ask, got ${request.kind}`);
     await ask("session.answerAsk", { sessionId, requestId: request.id, action: "decline" });
+  },
+);
+
+// ── Prompt controls (#14) ────────────────────────────────────────────────────────────────
+/** The cheap model every prompt-control scenario runs on. */
+const CHEAP = "kiro/claude-haiku-5.5";
+const useCheap = async (sessionId: string) => {
+  await ask("session.setModel", { sessionId, model: CHEAP });
+};
+const textOf = (vm: SessionViewModel) =>
+  vm.timeline.flatMap((i) => (i.kind === "assistant" ? [i.text] : [])).join("\n");
+const queueOps = (mine: SessionOpEvent[]) =>
+  mine.flatMap((o) => (o.op.type === "queue.set" ? [o.op.queue] : []));
+const COUNTING = "Count from 1 to 60, one number per line. No tools. Do not stop early.";
+
+await scenario(
+  "model",
+  "Reply with exactly one word: pong. No tools.",
+  (vm) => [
+    ...(vm.model === CHEAP ? [] : [`model is ${vm.model}, expected ${CHEAP}`]),
+    ...(vm.thinking === "low" ? [] : [`thinking is ${vm.thinking}, expected low`]),
+    ...(/pong/i.test(textOf(vm)) ? [] : ["the turn did not answer"]),
+  ],
+  async (sessionId, _from, failures) => {
+    // Refused while the turn runs: the choice is for the next turn.
+    const refused = await ask("session.setModel", { sessionId, model: CHEAP }).then(
+      () => false,
+      (e: unknown) => String(e).includes("session is busy"),
+    );
+    if (!refused) failures.push("switching the model mid-turn was not refused as busy");
+  },
+  {
+    before: async (sessionId, failures) => {
+      const { models } = await ask("session.models", { sessionId });
+      console.log(
+        `models: ${models.length} (${[...new Set(models.map((m) => m.provider))].join(", ")})`,
+      );
+      const cheap = models.find((m) => m.id === CHEAP);
+      if (!cheap) {
+        failures.push(`${CHEAP} is not in session.models`);
+        return;
+      }
+      console.log(`${CHEAP} efforts: ${JSON.stringify(cheap.efforts)}`);
+      await useCheap(sessionId);
+      const level = cheap.efforts.includes("low") ? "low" : (cheap.efforts[0] ?? "off");
+      await ask("session.setThinking", { sessionId, level });
+      const bad = await ask("session.setThinking", { sessionId, level: "bogus" }).then(
+        () => false,
+        () => true,
+      );
+      if (!bad) failures.push("an unknown thinking level was accepted");
+    },
+  },
+);
+
+/** A scenario that sends `text` with `delivery` once the answer to COUNTING is streaming. */
+function joiningScenario(
+  name: string,
+  delivery: "steer" | "followUp",
+  text: string,
+  check: (vm: SessionViewModel, mine: SessionOpEvent[]) => string[],
+) {
+  return scenario(
+    name,
+    COUNTING,
+    check,
+    async (sessionId, from) => {
+      await until("the answer to start streaming", () =>
+        ops.slice(from).some((o) => o.sessionId === sessionId && o.op.type === "item.appendText"),
+      );
+      await ask("session.prompt", { sessionId, text, delivery });
+    },
+    { before: (sessionId) => useCheap(sessionId) },
+  );
+}
+
+await joiningScenario(
+  "steer",
+  "steer",
+  "Stop counting at 10 and say so in one short sentence.",
+  (vm, mine) => {
+    const steered = vm.timeline.find((i) => i.kind === "user" && i.steered === true);
+    return [
+      ...(queueOps(mine).some((q) => q.steering.length > 0)
+        ? []
+        : ["the steer never showed in the queue"]),
+      ...(steered ? [] : ["no user item carries the steered flag"]),
+      ...(vm.queue.steering.length === 0 ? [] : ["the steering queue did not drain"]),
+    ];
+  },
+);
+
+await joiningScenario(
+  "followup",
+  "followUp",
+  "After that, reply with exactly one word: done.",
+  (vm, mine) => {
+    const users = vm.timeline.filter((i) => i.kind === "user");
+    return [
+      ...(queueOps(mine).some((q) => q.followUp.length > 0)
+        ? []
+        : ["the follow-up never showed in the queue"]),
+      ...(users.length === 2 ? [] : [`expected 2 user items, found ${users.length}`]),
+      ...(users.some((u) => u.kind === "user" && u.steered === true)
+        ? ["a follow-up was flagged steered"]
+        : []),
+      ...(vm.queue.followUp.length === 0 ? [] : ["the follow-up queue did not drain"]),
+      ...(/done/i.test(textOf(vm)) ? [] : ["the follow-up turn did not answer"]),
+    ];
+  },
+);
+
+// What Stop leaves behind: observed, and reported as such.
+await scenario(
+  "stop-queue",
+  COUNTING,
+  (vm, mine) => {
+    console.log(
+      `stop-queue: queue after stop ${JSON.stringify(vm.queue)}, user items ${vm.timeline.filter((i) => i.kind === "user").length}, status ${vm.status}`,
+    );
+    console.log(
+      `stop-queue: queue states seen ${JSON.stringify(queueOps(mine).map((q) => [q.steering.length, q.followUp.length]))}`,
+    );
+    const users = vm.timeline.filter((i) => i.kind === "user").length;
+    return [
+      ...(vm.status === "idle" ? [] : [`status is ${vm.status}, expected idle`]),
+      // omp's cancel aborts only: the follow-up stays queued and nothing starts it. The window
+      // takes it back with `removeQueued` on Stop; this pins the omp behaviour that needs.
+      ...(vm.queue.followUp.length === 1 && vm.queue.followUp[0] === "Then say: later."
+        ? []
+        : [`expected the follow-up to stay queued, queue is ${JSON.stringify(vm.queue)}`]),
+      ...(users === 1 ? [] : [`expected 1 user item, found ${users}`]),
+    ];
+  },
+  async (sessionId, from) => {
+    await until("the answer to start streaming", () =>
+      ops.slice(from).some((o) => o.sessionId === sessionId && o.op.type === "item.appendText"),
+    );
+    await ask("session.prompt", { sessionId, text: "Then say: later.", delivery: "followUp" });
+    await until("the follow-up to be queued", () =>
+      ops
+        .slice(from)
+        .some(
+          (o) =>
+            o.sessionId === sessionId &&
+            o.op.type === "queue.set" &&
+            o.op.queue.followUp.length > 0,
+        ),
+    );
+    await ask("session.cancel", { sessionId });
+    await Bun.sleep(4000);
+  },
+  { before: (sessionId) => useCheap(sessionId) },
+);
+
+/** A solid red 16x16 PNG, built here so the check needs no asset. */
+function redPng(): string {
+  const chunk = (type: string, body: Uint8Array) => {
+    const head = new Uint8Array(4 + body.length);
+    head.set(new TextEncoder().encode(type));
+    head.set(body, 4);
+    const out = new Uint8Array(12 + body.length);
+    const view = new DataView(out.buffer);
+    view.setUint32(0, body.length);
+    out.set(head, 4);
+    view.setUint32(8 + body.length, Bun.hash.crc32(head) >>> 0);
+    return out;
+  };
+  const size = 16;
+  const header = new Uint8Array(13);
+  const hv = new DataView(header.buffer);
+  hv.setUint32(0, size);
+  hv.setUint32(4, size);
+  header.set([8, 2, 0, 0, 0], 8);
+  const row = new Uint8Array(1 + size * 3);
+  for (let x = 0; x < size; x++) row.set([255, 0, 0], 1 + x * 3);
+  const raw = new Uint8Array(row.length * size);
+  for (let y = 0; y < size; y++) raw.set(row, y * row.length);
+  const parts = [
+    new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]),
+    chunk("IHDR", header),
+    chunk("IDAT", new Uint8Array(deflateSync(raw))),
+    chunk("IEND", new Uint8Array()),
+  ];
+  return Buffer.concat(parts).toString("base64");
+}
+
+await scenario(
+  "image",
+  "What single color fills this image? Answer with one lowercase word. No tools.",
+  (vm) => {
+    const user = vm.timeline.find((i) => i.kind === "user");
+    return [
+      ...(user?.kind === "user" && user.attachments?.[0]?.kind === "image"
+        ? []
+        : [
+            "the user item carries no image attachment (omp re-encodes the image, so only its kind is checked)",
+          ]),
+      ...(/red/i.test(textOf(vm))
+        ? []
+        : [`the model did not name the color: ${JSON.stringify(textOf(vm))}`]),
+    ];
+  },
+  undefined,
+  {
+    before: (sessionId) => useCheap(sessionId),
+    images: [{ mimeType: "image/png", data: redPng() }],
+  },
+);
+
+await Bun.write(join(cwd, "secret.txt"), "The password is BLUE-HERON-42.\n");
+await scenario(
+  "file",
+  "What is the password in @secret.txt? Answer with the password only.",
+  (vm) =>
+    /BLUE-HERON-42/.test(textOf(vm))
+      ? []
+      : [`the agent did not read the file: ${JSON.stringify(textOf(vm))}`],
+  undefined,
+  { before: (sessionId) => useCheap(sessionId) },
+);
+
+// A `@file` typed into a steer is queued as raw text: omp reads files only for a prompt that
+// starts a turn (`joinActiveTurn` vs `#prompt`). So no `user.files` op follows the steer, and an
+// agent that wants the file has to open it with a tool; in the idle `file` scenario omp pre-reads
+// it and no tool runs. The answer text is not checked: the agent may well read the file itself.
+await Bun.write(join(cwd, "mid.txt"), "The code is GREEN-OTTER-77.\n");
+await joiningScenario(
+  "mid-turn-file",
+  "steer",
+  "Stop counting. What is the code in @mid.txt?",
+  (vm, mine) => {
+    const at = vm.timeline.findIndex((i) => i.kind === "user" && i.steered === true);
+    const steer = vm.timeline[at];
+    return [
+      ...(at === -1 ? ["no steered user item"] : []),
+      ...(steer?.kind === "user" && steer.files === undefined
+        ? []
+        : ["the steer carries files, but omp reads none for a joined message"]),
+      ...(mine.some((o) => o.op.type === "user.files")
+        ? ["a user.files op was emitted though no prompt started a turn with that file"]
+        : []),
+      ...(at !== -1 && vm.timeline.slice(at).some((i) => i.kind === "tool")
+        ? []
+        : ["the agent opened no file by itself after the steer"]),
+    ];
   },
 );
 

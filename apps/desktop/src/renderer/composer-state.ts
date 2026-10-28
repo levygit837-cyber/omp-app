@@ -5,7 +5,11 @@ export type ComposerView =
   | { readonly kind: "read-only" }
   | {
       readonly kind: "input";
-      /** A prompt may be sent now. A draft typed while this is false is kept. */
+      /**
+       * A prompt may be sent now. While the agent works it joins the turn (steer) or waits for it
+       * (follow-up), so a running turn does not stop sending; only the engine does. A draft typed
+       * while this is false is kept.
+       */
       readonly canSend: boolean;
       /** Why sending is paused because of the engine, for a draft that is waiting; else null. */
       readonly reason: string | null;
@@ -41,7 +45,7 @@ export function composerView({ readOnly, engine, streaming }: ComposerInputs): C
   }
   return {
     kind: "input",
-    canSend: !streaming,
+    canSend: true,
     reason: null,
     placeholder: streaming
       ? "Steer the agent, or queue what comes next…"
@@ -56,4 +60,17 @@ export function composerView({ readOnly, engine, streaming }: ComposerInputs): C
  */
 export function keyStopsTurn(key: string, underInert: boolean): boolean {
   return key === "Escape" && !underInert;
+}
+
+/**
+ * What Esc does in the input bar. The `@` list closes first and stays a separate step from
+ * stopping: the Esc that dismisses the list must never also stop the turn. `listShown` is whether
+ * the list is on screen (it draws "Searching…" and "No matching files" as well as matches).
+ */
+export function escapeAction(state: {
+  readonly listShown: boolean;
+  readonly stopsTurn: boolean;
+}): "close-list" | "stop" | "none" {
+  if (state.listShown) return "close-list";
+  return state.stopsTurn ? "stop" : "none";
 }

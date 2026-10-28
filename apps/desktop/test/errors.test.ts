@@ -1,5 +1,22 @@
 import { describe, expect, test } from "bun:test";
-import { describeConfigProblem, describeError, describeMcpFailure } from "../src/renderer/errors";
+import {
+  describeConfigProblem,
+  describeEngineFailure,
+  describeError,
+  describeMcpFailure,
+} from "../src/renderer/errors";
+
+describe("describeEngineFailure", () => {
+  test("an oversized frame is a sentence, not the protocol text", () => {
+    const said = describeEngineFailure("frame line exceeds 33554432 characters");
+    expect(said).not.toContain("33554432");
+    expect(said).not.toContain("frame line");
+  });
+
+  test("the supervisor's own reasons pass through", () => {
+    expect(describeEngineFailure("sidecar exited with code 1")).toBe("sidecar exited with code 1");
+  });
+});
 
 describe("describeError", () => {
   test("a dead sidecar becomes a sentence, not the IPC text", () => {
@@ -16,6 +33,14 @@ describe("describeError", () => {
       "Error invoking remote method 'session:create': Error: no such directory",
     );
     expect(describeError(raw)).toBe("no such directory");
+  });
+
+  test("an extension command refused by the queue becomes a sentence without the command", () => {
+    const said = describeError(
+      new Error('Extension command "/deploy" cannot be queued. Use prompt() or execute it.'),
+    );
+    expect(said).not.toContain("deploy");
+    expect(said).not.toContain("prompt()");
   });
 
   test("anything else is shown as text, and an empty message is never blank", () => {

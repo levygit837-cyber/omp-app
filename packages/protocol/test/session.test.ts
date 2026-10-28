@@ -19,6 +19,8 @@ const empty: SessionViewModel = {
   context: null,
   todo: [],
   pending: [],
+  thinking: null,
+  queue: { steering: [], followUp: [], liveSteered: 0 },
 };
 
 const fold = (ops: readonly SessionOp[], from = empty) => ops.reduce(applyOp, from);
@@ -76,6 +78,20 @@ describe("applyOp", () => {
     expect(vm.timeline).toBe(empty.timeline);
     expect(isSessionViewModel(vm)).toBe(true);
     expect(isSessionViewModel({ ...vm, warnings: [{ source: "mcp", server: 1 }] })).toBe(false);
+  });
+
+  test("user.files sets the files omp read on that user item only, and the guard checks them", () => {
+    const vm = fold([
+      { type: "item.add", item: { kind: "user", id: "i0", text: "read @a.ts" } },
+      { type: "item.add", item: { kind: "assistant", id: "i1", text: "", done: false } },
+      { type: "user.files", itemId: "i0", files: ["a.ts"] },
+      { type: "user.files", itemId: "i1", files: ["ignored.ts"] },
+    ]);
+    expect(vm.timeline[0]).toMatchObject({ kind: "user", files: ["a.ts"] });
+    expect(vm.timeline[1]).not.toHaveProperty("files");
+    expect(isSessionViewModel(vm)).toBe(true);
+    const bad = { ...vm, timeline: [{ kind: "user", id: "i0", text: "x", files: [1] }] };
+    expect(isSessionViewModel(bad)).toBe(false);
   });
 
   test("ops for unknown items and ops of a newer protocol are no-ops", () => {

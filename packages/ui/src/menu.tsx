@@ -65,13 +65,18 @@ export function Menu({ label, anchor, onDismiss, children }: MenuProps) {
       if (event.target instanceof Node && !root.current?.contains(event.target)) close();
     };
     document.addEventListener("pointerdown", outside, true);
-    // The menu is fixed to the viewport, so anything that moves its row leaves it behind.
-    document.addEventListener("scroll", close, true);
+    // The menu is fixed to the viewport, so anything that moves its row leaves it behind. A
+    // scroll inside the menu (a long list keeping the focused item in view) moves nothing.
+    const scrolled = (event: Event) => {
+      if (event.target instanceof Node && root.current?.contains(event.target)) return;
+      close();
+    };
+    document.addEventListener("scroll", scrolled, true);
     window.addEventListener("resize", close);
     window.addEventListener("blur", close);
     return () => {
       document.removeEventListener("pointerdown", outside, true);
-      document.removeEventListener("scroll", close, true);
+      document.removeEventListener("scroll", scrolled, true);
       window.removeEventListener("resize", close);
       window.removeEventListener("blur", close);
     };

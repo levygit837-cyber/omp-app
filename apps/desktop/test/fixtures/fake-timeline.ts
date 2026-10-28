@@ -9,15 +9,18 @@ export function fakeViewModel(init: {
   cwd: string;
   model: string;
   timeline: Item[];
+  thinking?: string | null;
 }): SessionViewModel {
   return {
     ...init,
+    thinking: init.thinking ?? null,
     status: "idle",
     warnings: [],
     usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, cost: 0 },
     context: null,
     todo: [],
     pending: [],
+    queue: { steering: [], followUp: [], liveSteered: 0 },
   };
 }
 

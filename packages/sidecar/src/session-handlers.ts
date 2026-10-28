@@ -1,4 +1,16 @@
-import { type StoredSession, UNKNOWN_SESSION_MESSAGE } from "@omp-app/protocol";
+import {
+  type Delivery,
+  IMAGE_REFUSED_MESSAGE,
+  isPromptImage,
+  MAX_FILE_QUERY_CHARS,
+  type ModelOption,
+  type PromptImage,
+  type QueueName,
+  refuseImages,
+  type StoredSession,
+  UNKNOWN_SESSION_MESSAGE,
+} from "@omp-app/protocol";
+import { listFiles } from "./file-list";
 import type { RequestAnswers } from "./request-registry";
 import type { Handlers } from "./server";
 import type { SessionStore } from "./session-store";
@@ -10,13 +22,29 @@ export interface SessionControl {
   resumeSession(sessionId: string): Promise<string>;
   forkSession(sessionId: string): Promise<string>;
   closeSession(sessionId: string): Promise<void>;
-  prompt(sessionId: string, text: string): Promise<string>;
+  prompt(sessionId: string, text: string, images?: readonly PromptImage[]): Promise<string>;
+  join(
+    sessionId: string,
+    text: string,
+    images: readonly PromptImage[],
+    delivery: Delivery,
+  ): Promise<boolean>;
+  models(sessionId: string): ModelOption[];
+  setModel(sessionId: string, model: string): Promise<void>;
+  setThinking(sessionId: string, level: string): void;
+  removeQueued(sessionId: string, queue: QueueName, text: string): boolean;
+  cwdOf(sessionId: string): string;
   cancel(sessionId: string): Promise<void>;
 }
 
 export const SESSION_CAPABILITIES = [
   "session.create",
   "session.prompt",
+  "session.models",
+  "session.setModel",
+  "session.setThinking",
+  "session.removeQueued",
+  "session.files",
   "session.cancel",
   "session.subscribe",
   "session.unsubscribe",
@@ -76,16 +104,60 @@ export function sessionHandlers(
         return null;
       }),
 
-    "session.prompt": async ({ sessionId, text }) => {
+    "session.prompt": async ({ sessionId, text, images = [], delivery = "steer" }) => {
+      // The request comes from a renderer: check the shape here, not at the call sites.
+      if (
+        !Array.isArray(images) ||
+        !images.every(isPromptImage) ||
+        (delivery !== "steer" && delivery !== "followUp")
+      ) {
+        throw new Error("invalid prompt");
+      }
+      const refusal = refuseImages(images);
+      if (refusal) throw new Error(`${IMAGE_REFUSED_MESSAGE}: ${refusal}`);
+      const id = known(sessionId);
+      // While the agent works the prompt joins the turn. When omp declines it (the turn is being
+      // cancelled, or nobody the app started is running) it starts a turn like an idle prompt.
+      if (store.snapshot(id).snapshot.status === "streaming") {
+        if (await control.join(id, text, images, delivery)) return null;
+      }
       // The turn can run for minutes. The caller learns of progress through ops, so the request
       // returns once the prompt is accepted; a failed turn becomes a `failed` status.
-      control.prompt(known(sessionId), text).catch((error: unknown) => {
+      control.prompt(id, text, images).catch((error: unknown) => {
         // The session may have been closed while the turn ran; nobody is left to tell.
         const id = store.current(sessionId);
         if (!store.has(id)) return;
         store.fail(id, error instanceof Error ? error.message : String(error));
       });
       return null;
+    },
+
+    "session.models": async ({ sessionId }) => ({ models: control.models(known(sessionId)) }),
+
+    "session.setModel": async ({ sessionId, model }) => {
+      if (typeof model !== "string") throw new Error("invalid model");
+      await control.setModel(known(sessionId), model);
+      return null;
+    },
+
+    "session.setThinking": async ({ sessionId, level }) => {
+      if (typeof level !== "string") throw new Error("invalid thinking level");
+      control.setThinking(known(sessionId), level);
+      return null;
+    },
+
+    "session.removeQueued": async ({ sessionId, queue, text }) => {
+      if ((queue !== "steering" && queue !== "followUp") || typeof text !== "string") {
+        throw new Error("invalid queue entry");
+      }
+      return { removed: control.removeQueued(known(sessionId), queue, text) };
+    },
+
+    "session.files": async ({ sessionId, query }) => {
+      if (typeof query !== "string" || query.length > MAX_FILE_QUERY_CHARS) {
+        throw new Error("invalid query");
+      }
+      return { ...(await listFiles(control.cwdOf(known(sessionId)), query)) };
     },
 
     "session.cancel": async ({ sessionId }) => {

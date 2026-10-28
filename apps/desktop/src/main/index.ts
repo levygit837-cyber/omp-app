@@ -1,5 +1,14 @@
 import { join } from "node:path";
-import { isAskContent, isSessionOpEvent, type SettingsTarget } from "@omp-app/protocol";
+import {
+  IMAGE_REFUSED_MESSAGE,
+  isAskContent,
+  isPromptImage,
+  isSessionOpEvent,
+  MAX_FILE_QUERY_CHARS,
+  type PromptImage,
+  refuseImages,
+  type SettingsTarget,
+} from "@omp-app/protocol";
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, shell } from "electron";
 import {
   APP_OPEN_LINK,
@@ -14,12 +23,17 @@ import {
   SESSION_CANCEL,
   SESSION_CLOSE,
   SESSION_CREATE,
+  SESSION_FILES,
   SESSION_FORK,
   SESSION_LIST,
+  SESSION_MODELS,
   SESSION_OP,
   SESSION_PICK_DIRECTORY,
   SESSION_PROMPT,
+  SESSION_REMOVE_QUEUED,
   SESSION_RESUME,
+  SESSION_SET_MODEL,
+  SESSION_SET_THINKING,
   SESSION_SUBSCRIBE,
   SESSION_UNSUBSCRIBE,
   SETTINGS_LIST,
@@ -71,6 +85,36 @@ function text(value: unknown, name: string): string {
   return value;
 }
 
+/**
+ * What a prompt may carry, checked here because the renderer is untrusted. Text may be empty
+ * only when images go with it. Images are re-checked for count, type, shape and size.
+ */
+function promptOptions(
+  value: unknown,
+  prompt: unknown,
+): { delivery?: "steer" | "followUp"; images?: PromptImage[] } {
+  const options = value === undefined || value === null ? {} : value;
+  if (typeof options !== "object") throw new Error("options must be an object");
+  const delivery: unknown = "delivery" in options ? options.delivery : undefined;
+  if (delivery !== undefined && delivery !== "steer" && delivery !== "followUp") {
+    throw new Error("delivery is not valid");
+  }
+  const images: unknown = "images" in options ? options.images : undefined;
+  if (images !== undefined && !(Array.isArray(images) && images.every(isPromptImage))) {
+    throw new Error("images are not valid");
+  }
+  const refusal = images === undefined ? null : refuseImages(images);
+  if (refusal) throw new Error(`${IMAGE_REFUSED_MESSAGE}: ${refusal}`);
+  if (typeof prompt !== "string") throw new Error("text must be a string");
+  if (prompt.length === 0 && (images === undefined || images.length === 0)) {
+    throw new Error("text must be a string");
+  }
+  return {
+    ...(delivery === undefined ? {} : { delivery }),
+    ...(images === undefined ? {} : { images }),
+  };
+}
+
 /** Main is the single sidecar client; it relays explicit session calls and forwards the ops. */
 function registerSessionRelay(sidecar: SidecarSupervisor): void {
   sidecar.onEvent((event) => {
@@ -95,11 +139,55 @@ function registerSessionRelay(sidecar: SidecarSupervisor): void {
   ipcMain.handle(SESSION_UNSUBSCRIBE, async (_event, sessionId: unknown) => {
     await sidecar.request("session.unsubscribe", { sessionId: text(sessionId, "sessionId") });
   });
-  ipcMain.handle(SESSION_PROMPT, async (_event, sessionId: unknown, prompt: unknown) => {
-    await sidecar.request("session.prompt", {
+  ipcMain.handle(
+    SESSION_PROMPT,
+    async (_event, sessionId: unknown, prompt: unknown, options: unknown) => {
+      const extras = promptOptions(options, prompt);
+      await sidecar.request("session.prompt", {
+        sessionId: text(sessionId, "sessionId"),
+        text: prompt as string,
+        ...extras,
+      });
+    },
+  );
+  ipcMain.handle(
+    SESSION_MODELS,
+    async (_event, sessionId: unknown) =>
+      (await sidecar.request("session.models", { sessionId: text(sessionId, "sessionId") })).models,
+  );
+  ipcMain.handle(SESSION_SET_MODEL, async (_event, sessionId: unknown, model: unknown) => {
+    await sidecar.request("session.setModel", {
       sessionId: text(sessionId, "sessionId"),
-      text: text(prompt, "text"),
+      model: text(model, "model"),
     });
+  });
+  ipcMain.handle(SESSION_SET_THINKING, async (_event, sessionId: unknown, level: unknown) => {
+    await sidecar.request("session.setThinking", {
+      sessionId: text(sessionId, "sessionId"),
+      level: text(level, "level"),
+    });
+  });
+  ipcMain.handle(
+    SESSION_REMOVE_QUEUED,
+    async (_event, sessionId: unknown, queue: unknown, entry: unknown) => {
+      if (queue !== "steering" && queue !== "followUp") throw new Error("queue is not valid");
+      const result = await sidecar.request("session.removeQueued", {
+        sessionId: text(sessionId, "sessionId"),
+        queue,
+        text: text(entry, "text"),
+      });
+      return result.removed;
+    },
+  );
+  ipcMain.handle(SESSION_FILES, async (_event, sessionId: unknown, query: unknown) => {
+    if (typeof query !== "string" || query.length > MAX_FILE_QUERY_CHARS) {
+      throw new Error("query is not valid");
+    }
+    const result = await sidecar.request("session.files", {
+      sessionId: text(sessionId, "sessionId"),
+      query,
+    });
+    return { files: result.files, truncated: result.truncated === true };
   });
   ipcMain.handle(SESSION_CANCEL, async (_event, sessionId: unknown) => {
     await sidecar.request("session.cancel", { sessionId: text(sessionId, "sessionId") });

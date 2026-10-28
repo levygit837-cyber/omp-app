@@ -9,6 +9,7 @@ import { useShownStatus } from "./shown-status";
 import { CompactionLine, compactionVisible, RetryLine } from "./timeline/StatusLines";
 import { ThinkingLine } from "./timeline/ThinkingLine";
 import { ToolLine } from "./timeline/ToolLine";
+import { UserMessage } from "./timeline/UserMessage";
 import { useFollowBottom } from "./use-follow-bottom";
 
 /** Height guess for a row that has not been measured yet; the measurement replaces it. */
@@ -45,13 +46,7 @@ function Reply({ sessionId, item }: { sessionId: string; item: AssistantItem }) 
 function Body({ sessionId, item }: { sessionId: string; item: Item }) {
   switch (item.kind) {
     case "user":
-      return (
-        <div className="flex justify-end">
-          <p className="max-w-(--layout-user-band-max) rounded-sm bg-bg-user px-(--space-user-band-x) py-(--space-user-band-y) text-size-body leading-(--line-height-prose) break-words whitespace-pre-wrap">
-            {item.text}
-          </p>
-        </div>
-      );
+      return <UserMessage item={item} />;
     case "assistant":
       return <Reply sessionId={sessionId} item={item} />;
     case "tool":

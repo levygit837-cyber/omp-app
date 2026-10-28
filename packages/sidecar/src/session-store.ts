@@ -10,7 +10,7 @@ import type {
   SessionWarning,
 } from "@omp-app/protocol";
 import { applyOp, UNKNOWN_SESSION_MESSAGE } from "@omp-app/protocol";
-import { type Reduced, reduceEvent, reduceModel } from "./reducer";
+import { type Reduced, reduceEvent, reduceModel, reduceThinking } from "./reducer";
 
 export type OpSink = (event: SessionOpEvent) => void;
 
@@ -58,6 +58,12 @@ export class SessionStore {
   setModel(sessionId: string, model: string | null): void {
     const entry = this.#entry(sessionId);
     this.#commit(sessionId, entry, reduceModel(entry.viewModel, model));
+  }
+
+  /** A model switch re-applies the thinking level without always saying so in an event. */
+  setThinking(sessionId: string, thinking: string | null): void {
+    const entry = this.#entry(sessionId);
+    this.#commit(sessionId, entry, reduceThinking(entry.viewModel, thinking));
   }
 
   /** Marks the session failed for a reason that did not come through its event stream. */

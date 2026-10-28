@@ -7,6 +7,7 @@ import {
   encodeFrame,
   errorResponse,
   FrameDecoder,
+  FrameTooLongError,
   isRequestEnvelope,
   type MethodName,
   type Methods,
@@ -138,16 +139,33 @@ export function startServer(
       },
       data(socket, chunk) {
         const state = socket.data;
-        for (const line of state.decoder.push(state.text.decode(chunk, { stream: true }))) {
+        if (state.closed) return;
+        let lines: readonly string[];
+        let tooLong = false;
+        try {
+          lines = state.decoder.push(state.text.decode(chunk, { stream: true }));
+        } catch (error) {
+          if (!(error instanceof FrameTooLongError)) throw error;
+          console.error("[sidecar] closing connection: frame line too long");
+          // Requests this chunk completed before the oversized line are still answered.
+          lines = error.complete;
+          tooLong = true;
+          state.closed = true;
+        }
+        const answers: Promise<void>[] = [];
+        for (const line of lines) {
           const decoded = decodeFrame(line);
           if (!decoded.ok || !isRequestEnvelope(decoded.envelope)) {
             console.error(`[sidecar] dropped malformed frame: ${line.slice(0, 200)}`);
             continue;
           }
-          void dispatch(handlers, decoded.envelope, readOnly, state.client).then((response) =>
-            send(socket, encodeFrame(response)),
+          answers.push(
+            dispatch(handlers, decoded.envelope, readOnly, state.client).then((response) =>
+              send(socket, encodeFrame(response)),
+            ),
           );
         }
+        if (tooLong) void Promise.allSettled(answers).then(() => socket.end());
       },
       drain(socket) {
         const state = socket.data;

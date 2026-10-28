@@ -1,5 +1,6 @@
 export { Button, type ButtonProps, type ButtonVariant, IconButton } from "./button";
 export { Caret } from "./caret";
+export { Chip, type ChipProps } from "./chip";
 export { CodeBlock, type CodeBlockProps } from "./code-block";
 export { cx } from "./cx";
 export type { DiffLine } from "./diff";

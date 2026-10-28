@@ -17,7 +17,15 @@ import {
   PROTOCOL_VERSION,
   type Stream,
 } from "@oh-my-pi/pi-utils/acp";
-import type { StoredSession } from "@omp-app/protocol";
+import {
+  type Delivery,
+  type ModelOption,
+  type PromptImage,
+  type QueueName,
+  SESSION_BUSY_MESSAGE,
+  type StoredSession,
+  UNKNOWN_SESSION_MESSAGE,
+} from "@omp-app/protocol";
 import { parseMcpFailure, resolveMcpServers } from "./mcp-config";
 import type { RequestRegistry } from "./request-registry";
 import { findStoredSession, listStoredSessions } from "./session-catalog";
@@ -57,7 +65,30 @@ export interface OmpHost {
   /** Disposes the in-memory session (stopping a running turn). The file stays on disk. */
   closeSession(sessionId: string): Promise<void>;
   /** Resolves when the turn ends (answered, cancelled or failed) with ACP's stop reason. */
-  prompt(sessionId: string, text: string): Promise<string>;
+  prompt(sessionId: string, text: string, images?: readonly PromptImage[]): Promise<string>;
+  /**
+   * Hands a prompt to the turn that is running. Resolves true when the turn took it (`steer`
+   * injects it at the next model call, `followUp` queues it for after the turn). False when no
+   * turn the app started is running, which is the caller's cue to start one with `prompt`: an
+   * idle session, an autonomous run nobody watches, or a turn being cancelled
+   * (`joinActiveTurn`, `agent-session.ts:8896-8960` [V]).
+   */
+  join(
+    sessionId: string,
+    text: string,
+    images: readonly PromptImage[],
+    delivery: Delivery,
+  ): Promise<boolean>;
+  /** Models with credentials, as `getAvailableModels()` lists them (`model-controls.ts:502` [V]). */
+  models(sessionId: string): ModelOption[];
+  /** Switches the model for the next turn. Refused while a turn runs. */
+  setModel(sessionId: string, model: string): Promise<void>;
+  /** `auto`, `off` or a level the active model accepts. Refused while a turn runs. */
+  setThinking(sessionId: string, level: string): void;
+  /** `removeQueuedMessage` (`agent-session.ts:9971` [V]): false once the message left the queue. */
+  removeQueued(sessionId: string, queue: QueueName, text: string): boolean;
+  /** Working folder of an open session. */
+  cwdOf(sessionId: string): string;
   /**
    * Asks the session to stop its running turn. ACP's `session/cancel` is a notification: this
    * resolves once it is sent, not once the turn has unwound. The stop shows up as ops
@@ -218,6 +249,16 @@ export async function startOmpHost(options: OmpHostOptions): Promise<OmpHost> {
    */
   const moved = new Map<string, string>();
   const keyOf = (sessionId: string): string => moved.get(sessionId) ?? sessionId;
+  /** The open sessions by ACP key: the controls that ACP does not carry go straight to them. */
+  const sessions = new Map<string, AgentSession>();
+  const sessionOf = (sessionId: string): AgentSession => {
+    const session = sessions.get(keyOf(sessionId));
+    if (!session) throw new Error(`${UNKNOWN_SESSION_MESSAGE}: ${sessionId}`);
+    return session;
+  };
+  const idle = (session: AgentSession): void => {
+    if (session.isStreaming) throw new Error(SESSION_BUSY_MESSAGE);
+  };
   const followMoves = (session: AgentSession, key: string): void => {
     let current = session.sessionId;
     // A move that already happened (omp replays past notices on subscribe) shows as an id that
@@ -258,6 +299,7 @@ export async function startOmpHost(options: OmpHostOptions): Promise<OmpHost> {
       if (!session) return key;
       const clone = cloneOf.get(session);
       if (clone) liveSettings.set(key, clone);
+      sessions.set(key, session);
       options.onSessionCreated(session);
       followMoves(session, key);
       // The session's own id: it differs from ACP's key when omp moved it while opening.
@@ -293,15 +335,57 @@ export async function startOmpHost(options: OmpHostOptions): Promise<OmpHost> {
         const key = keyOf(sessionId);
         await client.closeSession({ sessionId: key });
         liveSettings.delete(key);
+        sessions.delete(key);
         moved.delete(sessionId);
       }),
-    async prompt(sessionId, text) {
+    async prompt(sessionId, text, images = []) {
       const result = await client.prompt({
         sessionId: keyOf(sessionId),
-        prompt: [{ type: "text", text }],
+        prompt: [
+          ...(text === "" ? [] : [{ type: "text" as const, text }]),
+          ...images.map((image) => ({
+            type: "image" as const,
+            data: image.data,
+            mimeType: image.mimeType,
+          })),
+        ],
       });
       return result.stopReason;
     },
+    join: (sessionId, text, images, delivery) =>
+      sessionOf(sessionId).joinActiveTurn(
+        text,
+        images.map((image) => ({ type: "image" as const, ...image })),
+        { queue: delivery === "followUp" ? "followUp" : "steering" },
+      ),
+    models: (sessionId) =>
+      sessionOf(sessionId)
+        .getAvailableModels()
+        .map((model) => ({
+          id: `${model.provider}/${model.id}`,
+          provider: model.provider,
+          name: model.name,
+          // `getSupportedEfforts` (`pi-catalog/model-thinking.ts:23` [V]), read from the model.
+          efforts: model.reasoning ? [...(model.thinking?.efforts ?? [])] : [],
+        })),
+    async setModel(sessionId, id) {
+      const session = sessionOf(sessionId);
+      idle(session);
+      const model = session.getAvailableModels().find((m) => `${m.provider}/${m.id}` === id);
+      if (!model) throw new Error(`unknown model: ${id}`);
+      // Like ACP's `#setModelById`: appends a `model_change` to the session file and leaves the
+      // global default alone (only `persist: true` writes settings).
+      await session.setModel(model);
+    },
+    setThinking(sessionId, level) {
+      const session = sessionOf(sessionId);
+      idle(session);
+      const accepted: readonly string[] = ["off", "auto", ...session.getAvailableThinkingLevels()];
+      if (!accepted.includes(level)) throw new Error(`unknown thinking level: ${level}`);
+      session.setThinkingLevel(level as Parameters<AgentSession["setThinkingLevel"]>[0]);
+    },
+    removeQueued: (sessionId, queue, text) => sessionOf(sessionId).removeQueuedMessage(text, queue),
+    cwdOf: (sessionId) => sessionOf(sessionId).sessionManager.getCwd(),
     cancel: (sessionId) => client.cancel({ sessionId: keyOf(sessionId) }),
     close: async () => {
       await transport.client.writable.close().catch(() => {});

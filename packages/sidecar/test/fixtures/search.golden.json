@@ -2458,7 +2458,13 @@
       },
       "context": null,
       "todo": [],
-      "pending": []
+      "pending": [],
+      "thinking": null,
+      "queue": {
+        "steering": [],
+        "followUp": [],
+        "liveSteered": 0
+      }
     },
     "seq": 226
   }

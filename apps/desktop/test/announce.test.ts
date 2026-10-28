@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { ANNOUNCE_MAX, announce } from "../src/renderer/announce";
+import { ANNOUNCE_MAX, announce, announceControls, announceQueue } from "../src/renderer/announce";
 import { shownStatus } from "../src/renderer/engine";
 
 describe("announce", () => {
@@ -38,5 +38,38 @@ describe("shownStatus", () => {
     expect(shownStatus("streaming", "ready")).toBe("streaming");
     expect(shownStatus("failed", "failed")).toBe("failed");
     expect(shownStatus(undefined, "ready")).toBeUndefined();
+  });
+});
+
+describe("announceQueue", () => {
+  const queue = (steering: string[], followUp: string[]) => ({
+    steering,
+    followUp,
+    liveSteered: 0,
+  });
+
+  test("says which kind entered the queue", () => {
+    expect(announceQueue(queue([], []), queue(["a"], []))).toBe("Steer queued");
+    expect(announceQueue(queue([], []), queue([], ["a"]))).toBe("Follow-up queued");
+  });
+
+  test("says how many are left when one leaves, whether delivered or removed", () => {
+    expect(announceQueue(queue(["a"], ["b"]), queue([], ["b"]))).toBe("1 queued");
+    expect(announceQueue(queue([], ["b"]), queue([], []))).toBe("Queue empty");
+  });
+
+  test("a queue that did not change in size, or a first reading, is silent", () => {
+    expect(announceQueue(queue(["a"], []), queue([], ["a"]))).toBeNull();
+    expect(announceQueue(undefined, queue(["a"], []))).toBeNull();
+  });
+});
+
+describe("announceControls", () => {
+  test("names the new model or thinking level, only once both sides are known", () => {
+    const was = { model: "p/one", thinking: "low" };
+    expect(announceControls(was, { model: "p/two", thinking: "low" })).toBe("Model: two");
+    expect(announceControls(was, { model: "p/one", thinking: "high" })).toBe("Thinking: high");
+    expect(announceControls(was, was)).toBeNull();
+    expect(announceControls({ model: undefined, thinking: undefined }, was)).toBeNull();
   });
 });
