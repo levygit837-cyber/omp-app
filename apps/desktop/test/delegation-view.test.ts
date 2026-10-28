@@ -9,6 +9,8 @@ import {
   subagentsPhrase,
   subagentTree,
   summarize,
+  type TabRef,
+  tabDomId,
   tabKey,
   tabsOf,
   tokensLabel,
@@ -59,6 +61,32 @@ describe("tabs of a session", () => {
 
   test("a subagent and a job with the same id are different tabs", () => {
     expect(tabKey({ kind: "subagent", id: "x" })).not.toBe(tabKey({ kind: "job", id: "x" }));
+  });
+});
+
+describe("tab DOM ids", () => {
+  test("two different tabs never share an id, whatever characters the path holds", () => {
+    const refs: TabRef[] = [
+      MAIN_TAB,
+      { kind: "subagent", id: "a/b" },
+      { kind: "subagent", id: "a_b" },
+      { kind: "job", id: "a/b" },
+      { kind: "file", path: "docs/a.md" },
+      { kind: "file", path: "docs_a.md" },
+      { kind: "file", path: "docs a.md" },
+      { kind: "file", path: "docs-a.md" },
+      { kind: "file", path: "we\"ird'[x].md" },
+      { kind: "file", path: "ü.md" },
+      { kind: "file", path: "u\u0308.md" },
+      { kind: "file", path: "a_2f_b" },
+      { kind: "file", path: "a/b" },
+    ];
+    const ids = refs.map(tabDomId);
+    expect(new Set(ids).size).toBe(refs.length);
+  });
+
+  test("an id is a plain token a selector or an attribute can carry", () => {
+    expect(tabDomId({ kind: "file", path: "a\"b c/'d.ts" })).toMatch(/^tab-[A-Za-z0-9_-]+$/);
   });
 });
 

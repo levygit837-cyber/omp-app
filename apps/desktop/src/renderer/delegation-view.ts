@@ -39,8 +39,13 @@ export function tabKey(ref: TabRef): string {
   }
 }
 
-/** DOM id of a tab, so its panel can name it. */
-export const tabDomId = (ref: TabRef): string => `tab-${tabKey(ref).replace(/[^a-z0-9_-]/gi, "_")}`;
+/**
+ * DOM id of a tab, so its panel can name it. Injective: every character outside `[A-Za-z0-9-]`,
+ * `_` included, becomes `_<hex code point>_`, and `_` appears only in such an escape, so two
+ * different keys (`file:docs/a.md`, `file:docs_a.md`) never share an id.
+ */
+export const tabDomId = (ref: TabRef): string =>
+  `tab-${tabKey(ref).replace(/[^A-Za-z0-9-]/gu, (c) => `_${c.codePointAt(0)?.toString(16)}_`)}`;
 
 export interface Delegation {
   readonly subagents: readonly SubagentInfo[];
