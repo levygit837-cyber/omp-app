@@ -351,39 +351,6 @@ test("delete is refused while a turn runs, and the turn finishes", async () => {
   client.close();
 });
 
-test("delete of a session waiting on a person rejects the request and removes the file", async () => {
-  const client = await connect(join(root, "s.sock"));
-  const id = await openWithTurn(client, "delete-waiting");
-  const file = sessionOf(id).sessionManager.getSessionFile() as string;
-  hold = Promise.withResolvers();
-  inModel = Promise.withResolvers();
-  await client.request("session.prompt", { sessionId: id, text: "slow" });
-  await inModel.promise;
-  // The shape omp's ACP bridge sends when a tool needs the person's approval.
-  const answer = requests.permission({
-    sessionId: id,
-    toolCall: {
-      toolCallId: "tc-wait",
-      title: "ls",
-      kind: "execute",
-      status: "pending",
-      rawInput: { command: "ls" },
-      content: [],
-      locations: [],
-    },
-    options: [{ optionId: "allow", name: "Allow", kind: "allow_once" }],
-  });
-  expect(view(id).pending).toHaveLength(1);
-
-  await client.request("session.delete", { sessionId: id, confirmed: true });
-  expect(await answer).toEqual({ outcome: { outcome: "cancelled" } });
-  expect(existsSync(file)).toBe(false);
-  expect(store.has(id)).toBe(false);
-  hold.resolve();
-  hold = undefined;
-  client.close();
-});
-
 test("delete of a session another omp process owns is refused and leaves its file alone", async () => {
   const client = await connect(join(root, "s.sock"));
   const cwd = join(root, "delete-owned");

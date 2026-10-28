@@ -279,11 +279,12 @@ export function sessionHandlers(
         if (view.status === "streaming" && view.pending.length === 0) {
           throw new Error(ACTION_BUSY_MESSAGE);
         }
+        // Closing the session aborts its turn, and the turn's end withdraws any request it held
+        // (`RequestRegistry.agentEvent`), so a waiting approval is rejected without a step here.
         const subagents = await control.deleteSession(id, () => {
           // After the host took the file's lease and before it closes the session: a refusal
-          // for an owned file leaves the request alone.
+          // for an owned file leaves the running command alone.
           commands.cancel(id);
-          requests.dismissSession(id);
         });
         store.remove(store.current(id));
         return { subagents };
