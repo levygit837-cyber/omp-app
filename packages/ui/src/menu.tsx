@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { scrollClosesCard } from "./confirm-scroll";
 import { cx } from "./cx";
 
 /**
@@ -23,6 +24,11 @@ export interface MenuProps {
   /** Accessible name of the menu. */
   label: string;
   anchor: MenuAnchor;
+  /**
+   * The element the menu hangs from. A scroll closes the menu only when it can move this element.
+   * Without it any scroll closes.
+   */
+  opener?: HTMLElement | null;
   /** Called on Esc, Tab, a press outside, a scroll or a resize. The owner unmounts the menu. */
   onDismiss: () => void;
   children: ReactNode;
@@ -35,7 +41,7 @@ const ITEMS = '[role="menuitem"]:not(:disabled)';
  * when it closes, so the owner puts it back on the control that opened the menu. Esc closes the
  * menu and stops there: it must not also reach a window-level Esc that cancels a running turn.
  */
-export function Menu({ label, anchor, onDismiss, children }: MenuProps) {
+export function Menu({ label, anchor, opener, onDismiss, children }: MenuProps) {
   const root = useRef<HTMLDivElement>(null);
   const [place, setPlace] = useState<{ left: number; top: number } | null>(null);
   const dismiss = useRef(onDismiss);
@@ -59,6 +65,8 @@ export function Menu({ label, anchor, onDismiss, children }: MenuProps) {
     if (placed) root.current?.querySelector<HTMLElement>(ITEMS)?.focus();
   }, [placed]);
 
+  const openerRef = useRef(opener);
+  openerRef.current = opener;
   useEffect(() => {
     const close = () => dismiss.current();
     const outside = (event: PointerEvent) => {
@@ -68,8 +76,10 @@ export function Menu({ label, anchor, onDismiss, children }: MenuProps) {
     // The menu is fixed to the viewport, so anything that moves its row leaves it behind. A
     // scroll inside the menu (a long list keeping the focused item in view) moves nothing.
     const scrolled = (event: Event) => {
-      if (event.target instanceof Node && root.current?.contains(event.target)) return;
-      close();
+      const target = event.target instanceof Node ? event.target : null;
+      if (target && root.current?.contains(target)) return;
+      // A timeline streaming elsewhere scrolls all the time without moving the menu's row.
+      if (scrollClosesCard(target, openerRef.current)) close();
     };
     document.addEventListener("scroll", scrolled, true);
     window.addEventListener("resize", close);

@@ -110,6 +110,7 @@ interface RowProps extends SessionActions {
 /** The menu of a session: only what omp can really do from here. */
 function SessionMenu({
   anchor,
+  opener,
   canFork,
   canClose,
   closeBlocked,
@@ -122,6 +123,8 @@ function SessionMenu({
   onDismiss,
 }: {
   anchor: MenuAnchor;
+  /** The row's actions button: a scroll closes the menu only when it moves this. */
+  opener: HTMLElement | null;
   canFork: boolean;
   canClose: boolean;
   /** Closing stops a running turn, so a session that is streaming cannot be closed from here. */
@@ -138,7 +141,7 @@ function SessionMenu({
   const deleteNote = useId();
   const dangerous = clear.state !== "hidden" || remove.state !== "hidden";
   return (
-    <Menu label="Session actions" anchor={anchor} onDismiss={onDismiss}>
+    <Menu label="Session actions" anchor={anchor} opener={opener} onDismiss={onDismiss}>
       {canFork && (
         <MenuItem
           onClick={() => {
@@ -303,6 +306,7 @@ function SessionRow({
       {anchor && (
         <SessionMenu
           anchor={anchor}
+          opener={more.current}
           canFork={canFork}
           canClose={canClose}
           closeBlocked={status === "streaming"}

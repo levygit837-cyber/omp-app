@@ -128,7 +128,7 @@ export type View =
   | { readonly kind: "empty"; readonly query: string; readonly groups: readonly Group[] };
 
 /** Rows per group while nothing is typed; the rest is a search away. */
-export const IDLE_LIMIT = { sessions: 6, session: 3, actions: 4, commands: 6 } as const;
+export const IDLE_LIMIT = { sessions: 6, session: 3, actions: 5, commands: 6 } as const;
 /** Rows per group while searching. */
 export const SEARCH_LIMIT = 30;
 
