@@ -24,3 +24,11 @@ export const SETTINGS_REVEAL = "settings:reveal";
 export const SETTINGS_OPEN_FILE = "settings:open-file";
 /** Pushed by main when the user asks for the settings view from the application menu (⌘,). */
 export const SETTINGS_OPEN = "settings:open";
+export const MCP_LIST = "mcp:list";
+export const MCP_ADD = "mcp:add";
+export const MCP_UPDATE = "mcp:update";
+export const MCP_REMOVE = "mcp:remove";
+export const MCP_SET_ENABLED = "mcp:set-enabled";
+export const MCP_REVEAL = "mcp:reveal";
+export const SKILLS_LIST = "skills:list";
+export const SKILLS_SET_ENABLED = "skills:set-enabled";

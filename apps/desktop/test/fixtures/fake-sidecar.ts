@@ -23,6 +23,7 @@
  * - FAKE_STORED=<n>: n sessions "on disk" (`stored-<i>`, see fake-catalog.ts) for list/resume/fork.
  *
  * `settings.*` is served from `fake-settings.ts` (in memory; `read-only` refuses the writes).
+ * `mcp.*` and `skills.*` come from `fake-extensions.ts` (same; FAKE_MCP=empty|broken picks the state).
  */
 
 import {
@@ -42,6 +43,7 @@ import {
   UNKNOWN_SESSION_MESSAGE,
 } from "@omp-app/protocol";
 import { storedSessions, storedTimeline } from "./fake-catalog";
+import { handleExtensions } from "./fake-extensions";
 import { answerRequest, dismissRequests, raiseRequests, scripted } from "./fake-requests";
 import { handleSettings } from "./fake-settings";
 import { fakeViewModel, mixedTimeline, stateTimeline } from "./fake-timeline";
@@ -398,14 +400,11 @@ Bun.listen<undefined>({
             ...(mode === "read-only" ? { schema: { onDisk: 7, expected: 6 } } : {}),
           });
         } else {
+          const cwdOf = (sid: string) => sessions.get(sid)?.vm.cwd;
           response =
-            handleSettings(
-              method,
-              id,
-              params,
-              mode === "read-only",
-              (sid) => sessions.get(sid)?.vm.cwd,
-            ) ?? handleSession(method, id, params, socket);
+            handleSettings(method, id, params, mode === "read-only", cwdOf) ??
+            handleExtensions(method, id, params, mode === "read-only", cwdOf) ??
+            handleSession(method, id, params, socket);
         }
         send(
           socket,

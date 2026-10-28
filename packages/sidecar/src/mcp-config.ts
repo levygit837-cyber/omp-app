@@ -1,4 +1,5 @@
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
+import { invalidate } from "@oh-my-pi/pi-coding-agent/capability/fs";
 import type { EffectiveExtensionRoots } from "@oh-my-pi/pi-coding-agent/capability/types";
 import type { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { cfgEvalJs, cfgEvalPy } from "@oh-my-pi/pi-coding-agent/eval/settings";
@@ -10,6 +11,7 @@ import {
 import { cfgMcpEnableProjectConfig } from "@oh-my-pi/pi-coding-agent/mcp/settings";
 import type { MCPServerConfig } from "@oh-my-pi/pi-coding-agent/mcp/types";
 import { cfgBrowserEnabled } from "@oh-my-pi/pi-coding-agent/tools/browser/settings";
+import { getAgentDir } from "@oh-my-pi/pi-utils";
 import type { McpServer } from "@oh-my-pi/pi-utils/acp";
 
 const toPairs = (values: Readonly<Record<string, string>> | undefined) =>
@@ -79,6 +81,25 @@ function extensionRoots(settings: Settings): EffectiveExtensionRoots {
 }
 
 /**
+ * Every file omp reads MCP servers from through its process-wide content cache
+ * (`capability/fs.ts`): the user and project `mcp.json`, the dot-file variants and the
+ * standalone files in the project root (`discovery/builtin.ts:~232-255`, `discovery/mcp-json.ts:171`
+ * [V]).
+ */
+function mcpSourceFiles(cwd: string): string[] {
+  const agent = getAgentDir();
+  return [
+    join(agent, "mcp.json"),
+    join(agent, ".mcp.json"),
+    join(cwd, ".omp", "mcp.json"),
+    join(cwd, ".omp", ".mcp.json"),
+    join(cwd, "mcp.json"),
+    join(cwd, ".mcp.json"),
+    join(cwd, ".claude", "mcp.json"),
+  ];
+}
+
+/**
  * The servers the CLI would load for `cwd`, by omp's own resolver (`loadAllMCPConfigs`), called
  * with the options `createAgentSession` passes it (`sdk.ts`): user `<agentDir>/mcp.json`,
  * project `<cwd>/.omp/mcp.json` and the other sources omp discovers, with omp's precedence,
@@ -87,8 +108,14 @@ function extensionRoots(settings: Settings): EffectiveExtensionRoots {
  * `settings` must be the session's settings (cloned for `cwd`). Exa servers are filtered out
  * like the CLI does, and their API keys are dropped on purpose: the app has no native Exa
  * integration yet, so nothing would consume them.
+ *
+ * omp reads these files through a cache that only its own writers invalidate. A person who
+ * fixes an `mcp.json` by hand (the app tells them to) writes behind that cache, so a session
+ * would start on the old content. The cache is dropped for these files first, so a new session
+ * always starts from what is on disk.
  */
 export async function resolveMcpServers(cwd: string, settings: Settings): Promise<McpServer[]> {
+  for (const file of mcpSourceFiles(cwd)) invalidate(file);
   const { configs } = await loadAllMCPConfigs(cwd, {
     enableProjectConfig: cfgMcpEnableProjectConfig.get(settings),
     filterExa: true,

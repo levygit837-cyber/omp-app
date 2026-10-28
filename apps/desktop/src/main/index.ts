@@ -3,6 +3,12 @@ import { isAskContent, isSessionOpEvent, type SettingsTarget } from "@omp-app/pr
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, shell } from "electron";
 import {
   APP_OPEN_LINK,
+  MCP_ADD,
+  MCP_LIST,
+  MCP_REMOVE,
+  MCP_REVEAL,
+  MCP_SET_ENABLED,
+  MCP_UPDATE,
   SESSION_ANSWER_ASK,
   SESSION_ANSWER_PERMISSION,
   SESSION_CANCEL,
@@ -25,7 +31,10 @@ import {
   SIDECAR_GET_STATUS,
   SIDECAR_RESTART,
   SIDECAR_STATUS,
+  SKILLS_LIST,
+  SKILLS_SET_ENABLED,
 } from "../shared/channels";
+import { flag, mcpSecretRef, mcpServerInput } from "./extensions-input";
 import { externalUrl } from "./external-url";
 import { platform } from "./platform";
 import { SidecarSupervisor } from "./sidecar-supervisor";
@@ -177,6 +186,51 @@ function registerSettingsRelay(sidecar: SidecarSupervisor): void {
   });
 }
 
+function registerExtensionsRelay(sidecar: SidecarSupervisor): void {
+  ipcMain.handle(MCP_LIST, (_event, target: unknown) =>
+    sidecar.request("mcp.list", settingsTarget(target)),
+  );
+  ipcMain.handle(MCP_ADD, (_event, target: unknown, server: unknown) =>
+    sidecar.request("mcp.add", { ...settingsTarget(target), server: mcpServerInput(server) }),
+  );
+  ipcMain.handle(MCP_UPDATE, (_event, target: unknown, server: unknown) =>
+    sidecar.request("mcp.update", { ...settingsTarget(target), server: mcpServerInput(server) }),
+  );
+  ipcMain.handle(MCP_REMOVE, (_event, target: unknown, name: unknown) =>
+    sidecar.request("mcp.remove", { ...settingsTarget(target), name: text(name, "name") }),
+  );
+  ipcMain.handle(MCP_SET_ENABLED, (_event, target: unknown, name: unknown, enabled: unknown) =>
+    sidecar.request("mcp.setEnabled", {
+      ...settingsTarget(target),
+      name: text(name, "name"),
+      enabled: flag(enabled, "enabled"),
+    }),
+  );
+  ipcMain.handle(MCP_REVEAL, async (_event, target: unknown, name: unknown, secret: unknown) => {
+    const revealed = await sidecar.request("mcp.reveal", {
+      ...settingsTarget(target),
+      name: text(name, "name"),
+      secret: mcpSecretRef(secret),
+    });
+    return revealed.value;
+  });
+  ipcMain.handle(SKILLS_LIST, (_event, sessionId: unknown) =>
+    sidecar.request(
+      "skills.list",
+      sessionId === undefined ? {} : { sessionId: text(sessionId, "sessionId") },
+    ),
+  );
+  ipcMain.handle(
+    SKILLS_SET_ENABLED,
+    (_event, name: unknown, enabled: unknown, sessionId: unknown) =>
+      sidecar.request("skills.setEnabled", {
+        name: text(name, "name"),
+        enabled: flag(enabled, "enabled"),
+        ...(sessionId === undefined ? {} : { sessionId: text(sessionId, "sessionId") }),
+      }),
+  );
+}
+
 function createWindow(): void {
   const win = new BrowserWindow({
     ...platform.windowChrome,
@@ -219,6 +273,7 @@ app.whenReady().then(() => {
   const sidecar = new SidecarSupervisor({ command: sidecarCommand() });
   supervisor = sidecar;
   registerSettingsRelay(sidecar);
+  registerExtensionsRelay(sidecar);
   sidecar.onStatus((status) => {
     for (const win of BrowserWindow.getAllWindows()) win.webContents.send(SIDECAR_STATUS, status);
   });

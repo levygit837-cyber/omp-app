@@ -55,3 +55,82 @@ export function describeError(error: unknown): string {
   }
   return text.length > 0 ? text : "Something went wrong.";
 }
+
+/**
+ * omp's objections to an `mcp.json` entry or to a name (`validateServerConfig` and
+ * `validateServerName`, omp 18.12.6 `mcp/config.ts:340-367`, `mcp/config-writer.ts:88-101` [V]),
+ * as the sentence to show. Text that matches none of them is one of the sidecar's own sentences
+ * and passes through.
+ */
+const CONFIG_PROBLEMS: readonly (readonly [RegExp, string | ((m: RegExpMatchArray) => string)])[] =
+  [
+    [
+      /Server "[^"]*": both "command" and "url" are set[^.]*?not both/g,
+      "This server sets both a command and a URL. Keep one.",
+    ],
+    [
+      /Server "[^"]*": stdio server requires "command" field/g,
+      "This stdio server needs a command.",
+    ],
+    [
+      /Server "[^"]*": (http|sse) server requires "url" field/g,
+      (m) => `This ${m[1]} server needs a URL.`,
+    ],
+    [
+      /Server "[^"]*": unknown server type "([^"]*)"/g,
+      (m) => `“${m[1]}” isn’t a transport omp knows. Use stdio, http or sse.`,
+    ],
+    [/Server name cannot be empty/g, "Give the server a name."],
+    [
+      /Server name is too long \(max (\d+) characters\)/g,
+      (m) => `That name is longer than ${m[1]} characters.`,
+    ],
+    [
+      /Server name can only contain letters, numbers, dash, underscore, dot, colon, and single spaces/g,
+      "A name can use letters, numbers, dash, underscore, dot, colon and single spaces.",
+    ],
+  ];
+
+export function describeConfigProblem(text: string): string {
+  let out = text;
+  for (const [pattern, sentence] of CONFIG_PROBLEMS) {
+    out = out.replace(pattern, (...args) => {
+      if (typeof sentence === "string") return sentence;
+      const groups = args.slice(0, -2).map((a) => (typeof a === "string" ? a : ""));
+      return sentence(groups as unknown as RegExpMatchArray);
+    });
+  }
+  return out;
+}
+
+/** Why an MCP server did not connect, as a sentence. The raw text from the process is not shown. */
+const CONNECT_FAILURES: readonly (readonly [RegExp, string])[] = [
+  [/ENOENT/, "The command wasn’t found. Check that it is installed and on your PATH."],
+  [/EACCES|permission denied/i, "The command isn’t allowed to run. Check its permissions."],
+  [
+    /ECONNREFUSED|ENOTFOUND|EAI_AGAIN|fetch failed|getaddrinfo/i,
+    "omp couldn’t reach the server. Check the URL and your connection.",
+  ],
+  [
+    /\b(?:401|403)\b|unauthori[sz]ed|forbidden/i,
+    "The server refused the credentials. Check the token or headers.",
+  ],
+  [/time(?:d)?[ -]?out/i, "The server didn’t answer in time."],
+  [
+    /connection closed|exited|EPIPE/i,
+    "The server stopped right after it started. Run its command in a terminal to see why.",
+  ],
+];
+
+export function describeMcpFailure(text: string): string {
+  for (const [pattern, sentence] of CONNECT_FAILURES) if (pattern.test(text)) return sentence;
+  return "omp couldn’t start this server.";
+}
+
+/**
+ * Text the sidecar sends for a refusal or a problem it found: its own sentences, or omp's
+ * validation text. Both become a sentence, and the IPC wrapper never shows.
+ */
+export function describeSidecarText(text: string): string {
+  return describeConfigProblem(describeError(text));
+}

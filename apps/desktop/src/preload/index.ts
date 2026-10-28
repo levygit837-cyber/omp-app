@@ -3,6 +3,12 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { OmpBridge, SidecarStatus } from "../shared/bridge";
 import {
   APP_OPEN_LINK,
+  MCP_ADD,
+  MCP_LIST,
+  MCP_REMOVE,
+  MCP_REVEAL,
+  MCP_SET_ENABLED,
+  MCP_UPDATE,
   SESSION_ANSWER_ASK,
   SESSION_ANSWER_PERMISSION,
   SESSION_CANCEL,
@@ -25,6 +31,8 @@ import {
   SIDECAR_GET_STATUS,
   SIDECAR_RESTART,
   SIDECAR_STATUS,
+  SKILLS_LIST,
+  SKILLS_SET_ENABLED,
 } from "../shared/channels";
 
 const bridge: OmpBridge = {
@@ -83,6 +91,20 @@ const bridge: OmpBridge = {
         ipcRenderer.removeListener(SETTINGS_OPEN, handler);
       };
     },
+  },
+  mcp: {
+    list: (target) => ipcRenderer.invoke(MCP_LIST, target),
+    add: (target, server) => ipcRenderer.invoke(MCP_ADD, target, server),
+    update: (target, server) => ipcRenderer.invoke(MCP_UPDATE, target, server),
+    remove: (target, name) => ipcRenderer.invoke(MCP_REMOVE, target, name),
+    setEnabled: (target, name, enabled) =>
+      ipcRenderer.invoke(MCP_SET_ENABLED, target, name, enabled),
+    reveal: (target, name, secret) => ipcRenderer.invoke(MCP_REVEAL, target, name, secret),
+  },
+  skills: {
+    list: (sessionId) => ipcRenderer.invoke(SKILLS_LIST, sessionId),
+    setEnabled: (name, enabled, sessionId) =>
+      ipcRenderer.invoke(SKILLS_SET_ENABLED, name, enabled, sessionId),
   },
 };
 
