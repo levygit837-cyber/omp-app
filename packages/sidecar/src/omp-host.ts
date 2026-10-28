@@ -481,11 +481,10 @@ export async function startOmpHost(options: OmpHostOptions): Promise<OmpHost> {
     commands: listBuiltinCommands,
     async clearContext(sessionId) {
       const session = sessionOf(sessionId);
-      // Same refusals as `resetSessionContext`, which returns undefined without touching anything
-      // while a response streams or a foreground shell runs (`agent-session.ts:6279-6283` [V]),
-      // said in a sentence. A running compaction or handoff would write its result after the
-      // boundary, so it is refused too (the TUI aborts it first, `command-controller.ts:1350` [V]).
-      if (session.isStreaming) throw new Error(ACTION_BUSY_MESSAGE);
+      // `resetSessionContext` returns undefined without touching anything while a response
+      // streams or a foreground shell runs (`agent-session.ts:6279-6283` [V]); the shell gets its
+      // own sentence. A running compaction or handoff would write its result after the boundary,
+      // so it is refused too (the TUI aborts it first, `command-controller.ts:1350` [V]).
       if (session.isBashRunning || session.isEvalRunning) throw new Error(ACTION_SHELL_MESSAGE);
       if (session.isCompacting) throw new Error(ACTION_COMMAND_MESSAGE);
       const result = await session.resetSessionContext();
