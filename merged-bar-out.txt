@@ -1,10 +1,12 @@
-idle {"toggle":"false","toggleDisabled":false,"toggleTitle":"","modelDisabled":null,"thinkingDisabled":null,"view":false,"band":false,"list":false,"draft":"","chips":[],"queue":false,"status":"timeline"}
-idle with chips {"toggle":"true","toggleDisabled":false,"toggleTitle":"","modelDisabled":null,"thinkingDisabled":null,"view":false,"band":false,"list":false,"draft":"","chips":["README.md×","package.json×","src/server.ts×"],"queue":false,"status":"timeline"}
+idle {"toggle":"false","toggleDisabled":null,"toggleTitle":"","modelDisabled":null,"thinkingDisabled":null,"view":false,"band":false,"list":false,"draft":"","chips":[],"queue":false,"status":"timeline"}
+idle with chips {"toggle":"true","toggleDisabled":null,"toggleTitle":"","modelDisabled":null,"thinkingDisabled":null,"view":false,"band":false,"list":false,"draft":"","chips":["README.md×","package.json×","src/server.ts×"],"queue":false,"status":"timeline"}
 idle+3 chips, width 1440 {"items":["Attach image","model-picker","thinking-picker","plan-toggle","plan-open","SPAN","Send"],"overlaps":[],"outside":[],"rows":3,"scrollOverflow":false}
 idle+3 chips, width 1100 {"items":["Attach image","model-picker","thinking-picker","plan-toggle","plan-open","SPAN","Send"],"overlaps":[],"outside":[],"rows":4,"scrollOverflow":false}
 idle+3 chips, width 960 {"items":["Attach image","model-picker","thinking-picker","plan-toggle","plan-open","SPAN","Send"],"overlaps":[],"outside":[],"rows":6,"scrollOverflow":false}
-running {"toggle":"true","toggleDisabled":true,"toggleTitle":"Plan mode changes between turns","modelDisabled":"true","thinkingDisabled":"true","view":false,"band":false,"list":false,"draft":"","chips":[],"queue":true,"status":"timeline"}
+running {"toggle":"true","toggleDisabled":"true","toggleTitle":"","modelDisabled":"true","thinkingDisabled":"true","view":false,"band":false,"list":false,"draft":"","chips":[],"queue":true,"status":"timeline"}
+locked toggle {"focused":true,"ariaDisabled":"true","disabledAttr":false,"tabindex":0,"describedBy":"controls-locked-reason","sentence":"Model, thinking and plan mode change when the turn ends.","title":"","pressedBefore":"true","pressedAfter":"true"}
+tab from thinking lands on plan-toggle
 running+queue, width 1440 {"items":["Attach image","model-picker","thinking-picker","plan-toggle","plan-open","SPAN","Stop"],"overlaps":[],"outside":[],"rows":4,"scrollOverflow":false}
 running+queue, width 1100 {"items":["Attach image","model-picker","thinking-picker","plan-toggle","plan-open","SPAN","Stop"],"overlaps":[],"outside":[],"rows":4,"scrollOverflow":false}
 running+queue, width 960 {"items":["Attach image","model-picker","thinking-picker","plan-toggle","plan-open","SPAN","Stop"],"overlaps":[],"outside":[],"rows":6,"scrollOverflow":false}
-after esc (turn) {"toggle":"true","toggleDisabled":false,"toggleTitle":"","modelDisabled":null,"thinkingDisabled":null,"view":false,"band":false,"list":false,"draft":"Then say: later.\nAnd after that, say: done.","chips":[],"queue":false,"status":"timeline"}
+after esc (turn) {"toggle":"true","toggleDisabled":null,"toggleTitle":"","modelDisabled":null,"thinkingDisabled":null,"view":false,"band":false,"list":false,"draft":"Then say: later.\nAnd after that, say: done.","chips":[],"queue":false,"status":"timeline"}

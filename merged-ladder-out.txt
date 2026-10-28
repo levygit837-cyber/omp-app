@@ -1,8 +1,11 @@
-proposed {"toggle":"true","toggleDisabled":true,"toggleTitle":"Plan mode changes between turns","modelDisabled":"true","thinkingDisabled":"true","view":true,"band":true,"list":false,"draft":"","chips":[],"queue":false,"status":"timeline"}
-refined {"toggle":"true","toggleDisabled":false,"toggleTitle":"","modelDisabled":null,"thinkingDisabled":null,"view":true,"band":false,"list":false,"draft":"","chips":[],"queue":false,"status":"timeline"}
-view up, draft, chip and list {"toggle":"true","toggleDisabled":false,"toggleTitle":"","modelDisabled":null,"thinkingDisabled":null,"view":true,"band":false,"list":true,"draft":"draft that must survive @pack","chips":["README.md×"],"queue":false,"status":"timeline"}
-esc 1 {"toggle":"true","toggleDisabled":false,"toggleTitle":"","modelDisabled":null,"thinkingDisabled":null,"view":true,"band":false,"list":false,"draft":"draft that must survive @pack","chips":["README.md×"],"queue":false,"status":"timeline"}
-esc 2 {"toggle":"true","toggleDisabled":false,"toggleTitle":"","modelDisabled":null,"thinkingDisabled":null,"view":false,"band":false,"list":false,"draft":"draft that must survive @pack","chips":["README.md×"],"queue":false,"status":"timeline"}
+proposed {"toggle":"true","toggleDisabled":"true","toggleTitle":"","modelDisabled":"true","thinkingDisabled":"true","view":true,"band":true,"list":false,"draft":"","chips":[],"queue":false,"status":"timeline"}
+refined {"toggle":"true","toggleDisabled":null,"toggleTitle":"","modelDisabled":null,"thinkingDisabled":null,"view":true,"band":false,"list":false,"draft":"","chips":[],"queue":false,"status":"timeline"}
+view up, draft, chip and list {"toggle":"true","toggleDisabled":null,"toggleTitle":"","modelDisabled":null,"thinkingDisabled":null,"view":true,"band":false,"list":true,"draft":"draft that must survive @pack","chips":["README.md×"],"queue":false,"status":"timeline"}
+esc 1 {"toggle":"true","toggleDisabled":null,"toggleTitle":"","modelDisabled":null,"thinkingDisabled":null,"view":true,"band":false,"list":false,"draft":"draft that must survive @pack","chips":["README.md×"],"queue":false,"status":"timeline"}
+esc 2 {"toggle":"true","toggleDisabled":null,"toggleTitle":"","modelDisabled":null,"thinkingDisabled":null,"view":false,"band":false,"list":false,"draft":"draft that must survive @pack","chips":["README.md×"],"queue":false,"status":"timeline"}
+palette open over the view {"palette":true,"view":true,"appInert":true}
+after Esc in the palette {"palette":false,"view":true,"appInert":false}
+palette ok: true
 reopened {"view":true,"draft":"draft that must survive @pack","chips":["README.md×"]}
 closed again {"view":false,"draft":"draft that must survive @pack","chips":["README.md×"]}
 ladder ok: true
