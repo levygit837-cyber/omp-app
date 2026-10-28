@@ -11,6 +11,11 @@ import { Buffer } from "node:buffer";
  * - `core.pager=cat`, `--no-pager`, `GIT_PAGER=cat`: nothing waits on a pager.
  * - `protocol.ext.allow=never`: no `ext::` transport (it runs a command).
  * - `--literal-pathspecs`: a file named `*` or `:(top)x` is that file, not a pattern.
+ * - Filter drivers: `filter.<name>.clean` runs whenever git hashes a file whose stat data differs
+ *   from the index, which is every file of a fresh clone and every file an agent just edited, and
+ *   `status`, `diff-index` and `ls-files` all do that. `.gitattributes`, `.git/info/attributes`
+ *   and `core.attributesFile` all name drivers and none can be turned off as a whole, so every
+ *   driver the repository's own config defines is replaced by name (see `filterOverrides`).
  * - A fixed argv and no shell: no argument is ever parsed by a shell.
  * - `-c` options travel to the git processes git itself starts (submodules).
  *
@@ -30,6 +35,9 @@ const HARDENING = [
   "-c",
   "protocol.ext.allow=never",
 ];
+
+/** The settings of a repository-defined filter driver that stop it from running or failing. */
+const FILTER_NEUTRAL = ["clean", "smudge", "process"] as const;
 
 export const DEFAULT_GIT_TIMEOUT_MS = 8_000;
 export const DEFAULT_GIT_MAX_BYTES = 8 * 1024 * 1024;
@@ -66,18 +74,77 @@ function gitEnv(): Record<string, string> {
   return env;
 }
 
+/**
+ * Every filter driver the repository itself defines (its local and worktree config, includes
+ * followed) as environment config that blanks `clean`, `smudge` and `process` and sets
+ * `required=false` (a required filter that cannot run aborts git). Environment config outranks
+ * the repository's, travels in the environment rather than the argv so a name can never be taken
+ * for an option, and reaches the git children git starts. Drivers of the person's own global
+ * config are theirs and stay. `null` when a name cannot be passed safely or the config cannot be
+ * listed: the caller must then not run git at all.
+ */
+export function filterOverrides(listing: Buffer): Record<string, string> | null {
+  const fields = listing.toString("utf8").split("\0");
+  const names = new Set<string>();
+  // `--show-scope --name-only -z` prints `scope NUL name NUL` pairs.
+  for (let i = 0; i + 1 < fields.length; i += 2) {
+    const scope = fields[i];
+    const key = fields[i + 1] ?? "";
+    if (scope !== "local" && scope !== "worktree") continue;
+    if (!key.startsWith("filter.")) continue;
+    const variable = key.lastIndexOf(".");
+    if (variable <= "filter.".length) continue;
+    const name = key.slice("filter.".length, variable);
+    if (name.includes("\n")) return null;
+    names.add(name);
+  }
+  const env: Record<string, string> = {};
+  let count = 0;
+  const set = (key: string, value: string) => {
+    env[`GIT_CONFIG_KEY_${count}`] = key;
+    env[`GIT_CONFIG_VALUE_${count}`] = value;
+    count++;
+  };
+  for (const name of names) {
+    for (const variable of FILTER_NEUTRAL) set(`filter.${name}.${variable}`, "");
+    set(`filter.${name}.required`, "false");
+  }
+  if (count > 0) env.GIT_CONFIG_COUNT = String(count);
+  return env;
+}
+
 export async function runGit(
   cwd: string,
   args: readonly string[],
   options: GitOptions = {},
 ): Promise<GitOutcome> {
-  const { signal, timeoutMs = DEFAULT_GIT_TIMEOUT_MS, maxBytes = DEFAULT_GIT_MAX_BYTES } = options;
+  const { signal } = options;
   if (signal?.aborted) return { kind: "aborted" };
+  const listing = await spawnGit(
+    cwd,
+    ["config", "--list", "-z", "--name-only", "--show-scope"],
+    { ...options, maxBytes: DEFAULT_GIT_MAX_BYTES, input: undefined },
+    {},
+  );
+  if (listing.kind !== "ok")
+    return listing.kind === "over_cap" ? { kind: "failed", code: null } : listing;
+  const overrides = filterOverrides(listing.stdout);
+  if (overrides === null) return { kind: "failed", code: null };
+  return spawnGit(cwd, args, options, overrides);
+}
+
+async function spawnGit(
+  cwd: string,
+  args: readonly string[],
+  options: GitOptions,
+  overrides: Readonly<Record<string, string>>,
+): Promise<GitOutcome> {
+  const { signal, timeoutMs = DEFAULT_GIT_TIMEOUT_MS, maxBytes = DEFAULT_GIT_MAX_BYTES } = options;
   let proc: Bun.Subprocess<Buffer<ArrayBuffer> | "ignore", "pipe", "ignore">;
   try {
     proc = Bun.spawn(["git", ...HARDENING, ...args], {
       cwd,
-      env: gitEnv(),
+      env: { ...gitEnv(), ...overrides },
       stdin: options.input === undefined ? "ignore" : Buffer.from(options.input),
       stdout: "pipe",
       stderr: "ignore",

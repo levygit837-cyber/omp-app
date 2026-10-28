@@ -595,7 +595,10 @@ describe("a hostile repository", () => {
     git(dir, "config", "diff.external", script("external"));
     git(dir, "config", "diff.evil.textconv", script("textconv"));
     git(dir, "config", "core.sshCommand", script("ssh"));
-    write(dir, ".gitattributes", "*.txt diff=evil\n");
+    git(dir, "config", "merge.evil.driver", script("merge"));
+    git(dir, "config", "core.attributesFile", join(dir, "global-attributes"));
+    writeFileSync(join(dir, "global-attributes"), "*.txt merge=evil\n");
+    write(dir, ".gitattributes", "*.txt diff=evil ident merge=evil\n");
     write(dir, "a.txt", "A\n");
     write(dir, "c.txt", "c\n");
     const session = open(dir);
@@ -606,6 +609,68 @@ describe("a hostile repository", () => {
     expect((await session.read("a.txt")).state).toBe("ok");
     expect(readdirSync(marker)).toEqual([]);
   });
+
+  for (const where of [".gitattributes", ".git/info/attributes"] as const) {
+    test(`a filter driver named in ${where} never runs, and the answers stay right`, async () => {
+      const dir = project();
+      const marker = join(base, `filter-marker${counter++}`);
+      mkdirSync(marker);
+      const driver = (name: string) => `sh -c "touch '${join(marker, name)}'; cat"`;
+      write(dir, "edited.txt", "one\n");
+      write(dir, "touched.txt", "same\n");
+      write(dir, "sub/deep.txt", "d\n");
+      write(dir, "keep.md", "k\n");
+      commitAll(dir);
+      // Drivers with names that are awkward to pass on a command line.
+      for (const name of ["evil", "dot.ted", "eq=ual", 'quo"te', "back\\slash"]) {
+        git(dir, "config", `filter.${name}.clean`, driver(`clean-${name.length}`));
+        git(dir, "config", `filter.${name}.smudge`, driver(`smudge-${name.length}`));
+        git(dir, "config", `filter.${name}.process`, driver(`process-${name.length}`));
+        git(dir, "config", `filter.${name}.required`, "true");
+      }
+      // Names that are awkward on a command line live in the config; the attribute file can only
+      // name the ones its syntax allows.
+      writeFileSync(
+        join(dir, where),
+        [
+          "edited.txt filter=evil",
+          "touched.txt filter=dot.ted",
+          "sub/* filter=eq=ual",
+          "*.md filter=evil",
+          "",
+        ].join("\n"),
+      );
+      // Same content, newer mtime: git must rehash the file to know it did not change.
+      await Bun.sleep(1100);
+      write(dir, "touched.txt", "same\n");
+      write(dir, "edited.txt", "one\ntwo\n");
+      write(dir, "sub/deep.txt", "d\nd2\n");
+      write(dir, "keep.md", "k\nk2\n");
+      write(dir, "fresh.txt", "new\n");
+      const session = open(dir);
+      const status = okStatus(await session.status());
+      // The attribute file itself is an untracked file when it lives in the work tree.
+      const expected = [
+        ["edited.txt", "M", 1],
+        ["fresh.txt", "?", 1],
+        ["keep.md", "M", 1],
+        ["sub/deep.txt", "M", 1],
+        ...(where === ".gitattributes" ? [[".gitattributes", "?", 4]] : []),
+      ];
+      expect(
+        status.changes
+          .map((c) => [c.path, c.status, c.added])
+          .sort((x, y) => String(x[0]).localeCompare(String(y[0]))),
+      ).toEqual(expected.sort((x, y) => String(x[0]).localeCompare(String(y[0]))));
+      const diff = await session.diff("edited.txt");
+      expect(diff.state).toBe("ok");
+      if (diff.state === "ok")
+        expect(diff.rows.some((r) => r.kind === "add" && r.text === "two")).toBe(true);
+      expect(await session.tree("sub")).toMatchObject({ state: "ok" });
+      expect(await session.tree()).toMatchObject({ state: "ok" });
+      expect(readdirSync(marker)).toEqual([]);
+    });
+  }
 
   test("a .git file that points at a work tree or a submodule still works", async () => {
     const main = project();
@@ -627,6 +692,26 @@ describe("a hostile repository", () => {
     writeFileSync(join(dir, ".git/HEAD"), "garbage\n");
     const result = await open(dir).status();
     expect(["not_repo", "ok"]).toContain(result.state);
+  });
+});
+
+describe("a name git lists in another Unicode form than the disk keeps", () => {
+  // macOS keeps the name decomposed and git (core.precomposeunicode) lists it composed; the
+  // volume treats both spellings as one file. Elsewhere the two are different files.
+  test.skipIf(process.platform !== "darwin")("the listed name opens", async () => {
+    const dir = project();
+    const decomposed = "u\u0308.txt";
+    const composed = "\u00fc.txt";
+    write(dir, decomposed, "umlaut\n");
+    commitAll(dir);
+    const session = open(dir);
+    const listed = await session.tree();
+    expect(listed.state).toBe("ok");
+    if (listed.state !== "ok") return;
+    const entry = listed.entries.find((e) => e.name.normalize("NFC") === composed);
+    expect(entry).toBeDefined();
+    const read = await session.read(entry?.name ?? "");
+    expect(read).toMatchObject({ state: "ok", content: "umlaut\n" });
   });
 });
 
