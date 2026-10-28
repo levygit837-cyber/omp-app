@@ -15,6 +15,8 @@ function fakeSession() {
     buildTranscriptSessionContext: () => ({ messages: [] }),
     model: { provider: "p", id: "m", api: "anthropic-messages", input: ["text"], compat: {} },
     settings: Settings.isolated(),
+    thinkingLevel: "off",
+    configuredThinkingLevel: () => "off",
     getContextUsage: () => ({ tokens: 500, contextWindow: 10_000, percent: 5 }),
     subscribe: (fn: (event: AgentSessionEvent) => void) => {
       listener = fn;

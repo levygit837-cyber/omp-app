@@ -1,4 +1,10 @@
-import type { Item, PendingRequest, SessionStatus, SessionWarning } from "@omp-app/protocol";
+import type {
+  Item,
+  PendingRequest,
+  QueueState,
+  SessionStatus,
+  SessionWarning,
+} from "@omp-app/protocol";
 import { useMemo } from "react";
 import { useStore } from "zustand";
 import { sessionTitle } from "./format";
@@ -35,6 +41,10 @@ export const useItemKind = (sessionId: string, index: number): Item["kind"] | un
   select((s) => s.sessions[sessionId]?.timeline[index]?.kind);
 export const useModel = (sessionId: string | null): string | null | undefined =>
   select((s) => (sessionId ? s.sessions[sessionId]?.model : undefined));
+export const useThinking = (sessionId: string): string | null | undefined =>
+  select((s) => s.sessions[sessionId]?.thinking);
+export const useQueue = (sessionId: string): QueueState | undefined =>
+  select((s) => s.sessions[sessionId]?.queue);
 /** The first prompt stands in for a title until sessions carry one. A string, so it is stable. */
 export const useSessionTitle = (sessionId: string): string =>
   select((s) => {

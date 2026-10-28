@@ -273,3 +273,45 @@ test("a rebuilt timeline equals the one the live reducer built from the same tur
   const added = resumed.ops.find((op) => op.type === "item.add");
   expect(added).toMatchObject({ item: { id: `i${rebuilt.items.length}` } });
 });
+
+test("a resumed prompt keeps the files omp read, and a message without one keeps none", () => {
+  const { items, omitted } = buildTranscript([
+    { role: "user", content: "read @a.ts" },
+    { role: "fileMention", files: [{ path: "a.ts", content: "x" }] },
+    assistant("done"),
+    { role: "user", content: "also @b.ts", steering: true },
+  ]);
+  expect(items[0]).toEqual({ kind: "user", id: "i0", text: "read @a.ts", files: ["a.ts"] });
+  expect(items[2]).toEqual({ kind: "user", id: "i2", text: "also @b.ts", steered: true });
+  expect(omitted).toEqual({});
+});
+
+test("a file mention with no user message to attach to is counted as left out", () => {
+  const { items, omitted } = buildTranscript([
+    { role: "fileMention", files: [{ path: "a.ts", content: "x" }] },
+  ]);
+  expect(items).toEqual([]);
+  expect(omitted).toEqual({ "file mentions": 1 });
+});
+
+test("a resumed steer keeps its badge and a resumed image its type and size", () => {
+  const { items } = buildTranscript([
+    { role: "user", content: "start" },
+    assistant("working"),
+    { role: "user", content: "use tabs", steering: true },
+    {
+      role: "user",
+      content: [
+        { type: "text", text: "what is this" },
+        { type: "image", mimeType: "image/png", data: "AAAA" },
+      ],
+    },
+  ]);
+  expect(items[2]).toEqual({ kind: "user", id: "i2", text: "use tabs", steered: true });
+  expect(items[3]).toEqual({
+    kind: "user",
+    id: "i3",
+    text: "what is this",
+    attachments: [{ kind: "image", mimeType: "image/png", bytes: 3 }],
+  });
+});

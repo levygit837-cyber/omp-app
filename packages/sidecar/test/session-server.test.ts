@@ -10,6 +10,7 @@ import {
   isEventEnvelope,
   isResponseEnvelope,
   isSessionOpEvent,
+  MAX_FRAME_CHARS,
   type MethodName,
   type Methods,
   RequestCorrelator,
@@ -20,6 +21,7 @@ import { RequestRegistry } from "../src/request-registry";
 import { type Handlers, type Server, startServer } from "../src/server";
 import { sessionHandlers } from "../src/session-handlers";
 import { SessionStore } from "../src/session-store";
+import { noPromptControls } from "./harness";
 import { loadFixture, readGolden } from "./replay";
 
 interface Client {
@@ -79,6 +81,7 @@ async function replayServer(name: string, readOnly = false, pauseAt = -1) {
   const gate = Promise.withResolvers<void>();
   const paused = Promise.withResolvers<void>();
   const control = {
+    ...noPromptControls,
     async createSession(cwd: string) {
       store.create(emptyViewModel({ id, cwd, model: fixture.header.model }));
       return id;
@@ -224,6 +227,7 @@ async function multiServer(fixtureNames: readonly string[], readOnly = false) {
   const running: Promise<string>[] = [];
   let created = 0;
   const control = {
+    ...noPromptControls,
     async createSession(cwd: string) {
       const fixture = fixtures[created++];
       if (!fixture) throw new Error("no more fixtures");
@@ -437,5 +441,44 @@ describe("several sessions in one sidecar", () => {
     expect(calls).toContain("close:moved-to");
     expect(store.has("moved-to")).toBe(false);
     client.close();
+  });
+});
+
+describe("oversized frames", () => {
+  test("a line past the cap closes only that connection; another one is still served", async () => {
+    const { socketPath } = await replayServer("basic");
+    const healthy = await connect(socketPath);
+    const closed = Promise.withResolvers<void>();
+    const chunk = new Uint8Array(1024 * 1024).fill(0x78);
+    const total = Math.ceil(MAX_FRAME_CHARS / chunk.length) + 1;
+    let sent = 0;
+    let offset = 0;
+    // `write` may accept only a prefix; resume from `offset` on drain.
+    const pump = (socket: Bun.Socket<undefined>): void => {
+      while (sent < total) {
+        offset += socket.write(chunk.subarray(offset));
+        if (offset < chunk.length) return;
+        offset = 0;
+        sent++;
+      }
+    };
+    await Bun.connect({
+      unix: socketPath,
+      socket: {
+        open: pump,
+        drain: pump,
+        close: () => closed.resolve(),
+        error: () => closed.resolve(),
+        data() {},
+      },
+    });
+
+    await closed.promise;
+
+    expect(await healthy.request("session.list")).toEqual({ sessions: [] });
+    const second = await connect(socketPath);
+    expect(await second.request("session.list")).toEqual({ sessions: [] });
+    second.close();
+    healthy.close();
   });
 });

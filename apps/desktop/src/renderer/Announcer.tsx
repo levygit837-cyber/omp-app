@@ -1,7 +1,7 @@
 import { useContext, useEffect, useRef, useState } from "react";
-import { announce } from "./announce";
+import { announce, announceControls, announceQueue } from "./announce";
 import { requestAnnouncement } from "./requests-view";
-import { lastAssistantText } from "./session-hooks";
+import { lastAssistantText, useModel, useQueue, useThinking } from "./session-hooks";
 import { EngineContext, useShownStatus, useWaiting } from "./shown-status";
 
 /**
@@ -15,6 +15,24 @@ export function Announcer({ sessionId }: { sessionId: string }) {
   const [text, setText] = useState("");
   const waiting = useWaiting(sessionId)[0];
   const askedId = useRef<string | undefined>(undefined);
+  const queue = useQueue(sessionId);
+  const model = useModel(sessionId);
+  const thinking = useThinking(sessionId);
+  const lastQueue = useRef(queue);
+  const lastControls = useRef({ model, thinking });
+
+  // Messages entering or leaving the queue strip, and the model or thinking level changing.
+  // Polite, one sentence, and nothing for the first reading of a session.
+  useEffect(() => {
+    const said = announceQueue(lastQueue.current, queue);
+    lastQueue.current = queue;
+    if (said) setText(said);
+  }, [queue]);
+  useEffect(() => {
+    const said = announceControls(lastControls.current, { model, thinking });
+    lastControls.current = { model, thinking };
+    if (said) setText(said);
+  }, [model, thinking]);
 
   // A request is said once, when it first shows. The band takes focus only from the page, so a
   // person typing in the input bar hears about it here instead of having the field taken away.

@@ -2,7 +2,7 @@
  * Dev script (local, needs credentials in the shared `~/.omp`): runs a real prompt against the
  * pinned omp and writes the raw `AgentSessionEvent` stream as JSONL to `test/fixtures/`.
  *
- *   bun run scripts/record.ts basic|cancel|tools|search|failures|todo|thinking|compaction
+ *   bun run scripts/record.ts basic|cancel|tools|search|failures|todo|thinking|compaction|steering
  *
  * Line 1 is a header (`fixture: 1`) with what the replay needs to start from; every other line
  * is one event, verbatim except for scrubbing: the home directory becomes `~`, the temp working
@@ -35,6 +35,20 @@ interface Scenario {
    * their order and every field the app reads stay as omp sent them.
    */
   readonly clipStringsAt?: number;
+  /**
+   * Model (`provider/id`) and thinking level set on the session before the prompt, through the
+   * same host calls the app uses. Recording them puts `model_changed` and `thinking_level_changed`
+   * in the stream.
+   */
+  readonly model?: string;
+  readonly thinking?: string;
+  /**
+   * Messages sent into the running turn once this many text deltas have streamed: first a
+   * follow-up (queued until the turn ends), then a steer (injected into the turn).
+   */
+  readonly joinAfterDeltas?: number;
+  readonly followUp?: string;
+  readonly steer?: string;
 }
 
 const SCENARIOS: Record<string, Scenario> = {
@@ -96,6 +110,18 @@ const SCENARIOS: Record<string, Scenario> = {
       ).join("\n"),
     },
   },
+  // Prompt controls: a cheap model and a thinking level chosen before the turn, then a follow-up
+  // and a steer sent while the agent is answering. The stream carries `model_changed`,
+  // `thinking_level_changed`, `queue_update` and the steered user message.
+  steering: {
+    prompt: "Count from 1 to 40, one number per line. No tools. Do not stop early.",
+    cancelAfterDeltas: 0,
+    model: "kiro/claude-haiku-5.5",
+    thinking: "low",
+    joinAfterDeltas: 3,
+    followUp: "After that, reply with exactly one word: done.",
+    steer: "Stop counting at 10 and say so in one short sentence.",
+  },
   // A run whose model reasons before answering.
   thinking: {
     prompt:
@@ -144,7 +170,9 @@ function scrub(text: string): string {
 const events: string[] = [];
 let session: AgentSession | undefined;
 let deltas = 0;
+let joinCount = 0;
 let cancelled: Promise<void> | undefined;
+const joined: Promise<boolean>[] = [];
 
 // No session is registered in this store, so a permission or ask cancels at once.
 const host = await startOmpHost({
@@ -164,6 +192,16 @@ const host = await startOmpHost({
       ) {
         cancelled = host.cancel(sessionId);
       }
+      if (
+        scenario.joinAfterDeltas !== undefined &&
+        event.type === "message_update" &&
+        event.assistantMessageEvent.type === "text_delta" &&
+        ++joinCount === scenario.joinAfterDeltas &&
+        sessionId
+      ) {
+        if (scenario.followUp) joined.push(host.join(sessionId, scenario.followUp, [], "followUp"));
+        if (scenario.steer) joined.push(host.join(sessionId, scenario.steer, [], "steer"));
+      }
     });
   },
 });
@@ -176,6 +214,9 @@ if (scenario.compactAtTokens !== undefined) {
   cfgCompactionThresholdTokens.override(created.settings, scenario.compactAtTokens);
 }
 
+if (scenario.model) await host.setModel(sessionId, scenario.model);
+if (scenario.thinking) host.setThinking(sessionId, scenario.thinking);
+
 const header = {
   fixture: 1,
   scenario: name,
@@ -186,6 +227,8 @@ const header = {
 };
 const stopReason = await host.prompt(sessionId, scenario.prompt);
 await cancelled;
+const admitted = await Promise.all(joined);
+if (admitted.includes(false)) throw new Error("omp declined a message sent into the running turn");
 // ACP answers "cancelled" before the session has finished unwinding; wait for its last events.
 await created.waitForIdle();
 if (scenario.compactAtTokens !== undefined) {

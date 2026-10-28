@@ -439,3 +439,103 @@ describe("reduceEvent, a decision line in the middle of a reply", () => {
     expect(viewModel.timeline).toHaveLength(3);
   });
 });
+
+describe("reduceEvent, prompt controls", () => {
+  const queueUpdate = (
+    steering: string[],
+    followUp: string[],
+    liveSteered = 0,
+  ): AgentSessionEvent => ({ type: "queue_update", steering, followUp, liveSteered });
+
+  test("queue_update replaces the whole queue, including the count already sent into the response", () => {
+    const { viewModel, ops } = run([queueUpdate(["a", "b"], ["later"], 1)]);
+    expect(viewModel.queue).toEqual({ steering: ["a", "b"], followUp: ["later"], liveSteered: 1 });
+    expect(ops).toEqual([{ type: "queue.set", queue: viewModel.queue }]);
+  });
+
+  test("a queue that drains to empty clears the strip", () => {
+    const { viewModel } = run([queueUpdate(["a"], ["b"]), queueUpdate([], [])]);
+    expect(viewModel.queue).toEqual({ steering: [], followUp: [], liveSteered: 0 });
+  });
+
+  test("a steer shows as a user item with the steered flag", () => {
+    const { viewModel } = run([
+      agentStart,
+      {
+        type: "message_start",
+        message: { role: "user", content: "use tabs", timestamp: 0, steering: true },
+      },
+    ]);
+    expect(viewModel.timeline).toEqual([
+      expect.objectContaining({ kind: "user", text: "use tabs", steered: true }),
+    ]);
+  });
+
+  test("a plain prompt carries no steered flag", () => {
+    const { viewModel } = run([userStart("hello")]);
+    expect(viewModel.timeline[0]).not.toHaveProperty("steered");
+  });
+
+  test("a user message with an image keeps its type and size, not its bytes", () => {
+    const { viewModel } = run([
+      {
+        type: "message_start",
+        message: {
+          role: "user",
+          timestamp: 0,
+          content: [
+            { type: "text", text: "what is this" },
+            { type: "image", mimeType: "image/png", data: "AAAA" },
+          ],
+        },
+      },
+    ]);
+    expect(viewModel.timeline[0]).toMatchObject({
+      kind: "user",
+      text: "what is this",
+      attachments: [{ kind: "image", mimeType: "image/png", bytes: 3 }],
+    });
+    expect(JSON.stringify(viewModel)).not.toContain("AAAA");
+  });
+
+  test("the files omp read land on the user message of the same prompt", () => {
+    const { viewModel, ops } = run([
+      userStart("read @a.ts and @big.bin"),
+      {
+        type: "message_start",
+        message: {
+          role: "fileMention",
+          timestamp: 0,
+          files: [
+            { path: "a.ts", content: "x" },
+            { path: "big.bin", content: "", skippedReason: "tooLarge" },
+          ],
+        } as never,
+      },
+    ]);
+    expect(viewModel.timeline[0]).toMatchObject({ kind: "user", files: ["a.ts"] });
+    expect(ops.filter((op) => op.type === "user.files")).toHaveLength(1);
+  });
+
+  // `joinActiveTurn` queues raw text, so omp emits no fileMention for a steer or follow-up: the
+  // user item stays without files however many `@` its text has.
+  test("a steer that names a file carries no files, since omp never read it", () => {
+    const { viewModel } = run([
+      agentStart,
+      {
+        type: "message_start",
+        message: { role: "user", content: "also @a.ts", timestamp: 0, steering: true },
+      },
+    ]);
+    expect(viewModel.timeline[0]).not.toHaveProperty("files");
+  });
+
+  test("thinking_level_changed sets the level the person chose, preferring the configured one", () => {
+    const { viewModel, ops } = run([
+      // The enum behind `thinkingLevel` is not importable from here; the reducer reads it as a string.
+      { type: "thinking_level_changed", thinkingLevel: "high" as never, configured: "auto" },
+    ]);
+    expect(viewModel.thinking).toBe("auto");
+    expect(ops).toEqual([{ type: "thinking.set", thinking: "auto" }]);
+  });
+});

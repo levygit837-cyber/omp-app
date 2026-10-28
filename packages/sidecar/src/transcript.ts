@@ -6,6 +6,7 @@ import {
   type ToolItem,
 } from "@omp-app/protocol";
 import { distill, isRecord, toolTarget, toToolResult, writeOutput } from "./tool-output";
+import { attachmentsOf, mentionedFiles } from "./user-message";
 
 /**
  * The part of omp's `AgentMessage` the builder reads. Structural on purpose: the builder stays
@@ -18,6 +19,10 @@ export interface TranscriptMessage {
   readonly content?: unknown;
   /** Set on user messages omp injected itself (not typed by the person). */
   readonly synthetic?: boolean;
+  /** Set on a user message that was injected into a running turn (`messages.ts:655` [V]). */
+  readonly steering?: unknown;
+  /** On a `fileMention` message: the files omp read (`FileMentionMessage` [V]). */
+  readonly files?: unknown;
   readonly provider?: unknown;
   readonly model?: unknown;
   /**
@@ -65,7 +70,6 @@ const OMITTED_LABELS: Readonly<Record<string, string>> = {
   branchSummary: "branch summaries",
   custom: "custom messages",
   hookMessage: "hook messages",
-  fileMention: "file mentions",
   developer: "messages added by omp",
 };
 
@@ -159,7 +163,25 @@ export function buildTranscript(messages: readonly TranscriptMessage[]): Transcr
           leaveOut("messages added by omp");
           break;
         }
-        items.push({ kind: "user", id: `i${items.length}`, text: textOf(message.content) });
+        const attachments = attachmentsOf(message.content);
+        items.push({
+          kind: "user",
+          id: `i${items.length}`,
+          text: textOf(message.content),
+          ...(message.steering === true ? { steered: true } : {}),
+          ...(attachments.length > 0 ? { attachments } : {}),
+        });
+        break;
+      }
+
+      case "fileMention": {
+        // The files omp read for the user message before it. Without one to attach to (the
+        // message was filtered) there is nothing to show, and that is counted as left out.
+        const files = mentionedFiles(message);
+        const at = items.findLastIndex((item) => item.kind === "user");
+        const user = items[at];
+        if (user?.kind === "user" && files.length > 0) items[at] = { ...user, files };
+        else if (files.length > 0) leaveOut("file mentions");
         break;
       }
 

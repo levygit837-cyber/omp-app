@@ -8,6 +8,7 @@
  * older replica never breaks on a newer op.
  */
 import { isRecord } from "./guards";
+import { type Attachment, isAttachment, isQueueState, type QueueState, sameQueue } from "./prompt";
 import {
   type DecisionItem,
   isDecisionItem,
@@ -35,6 +36,16 @@ export interface UserItem {
   readonly kind: "user";
   readonly id: string;
   readonly text: string;
+  /** True when the message was injected into a turn already running (a steer). */
+  readonly steered?: boolean;
+  /** Images and files that went with the message. Absent when there were none. */
+  readonly attachments?: readonly Attachment[];
+  /**
+   * Paths of the `@` references omp actually read for this message (its `fileMention` message).
+   * Absent when it read none. A reference typed into a message that joined a running turn is not
+   * read (`joinActiveTurn` queues the raw text), so it never appears here.
+   */
+  readonly files?: readonly string[];
 }
 
 export interface AssistantItem {
@@ -89,6 +100,11 @@ export interface SessionViewModel {
   readonly error?: string;
   /** `provider/id` of the active model, or null when the session has none. */
   readonly model: string | null;
+  /**
+   * The thinking level the person chose for the session: `auto`, `off` or one of the model's
+   * levels. Null until omp reports one. What the model accepts is `session.models`.
+   */
+  readonly thinking: string | null;
   readonly timeline: readonly Item[];
   /** Append-only, in the order they were raised. */
   readonly warnings: readonly SessionWarning[];
@@ -103,6 +119,8 @@ export interface SessionViewModel {
    * answers; the rest wait their turn. A request that stops mattering is removed, not kept.
    */
   readonly pending: readonly PendingRequest[];
+  /** Input waiting for the running turn: steering and follow-ups, as omp reports it. */
+  readonly queue: QueueState;
 }
 
 /** A change to the view model. Discriminated by `type`. */
@@ -110,12 +128,16 @@ export type SessionOp =
   | { readonly type: "item.add"; readonly item: Item }
   | { readonly type: "item.appendText"; readonly itemId: string; readonly text: string }
   | { readonly type: "item.done"; readonly itemId: string }
+  /** The files omp read for a user message, as its `fileMention` message reports them. */
+  | { readonly type: "user.files"; readonly itemId: string; readonly files: readonly string[] }
   | {
       readonly type: "status.set";
       readonly status: SessionStatus;
       readonly error?: string;
     }
   | { readonly type: "model.set"; readonly model: string | null }
+  | { readonly type: "thinking.set"; readonly thinking: string | null }
+  | { readonly type: "queue.set"; readonly queue: QueueState }
   | { readonly type: "warning.add"; readonly warning: SessionWarning }
   /** Adds a call to a tool item that is already on the timeline (a grouped line). */
   | { readonly type: "tool.call.add"; readonly itemId: string; readonly call: ToolCall }
@@ -205,12 +227,20 @@ export function applyOp(vm: SessionViewModel, op: SessionOp): SessionViewModel {
       return updateItem(vm, op.itemId, (item) =>
         item.kind === "assistant" && !item.done ? { ...item, done: true } : item,
       );
+    case "user.files":
+      return updateItem(vm, op.itemId, (item) =>
+        item.kind === "user" ? { ...item, files: op.files } : item,
+      );
     case "status.set": {
       const { error: _previous, ...rest } = vm;
       return { ...rest, status: op.status, ...(op.error === undefined ? {} : { error: op.error }) };
     }
     case "model.set":
       return vm.model === op.model ? vm : { ...vm, model: op.model };
+    case "thinking.set":
+      return vm.thinking === op.thinking ? vm : { ...vm, thinking: op.thinking };
+    case "queue.set":
+      return sameQueue(vm.queue, op.queue) ? vm : { ...vm, queue: op.queue };
     case "warning.add":
       return { ...vm, warnings: [...vm.warnings, op.warning] };
     case "tool.call.add":
@@ -280,7 +310,16 @@ function isWarning(v: unknown): v is SessionWarning {
 
 function isItem(v: unknown): v is Item {
   if (!isRecord(v) || typeof v.id !== "string") return false;
-  if (v.kind === "user") return typeof v.text === "string";
+  if (v.kind === "user") {
+    return (
+      typeof v.text === "string" &&
+      (v.steered === undefined || typeof v.steered === "boolean") &&
+      (v.attachments === undefined ||
+        (Array.isArray(v.attachments) && v.attachments.every(isAttachment))) &&
+      (v.files === undefined ||
+        (Array.isArray(v.files) && v.files.every((f) => typeof f === "string")))
+    );
+  }
   if (v.kind === "assistant") return typeof v.text === "string" && typeof v.done === "boolean";
   if (v.kind === "decision") return isDecisionItem(v);
   return isTimelineItem(v);
@@ -294,6 +333,8 @@ export function isSessionViewModel(v: unknown): v is SessionViewModel {
     (v.status === "idle" || v.status === "streaming" || v.status === "failed") &&
     (v.error === undefined || typeof v.error === "string") &&
     (v.model === null || typeof v.model === "string") &&
+    (v.thinking === null || typeof v.thinking === "string") &&
+    isQueueState(v.queue) &&
     Array.isArray(v.timeline) &&
     v.timeline.every(isItem) &&
     Array.isArray(v.warnings) &&

@@ -123,3 +123,16 @@ export async function startSidecar(extraEnv: Record<string, string> = {}): Promi
     },
   };
 }
+
+/**
+ * The prompt-control members of `SessionControl` for a fake host that never reaches them: a
+ * turn is never joined, and no model, queue or folder exists to ask about.
+ */
+export const noPromptControls = {
+  join: async () => false,
+  models: () => [],
+  setModel: async () => {},
+  setThinking: () => {},
+  removeQueued: () => false,
+  cwdOf: () => "/work",
+};

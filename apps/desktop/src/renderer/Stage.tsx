@@ -2,6 +2,7 @@ import { Button, FolderIcon, Notice, StateMark } from "@omp-app/ui";
 import { useState } from "react";
 import type { SidecarStatus } from "../shared/bridge";
 import { type EngineTrack, useElapsed } from "./engine";
+import { describeEngineFailure } from "./errors";
 import { clock } from "./format";
 import { Shortcut } from "./Shortcut";
 
@@ -53,7 +54,7 @@ function EngineFailed({
         <StateMark state="error" decorative />
         {track.wasReady ? "omp engine stopped" : "omp engine stopped while starting"}
       </h1>
-      <p className="text-size-md text-text-secondary">{status.error}</p>
+      <p className="text-size-md text-text-secondary">{describeEngineFailure(status.error)}</p>
       <div className="flex flex-col gap-(--space-4) py-(--space-6) pl-(--space-output-indent)">
         <p className="font-mono text-size-2xs tracking-caps text-text-dim uppercase">
           Last {log.length === 1 ? "line" : `${log.length} lines`} of output

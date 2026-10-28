@@ -2,6 +2,7 @@ import type { AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-
 import {
   applyOp,
   type CompactionItem,
+  EMPTY_QUEUE,
   EMPTY_USAGE,
   joinsItem,
   type RetryItem,
@@ -20,6 +21,7 @@ import {
   toToolResult,
   writeOutput,
 } from "./tool-output";
+import { attachmentsOf, isFileMention, mentionedFiles, thinkingOf } from "./user-message";
 
 /** What one event did to the view model: the new model and the ops that turn old into new. */
 export interface Reduced {
@@ -202,10 +204,25 @@ export function reduceEvent(
       const message = event.message;
       if (message?.role === "user") {
         if (message.synthetic) break;
+        const attachments = attachmentsOf(message.content);
         step.push({
           type: "item.add",
-          item: { kind: "user", id: nextItemId(step.viewModel), text: textOf(message.content) },
+          item: {
+            kind: "user",
+            id: nextItemId(step.viewModel),
+            text: textOf(message.content),
+            // A steer joined a turn already running (`messages.ts:655` [V]).
+            ...(message.steering === true ? { steered: true } : {}),
+            ...(attachments.length > 0 ? { attachments } : {}),
+          },
         });
+      } else if (isFileMention(message)) {
+        // omp pushes the files it read right after the user message of the same prompt, so the
+        // user item is the last one. A steer or follow-up that joined a running turn never gets
+        // one: `joinActiveTurn` queues the raw text and only `#prompt` expands `@` references.
+        const files = mentionedFiles(message);
+        const user = step.viewModel.timeline.findLast((item) => item.kind === "user");
+        if (user && files.length > 0) step.push({ type: "user.files", itemId: user.id, files });
       } else if (message?.role === "assistant") {
         const model = modelName(message);
         if (model !== step.viewModel.model) {
@@ -511,10 +528,38 @@ export function reduceEvent(
       break;
     }
 
+    case "queue_update":
+      step.push({
+        type: "queue.set",
+        queue: {
+          steering: event.steering ?? [],
+          followUp: event.followUp ?? [],
+          liveSteered: event.liveSteered ?? 0,
+        },
+      });
+      break;
+
+    case "thinking_level_changed":
+      step.push({
+        type: "thinking.set",
+        thinking: thinkingOf(event.thinkingLevel, event.configured),
+      });
+      break;
+
     default:
       break;
   }
   return step.done();
+}
+
+/** `thinking_level_changed` after `model_changed`: a model switch re-applies the level. */
+export function reduceThinking(viewModel: SessionViewModel, thinking: string | null): Reduced {
+  return viewModel.thinking === thinking
+    ? { viewModel, ops: [] }
+    : {
+        viewModel: applyOp(viewModel, { type: "thinking.set", thinking }),
+        ops: [{ type: "thinking.set", thinking }],
+      };
 }
 
 /** `model_changed` carries no payload, so the caller reads the session's model and passes it in. */
@@ -534,6 +579,7 @@ export function emptyViewModel(init: {
   model: string | null;
   usage?: SessionViewModel["usage"];
   context?: SessionViewModel["context"];
+  thinking?: string | null;
 }): SessionViewModel {
   return {
     id: init.id,
@@ -546,5 +592,7 @@ export function emptyViewModel(init: {
     context: init.context ?? null,
     todo: [],
     pending: [],
+    thinking: init.thinking ?? null,
+    queue: EMPTY_QUEUE,
   };
 }

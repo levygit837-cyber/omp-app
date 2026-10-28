@@ -5,6 +5,10 @@ import { emptyViewModel } from "./reducer";
 import type { RequestAnswers } from "./request-registry";
 import type { SessionStore } from "./session-store";
 import { buildTranscript, describeOmitted } from "./transcript";
+import { thinkingOf } from "./user-message";
+
+const thinkingOfSession = (session: AgentSession): string | null =>
+  thinkingOf(session.thinkingLevel, session.configuredThinkingLevel());
 
 const modelOf = (session: AgentSession): string | null =>
   session.model ? `${session.model.provider}/${session.model.id}` : null;
@@ -88,6 +92,7 @@ export function attachSession(
       id,
       cwd: session.sessionManager.getCwd(),
       model: modelOf(session) ?? transcript.model,
+      thinking: thinkingOfSession(session),
     }),
     timeline: transcript.items,
     warnings,
@@ -95,8 +100,12 @@ export function attachSession(
   created = true;
   session.subscribe((event) => {
     guarded(`reducer on ${event.type}`, () => {
-      if (event.type === "model_changed") store.setModel(id, modelOf(session));
-      else store.dispatch(id, event);
+      if (event.type === "model_changed") {
+        store.setModel(id, modelOf(session));
+        // A switch re-applies the thinking level (`model-controls.ts:#reapplyThinkingLevel`
+        // [V]) and may clamp it to what the new model accepts, with or without an event.
+        store.setThinking(id, thinkingOfSession(session));
+      } else store.dispatch(id, event);
     });
     // After the dispatch, so a request that ends with its turn leaves after the turn's ops.
     guarded(`request withdrawal on ${event.type}`, () => requests.agentEvent(id, event));

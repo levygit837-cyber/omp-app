@@ -1,4 +1,4 @@
-import { STALE_REQUEST_MESSAGE } from "@omp-app/protocol";
+import { SESSION_BUSY_MESSAGE, STALE_REQUEST_MESSAGE } from "@omp-app/protocol";
 
 /** Electron prefixes errors thrown by an IPC handler with this; it means nothing to the user. */
 const IPC_PREFIX = /^Error invoking remote method '[^']*': (?:Error: )?/;
@@ -34,10 +34,38 @@ const KNOWN: readonly (readonly [RegExp, (match: RegExpMatchArray) => string])[]
     () => "This session has no turns yet, so there is nothing to fork.",
   ],
   [
+    new RegExp(`^${SESSION_BUSY_MESSAGE}`),
+    () => "The agent is working. Change the model or the thinking level when the turn ends.",
+  ],
+  [/^No API key for (\S+)/, (m) => `omp has no credentials for ${m[1]}. Add them, then try again.`],
+  [/^unknown model/, () => "That model isn’t available to this session any more."],
+  [/^unknown thinking level/, () => "That model doesn’t accept that thinking level."],
+  [/^image refused: too_large/, () => "That image is too large to send. Try a smaller one."],
+  [/^image refused: type/, () => "Only PNG, JPEG, GIF and WebP images can be attached."],
+  [/^image refused: count/, () => "A message can carry only a few images."],
+  [/^image refused: /, () => "That image couldn’t be read. Try another one."],
+  [
+    /^Extension command "\/[^"]*" cannot be queued/,
+    () => "That command can only run when the agent is idle. Send it again when the turn ends.",
+  ],
+  [/^invalid (?:prompt|model|thinking level|queue entry|query)/, () => "That couldn’t be sent."],
+  [
     /database is newer than this app supports/,
     () => "omp-app is read-only: your omp data is newer than this version supports.",
   ],
 ];
+
+/**
+ * Why the engine stopped, as the sentence to show. The one failure the window can name is a
+ * frame past the protocol limit (`FrameTooLongError`); anything else is the supervisor's own
+ * text (exit code, lost connection) and passes through.
+ */
+export function describeEngineFailure(raw: string): string {
+  if (/^frame line exceeds \d+ characters/.test(raw)) {
+    return "omp sent a message that was too large for this app to read, so the connection was closed. Restart omp to continue.";
+  }
+  return raw;
+}
 
 /** The sentence a user sees for an error from the bridge, never the raw IPC text. */
 export function describeError(error: unknown): string {

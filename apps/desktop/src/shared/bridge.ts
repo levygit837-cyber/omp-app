@@ -1,10 +1,14 @@
 import type {
   AskAction,
   AskContent,
+  Delivery,
   McpChange,
   McpListing,
   McpSecretRef,
   McpServerInput,
+  ModelOption,
+  PromptImage,
+  QueueName,
   SessionOpEvent,
   SessionSnapshot,
   SettingsChange,
@@ -14,6 +18,12 @@ import type {
   SkillsListing,
   StoredSession,
 } from "@omp-app/protocol";
+
+/** What goes with a prompt: where it lands while the agent works, and the images it carries. */
+export interface PromptOptions {
+  readonly delivery?: Delivery;
+  readonly images?: readonly PromptImage[];
+}
 
 /** Where the sidecar is in its lifecycle, as the window sees it. */
 export type SidecarStatus =
@@ -55,8 +65,26 @@ export type OmpBridge = {
     /** Idempotent. Resolves with the current state; `session.op` events for it keep flowing. */
     subscribe(sessionId: string): Promise<SessionSnapshot>;
     unsubscribe(sessionId: string): Promise<void>;
-    /** Resolves once the prompt is accepted; the answer arrives as ops. */
-    prompt(sessionId: string, text: string): Promise<void>;
+    /**
+     * Resolves once the prompt is accepted; the answer arrives as ops. While the agent works,
+     * `delivery` picks between joining the running turn (`steer`, the default) and waiting for
+     * it to end (`followUp`). Text may be empty when there are images.
+     */
+    prompt(sessionId: string, text: string, options?: PromptOptions): Promise<void>;
+    /** Models the session can switch to, with the thinking levels each accepts. */
+    models(sessionId: string): Promise<readonly ModelOption[]>;
+    /** For the next turn. Rejects while a turn runs. */
+    setModel(sessionId: string, model: string): Promise<void>;
+    /** `off`, `auto` or a level the active model accepts. Rejects while a turn runs. */
+    setThinking(sessionId: string, level: string): Promise<void>;
+    /** Resolves false when the message already left the queue. */
+    removeQueued(sessionId: string, queue: QueueName, text: string): Promise<boolean>;
+    /** Files and folders of the session's project matching `query`, for `@` references. */
+    /** Files of the session folder matching `query`; `truncated` when the folder was too big to search whole. */
+    files(
+      sessionId: string,
+      query: string,
+    ): Promise<{ readonly files: readonly string[]; readonly truncated: boolean }>;
     cancel(sessionId: string): Promise<void>;
     /** Picks one of the options of a pending permission. Rejects if it is no longer pending. */
     answerPermission(sessionId: string, requestId: string, optionId: string): Promise<void>;

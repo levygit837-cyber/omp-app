@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { composerView, keyStopsTurn } from "../src/renderer/composer-state";
+import { composerView, escapeAction, keyStopsTurn } from "../src/renderer/composer-state";
 
 describe("composerView", () => {
   test("idle and ready asks for work and can send", () => {
@@ -10,9 +10,9 @@ describe("composerView", () => {
     });
   });
 
-  test("streaming and ready invites steering but cannot send a second prompt yet", () => {
+  test("streaming and ready still takes a prompt: it steers the turn or waits for its end", () => {
     const view = composerView({ readOnly: false, engine: "ready", streaming: true });
-    expect(view).toMatchObject({ kind: "input", canSend: false, reason: null });
+    expect(view).toMatchObject({ kind: "input", canSend: true, reason: null });
   });
 
   test("read-only replaces the input entirely", () => {
@@ -48,5 +48,20 @@ describe("keyStopsTurn", () => {
   test("no other key stops a turn", () => {
     expect(keyStopsTurn("Enter", false)).toBe(false);
     expect(keyStopsTurn("c", false)).toBe(false);
+  });
+});
+
+describe("escapeAction", () => {
+  // The Esc that dismisses the `@` list must not also stop the turn. The list is on screen while
+  // it says "Searching…" or "No matching files" too, so the decision is about what is shown, not
+  // about whether it has options.
+  test("a visible list closes first, even with nothing to pick", () => {
+    expect(escapeAction({ listShown: true, stopsTurn: true })).toBe("close-list");
+    expect(escapeAction({ listShown: true, stopsTurn: false })).toBe("close-list");
+  });
+
+  test("with no list, Esc stops a turn that can be stopped and otherwise does nothing", () => {
+    expect(escapeAction({ listShown: false, stopsTurn: true })).toBe("stop");
+    expect(escapeAction({ listShown: false, stopsTurn: false })).toBe("none");
   });
 });

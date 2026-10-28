@@ -6,6 +6,7 @@ import {
   decodeFrame,
   type EventEnvelope,
   FrameDecoder,
+  FrameTooLongError,
   isEventEnvelope,
   isResponseEnvelope,
   type MethodName,
@@ -202,8 +203,8 @@ export class SidecarSupervisor {
     this.#correlator = correlator;
     const decoder = new FrameDecoder();
     socket.setEncoding("utf8");
-    socket.on("data", (chunk: string) => {
-      for (const line of decoder.push(chunk)) {
+    const deliver = (lines: readonly string[]) => {
+      for (const line of lines) {
         const frame = decodeFrame(line);
         if (!frame.ok) continue;
         if (isResponseEnvelope(frame.envelope)) correlator.receive(frame.envelope);
@@ -211,6 +212,18 @@ export class SidecarSupervisor {
           for (const listener of this.#eventListeners) listener(frame.envelope);
         }
       }
+    };
+    socket.on("data", (chunk: string) => {
+      let lines: readonly string[];
+      try {
+        lines = decoder.push(chunk);
+      } catch (error) {
+        // Frames the chunk completed before the oversized line are still delivered.
+        if (error instanceof FrameTooLongError) deliver(error.complete);
+        this.#fail(run, error instanceof Error ? error.message : String(error));
+        return;
+      }
+      deliver(lines);
     });
     socket.on("close", () => {
       correlator.rejectAll(new Error("connection to the sidecar closed"));

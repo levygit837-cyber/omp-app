@@ -13,6 +13,7 @@ const SCENARIOS = [
   "todo",
   "thinking",
   "compaction",
+  "steering",
 ] as const;
 
 /** One tick per event, from a fixed origin: durations in the goldens are stable. */
@@ -82,6 +83,30 @@ describe("reducer replay of events recorded from the pinned omp", () => {
     const last = snapshot.timeline.at(-1);
     expect(last).toMatchObject({ kind: "assistant", done: true });
     expect(last?.kind === "assistant" && last.text.startsWith("1\n2\n3")).toBe(true);
+  });
+
+  test("steering: the queue fills and drains, the steer is badged, thinking follows the level", async () => {
+    const fixture = await loadFixture("steering");
+    const id = fixture.header.sessionId;
+    const store = newStore(fixture);
+    const queues: { steering: readonly string[]; followUp: readonly string[] }[] = [];
+    store.subscribe(id, "test", (event) => {
+      if (event.op.type === "queue.set") queues.push(event.op.queue);
+    });
+    for (const event of fixture.events) store.dispatch(id, event);
+
+    // Follow-up queued first, then the steer beside it; the steer is delivered, then the follow-up.
+    expect(queues.map((q) => [q.steering.length, q.followUp.length])).toEqual([
+      [0, 1],
+      [1, 1],
+      [0, 1],
+      [0, 0],
+    ]);
+    const { snapshot } = store.snapshot(id);
+    expect(snapshot.queue).toEqual({ steering: [], followUp: [], liveSteered: 0 });
+    expect(snapshot.thinking).toBe("low");
+    const users = snapshot.timeline.filter((item) => item.kind === "user");
+    expect(users.map((u) => u.kind === "user" && u.steered === true)).toEqual([false, true, false]);
   });
 
   test("an unsubscribed sink gets nothing and a throwing sink does not stop the others", async () => {

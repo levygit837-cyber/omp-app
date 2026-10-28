@@ -27,7 +27,9 @@
  */
 
 import {
+  type Attachment,
   applyOp,
+  base64Bytes,
   decodeFrame,
   encodeFrame,
   errorResponse,
@@ -36,6 +38,7 @@ import {
   isRequestEnvelope,
   okResponse,
   PROTOCOL_VERSION,
+  type PromptImage,
   type ResponseEnvelope,
   type SessionOp,
   type SessionOpEvent,
@@ -44,6 +47,18 @@ import {
 } from "@omp-app/protocol";
 import { storedSessions, storedTimeline } from "./fake-catalog";
 import { handleExtensions } from "./fake-extensions";
+import {
+  drainFollowUp,
+  fakeFiles,
+  fakeModels,
+  filesRead,
+  joinTurn,
+  type PromptTarget,
+  removeQueued,
+  requireIdle,
+  setModel,
+  setThinking,
+} from "./fake-prompt";
 import { answerRequest, dismissRequests, raiseRequests, scripted } from "./fake-requests";
 import { handleSettings } from "./fake-settings";
 import { fakeViewModel, mixedTimeline, stateTimeline } from "./fake-timeline";
@@ -152,12 +167,26 @@ function emit(session: FakeSession, op: SessionOp): void {
   for (const conn of session.subs) send(conn, frame);
 }
 
-async function runTurn(session: FakeSession, text: string): Promise<void> {
+async function runTurn(
+  session: FakeSession,
+  text: string,
+  attachments: Attachment[] = [],
+  files: string[] = [],
+): Promise<void> {
   if (session.turn) return;
   const n = ++session.turns;
   const turn: Turn = { cancelled: false, wake: () => {}, openItemId: `a${n}` };
   session.turn = turn;
-  emit(session, { type: "item.add", item: { kind: "user", id: `u${n}`, text } });
+  emit(session, {
+    type: "item.add",
+    item: {
+      kind: "user",
+      id: `u${n}`,
+      text,
+      ...(attachments.length > 0 ? { attachments } : {}),
+      ...(files.length > 0 ? { files } : {}),
+    },
+  });
   emit(session, { type: "status.set", status: "streaming" });
   emit(session, {
     type: "item.add",
@@ -193,6 +222,23 @@ async function runTurn(session: FakeSession, text: string): Promise<void> {
   session.turn = undefined;
   emit(session, { type: "item.done", itemId: turn.openItemId });
   emit(session, { type: "status.set", status: "idle" });
+  drainFollowUp(promptTarget(session));
+}
+
+/** What the prompt-control fake needs from a session. */
+function promptTarget(session: FakeSession): PromptTarget {
+  return {
+    // `emit` replaces `session.vm` on every op, so a target kept across a timer must read it live.
+    get vm() {
+      return session.vm;
+    },
+    get turning() {
+      return session.turn !== undefined;
+    },
+    emit: (op) => emit(session, op),
+    start: (text) => void runTurn(session, text),
+    nextId: () => `s${++session.turns}`,
+  };
 }
 
 function cancelTurn(session: FakeSession): void {
@@ -214,12 +260,23 @@ function param(params: unknown, key: string): string {
 /** A session in memory with the given history; `seq` starts at 0, as a fresh attach does. */
 function openFake(sessionId: string, cwd: string, timeline: Item[]): void {
   sessions.set(sessionId, {
-    vm: fakeViewModel({ id: sessionId, cwd, model: MODEL, timeline }),
+    vm: fakeViewModel({
+      id: sessionId,
+      cwd,
+      model: MODEL,
+      timeline,
+      thinking: initialThinking(MODEL),
+    }),
     seq: 0,
     subs: new Set(),
     turns: 0,
     warned: false,
   });
+}
+
+/** Thinking level a new session starts with: `off` for a model that has a control, else none. */
+function initialThinking(model: string): string | null {
+  return (fakeModels().find((m) => m.id === model)?.efforts.length ?? 0) > 0 ? "off" : null;
 }
 
 function readOnlyError(id: string, method: string): ResponseEnvelope {
@@ -284,6 +341,7 @@ function handleSession(
         cwd: param(params, "cwd"),
         model: MODEL,
         timeline: preloadedItems(),
+        thinking: initialThinking(MODEL),
       }),
       seq: 0,
       subs: new Set(),
@@ -326,9 +384,47 @@ function handleSession(
     case "session.unsubscribe":
       session.subs.delete(conn);
       return okResponse(id, null);
-    case "session.prompt":
-      void runTurn(session, param(params, "text"));
+    case "session.prompt": {
+      const text = param(params, "text");
+      const images = (params as { images?: PromptImage[] } | null)?.images ?? [];
+      // Like the real reducer: type and decoded size, never the bytes.
+      const attachments = images.map(
+        (image): Attachment => ({
+          kind: "image",
+          mimeType: image.mimeType,
+          bytes: base64Bytes(image.data),
+        }),
+      );
+      if (session.turn) joinTurn(promptTarget(session), text, param(params, "delivery"));
+      else void runTurn(session, text, attachments, filesRead(text));
       return okResponse(id, null);
+    }
+    case "session.models":
+      return okResponse(id, { models: fakeModels() });
+    case "session.files":
+      return okResponse(id, {
+        files: fakeFiles(param(params, "query")),
+        ...(process.env.FAKE_FILES_TRUNCATED === "1" ? { truncated: true } : {}),
+      });
+    case "session.removeQueued":
+      return okResponse(id, {
+        removed: removeQueued(promptTarget(session), param(params, "queue"), param(params, "text")),
+      });
+    case "session.setModel":
+    case "session.setThinking": {
+      const target = promptTarget(session);
+      try {
+        requireIdle(target);
+        if (method === "session.setModel") setModel(target, param(params, "model"));
+        else setThinking(target, param(params, "level"));
+      } catch (e) {
+        return errorResponse(id, {
+          code: "internal",
+          message: e instanceof Error ? e.message : String(e),
+        });
+      }
+      return okResponse(id, null);
+    }
     case "session.cancel":
       cancelTurn(session);
       return okResponse(id, null);

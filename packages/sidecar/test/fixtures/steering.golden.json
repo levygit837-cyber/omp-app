@@ -1,0 +1,423 @@
+{
+  "ops": [
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 1,
+      "op": {
+        "type": "thinking.set",
+        "thinking": "medium"
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 2,
+      "op": {
+        "type": "thinking.set",
+        "thinking": "low"
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 3,
+      "op": {
+        "type": "status.set",
+        "status": "streaming"
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 4,
+      "op": {
+        "type": "item.add",
+        "item": {
+          "kind": "user",
+          "id": "i0",
+          "text": "Count from 1 to 40, one number per line. No tools. Do not stop early."
+        }
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 5,
+      "op": {
+        "type": "item.add",
+        "item": {
+          "kind": "assistant",
+          "id": "i1",
+          "text": "1\n2\n3\n4",
+          "done": false
+        }
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 6,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i1",
+        "text": "\n5\n6\n7\n8"
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 7,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i1",
+        "text": "\n9\n10\n11\n12"
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 8,
+      "op": {
+        "type": "queue.set",
+        "queue": {
+          "steering": [],
+          "followUp": ["After that, reply with exactly one word: done."],
+          "liveSteered": 0
+        }
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 9,
+      "op": {
+        "type": "queue.set",
+        "queue": {
+          "steering": ["Stop counting at 10 and say so in one short sentence."],
+          "followUp": ["After that, reply with exactly one word: done."],
+          "liveSteered": 0
+        }
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 10,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i1",
+        "text": "\n13\n14\n15\n16"
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 11,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i1",
+        "text": "\n17\n18\n19\n20"
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 12,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i1",
+        "text": "\n21\n22\n23\n24"
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 13,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i1",
+        "text": "\n25\n26\n27\n28"
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 14,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i1",
+        "text": "\n29\n30\n31\n32"
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 15,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i1",
+        "text": "\n33\n34\n35\n36"
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 16,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i1",
+        "text": "\n37\n38\n39"
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 17,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i1",
+        "text": "\n40"
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 18,
+      "op": {
+        "type": "usage.set",
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 79,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0,
+          "cost": 0.0000395
+        }
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 19,
+      "op": {
+        "type": "item.done",
+        "itemId": "i1"
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 20,
+      "op": {
+        "type": "queue.set",
+        "queue": {
+          "steering": [],
+          "followUp": ["After that, reply with exactly one word: done."],
+          "liveSteered": 0
+        }
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 21,
+      "op": {
+        "type": "item.add",
+        "item": {
+          "kind": "user",
+          "id": "i2",
+          "text": "Stop counting at 10 and say so in one short sentence.",
+          "steered": true
+        }
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 22,
+      "op": {
+        "type": "item.add",
+        "item": {
+          "kind": "assistant",
+          "id": "i3",
+          "text": "Parei",
+          "done": false
+        }
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 23,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i3",
+        "text": " na"
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 24,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i3",
+        "text": " contagem em 10,"
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 25,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i3",
+        "text": " con"
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 26,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i3",
+        "text": "forme p"
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 27,
+      "op": {
+        "type": "item.appendText",
+        "itemId": "i3",
+        "text": "edido."
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 28,
+      "op": {
+        "type": "usage.set",
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 92,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0,
+          "cost": 0.000046
+        }
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 29,
+      "op": {
+        "type": "item.done",
+        "itemId": "i3"
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 30,
+      "op": {
+        "type": "queue.set",
+        "queue": {
+          "steering": [],
+          "followUp": [],
+          "liveSteered": 0
+        }
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 31,
+      "op": {
+        "type": "item.add",
+        "item": {
+          "kind": "user",
+          "id": "i4",
+          "text": "After that, reply with exactly one word: done."
+        }
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 32,
+      "op": {
+        "type": "item.add",
+        "item": {
+          "kind": "assistant",
+          "id": "i5",
+          "text": "done",
+          "done": false
+        }
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 33,
+      "op": {
+        "type": "usage.set",
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 93,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0,
+          "cost": 0.0000465
+        }
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 34,
+      "op": {
+        "type": "item.done",
+        "itemId": "i5"
+      }
+    },
+    {
+      "sessionId": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "seq": 35,
+      "op": {
+        "type": "status.set",
+        "status": "idle"
+      }
+    }
+  ],
+  "final": {
+    "snapshot": {
+      "id": "01a18005-2bd7-7263-8a91-1825767dd22f",
+      "cwd": "/work/project",
+      "status": "idle",
+      "model": "kiro/claude-haiku-5.5",
+      "timeline": [
+        {
+          "kind": "user",
+          "id": "i0",
+          "text": "Count from 1 to 40, one number per line. No tools. Do not stop early."
+        },
+        {
+          "kind": "assistant",
+          "id": "i1",
+          "text": "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15\n16\n17\n18\n19\n20\n21\n22\n23\n24\n25\n26\n27\n28\n29\n30\n31\n32\n33\n34\n35\n36\n37\n38\n39\n40",
+          "done": true
+        },
+        {
+          "kind": "user",
+          "id": "i2",
+          "text": "Stop counting at 10 and say so in one short sentence.",
+          "steered": true
+        },
+        {
+          "kind": "assistant",
+          "id": "i3",
+          "text": "Parei na contagem em 10, conforme pedido.",
+          "done": true
+        },
+        {
+          "kind": "user",
+          "id": "i4",
+          "text": "After that, reply with exactly one word: done."
+        },
+        {
+          "kind": "assistant",
+          "id": "i5",
+          "text": "done",
+          "done": true
+        }
+      ],
+      "warnings": [],
+      "usage": {
+        "inputTokens": 0,
+        "outputTokens": 93,
+        "cacheReadTokens": 0,
+        "cacheWriteTokens": 0,
+        "cost": 0.0000465
+      },
+      "context": null,
+      "todo": [],
+      "pending": [],
+      "thinking": "low",
+      "queue": {
+        "steering": [],
+        "followUp": [],
+        "liveSteered": 0
+      }
+    },
+    "seq": 35
+  }
+}

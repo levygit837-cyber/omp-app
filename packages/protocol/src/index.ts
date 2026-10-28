@@ -17,6 +17,17 @@ import {
   type SkillsListing,
 } from "./extensions";
 import { isRecord } from "./guards";
+import {
+  type Delivery,
+  isRemoveQueuedResult,
+  isSessionFilesResult,
+  isSessionModelsResult,
+  type PromptImage,
+  type QueueName,
+  type RemoveQueuedResult,
+  type SessionFilesResult,
+  type SessionModelsResult,
+} from "./prompt";
 import type { AskAction, AskContent } from "./requests";
 import { isSessionSnapshot, type SessionOpEvent, type SessionSnapshot } from "./session";
 import {
@@ -31,6 +42,7 @@ import {
 
 export * from "./catalog";
 export * from "./extensions";
+export * from "./prompt";
 export * from "./requests";
 export * from "./session";
 export * from "./settings";
@@ -136,9 +148,41 @@ export interface Methods {
   /** Stands in for a write-capable method, so the read-only gate is testable before real ones exist. */
   "debug.write": { params: undefined; result: DebugWriteResult };
   "session.create": { params: { readonly cwd: string }; result: SessionCreateResult };
+  /**
+   * Sends a prompt. While the agent works it joins the running turn: `delivery` `steer` (the
+   * default) injects it into the turn, `followUp` queues it until the turn ends. Idle, it starts
+   * a turn and `delivery` is ignored, so a click that races the end of a turn is not lost.
+   */
   "session.prompt": {
-    params: { readonly sessionId: string; readonly text: string };
+    params: {
+      readonly sessionId: string;
+      readonly text: string;
+      readonly images?: readonly PromptImage[];
+      readonly delivery?: Delivery;
+    };
     result: null;
+  };
+  /** Models the session can switch to (the ones with credentials), with the thinking levels each accepts. */
+  "session.models": { params: { readonly sessionId: string }; result: SessionModelsResult };
+  /** Applies to the next turn; omp records it in the session file. `model` is `provider/id` from `session.models`. */
+  "session.setModel": {
+    params: { readonly sessionId: string; readonly model: string };
+    result: null;
+  };
+  /** `level` is `off`, `auto` or one of the levels `session.models` lists for the active model. */
+  "session.setThinking": {
+    params: { readonly sessionId: string; readonly level: string };
+    result: null;
+  };
+  /** Takes a message back out of the queue. `removed: false` when it was already delivered. */
+  "session.removeQueued": {
+    params: { readonly sessionId: string; readonly queue: QueueName; readonly text: string };
+    result: RemoveQueuedResult;
+  };
+  /** Files and folders under the session folder that match `query`, for `@` references. Reads only. */
+  "session.files": {
+    params: { readonly sessionId: string; readonly query: string };
+    result: SessionFilesResult;
   };
   "session.cancel": { params: { readonly sessionId: string }; result: null };
   /** Idempotent. Starts `session.op` events for this connection and returns the current state. */
@@ -318,6 +362,13 @@ export const methodWrites: { [M in MethodName]: boolean } = {
   "debug.write": true,
   "session.create": true,
   "session.prompt": true,
+  // Switching writes the session file and omp's model-usage table in `agent.db`.
+  "session.models": false,
+  "session.setModel": true,
+  "session.setThinking": true,
+  // Edits the in-memory queue; nothing on disk.
+  "session.removeQueued": false,
+  "session.files": false,
   "session.cancel": true,
   "session.subscribe": false,
   "session.unsubscribe": false,
@@ -364,6 +415,11 @@ export const resultGuards: { [M in MethodName]: (v: unknown) => v is Methods[M][
   "debug.write": isDebugWriteResult,
   "session.create": isSessionCreateResult,
   "session.prompt": isNull,
+  "session.models": isSessionModelsResult,
+  "session.setModel": isNull,
+  "session.setThinking": isNull,
+  "session.removeQueued": isRemoveQueuedResult,
+  "session.files": isSessionFilesResult,
   "session.cancel": isNull,
   "session.subscribe": isSessionSnapshot,
   "session.unsubscribe": isNull,
@@ -477,15 +533,60 @@ export function decodeFrame(line: string): DecodedFrame {
   return { ok: true, envelope: value };
 }
 
-/** Reassembles frames from arbitrary text chunks. Keeps the trailing partial line. */
-export class FrameDecoder {
-  #buffer = "";
+/** Longest single frame line the decoder accepts, in UTF-16 code units. */
+export const MAX_FRAME_CHARS = 32 * 1024 * 1024;
 
-  /** Feed a chunk; returns every complete, non-empty line it finished. */
+/**
+ * Thrown by `FrameDecoder.push` when one line exceeds `MAX_FRAME_CHARS`. `complete` holds the
+ * lines the same chunk finished before the oversized one: they arrived whole and are not lost.
+ */
+export class FrameTooLongError extends Error {
+  constructor(readonly complete: readonly string[] = []) {
+    super(`frame line exceeds ${MAX_FRAME_CHARS} characters`);
+    this.name = "FrameTooLongError";
+  }
+}
+
+/**
+ * Reassembles frames from arbitrary text chunks. Keeps the trailing partial line
+ * as parts joined once when the line completes, so decoding stays linear.
+ */
+export class FrameDecoder {
+  #parts: string[] = [];
+  #pending = 0;
+
+  /**
+   * Feed a chunk; returns every complete, non-empty line it finished.
+   * Throws `FrameTooLongError` (after resetting) when a line passes `MAX_FRAME_CHARS`; the error
+   * carries the lines this chunk had already completed.
+   */
   push(chunk: string): string[] {
-    this.#buffer += chunk;
-    const lines = this.#buffer.split("\n");
-    this.#buffer = lines.pop() ?? "";
-    return lines.map((line) => line.trimEnd()).filter((line) => line.length > 0);
+    const lines: string[] = [];
+    let start = 0;
+    while (true) {
+      const newline = chunk.indexOf("\n", start);
+      const end = newline === -1 ? chunk.length : newline;
+      if (this.#pending + (end - start) > MAX_FRAME_CHARS) {
+        this.#parts = [];
+        this.#pending = 0;
+        throw new FrameTooLongError(lines);
+      }
+      if (newline === -1) {
+        if (end > start) {
+          this.#parts.push(chunk.slice(start));
+          this.#pending += end - start;
+        }
+        return lines;
+      }
+      const line = (
+        this.#parts.length === 0
+          ? chunk.slice(start, end)
+          : this.#parts.join("") + chunk.slice(start, end)
+      ).trimEnd();
+      this.#parts = [];
+      this.#pending = 0;
+      if (line.length > 0) lines.push(line);
+      start = newline + 1;
+    }
   }
 }
