@@ -28,6 +28,16 @@ import {
   type SkillsChange,
   type SkillsListing,
 } from "./extensions";
+import {
+  type FilesDiffResult,
+  type FilesReadResult,
+  type FilesStatusResult,
+  type FilesTreeResult,
+  isFilesDiffResult,
+  isFilesReadResult,
+  isFilesStatusResult,
+  isFilesTreeResult,
+} from "./files";
 import { isRecord } from "./guards";
 import { isPlanReadResult, type PlanReadResult } from "./plan";
 import {
@@ -58,6 +68,7 @@ export * from "./catalog";
 export * from "./commands";
 export * from "./delegation";
 export * from "./extensions";
+export * from "./files";
 export * from "./plan";
 export * from "./prompt";
 export * from "./requests";
@@ -358,6 +369,23 @@ export interface Methods {
     params: { readonly sessionId?: string; readonly name: string; readonly enabled: boolean };
     result: SkillsChange;
   };
+  /** Branch, ahead/behind and changed files of the session's folder (git status, read-only). */
+  "files.status": { params: { readonly sessionId: string }; result: FilesStatusResult };
+  /** One folder of the project tree. `path` is relative to the session folder; empty = the root. */
+  "files.tree": {
+    params: { readonly sessionId: string; readonly path: string };
+    result: FilesTreeResult;
+  };
+  /** One file of the project as text, read-only. `path` is relative to the session folder. */
+  "files.read": {
+    params: { readonly sessionId: string; readonly path: string };
+    result: FilesReadResult;
+  };
+  /** One file's change against HEAD. Untracked files come back as all added. */
+  "files.diff": {
+    params: { readonly sessionId: string; readonly path: string };
+    result: FilesDiffResult;
+  };
 }
 
 /**
@@ -514,6 +542,12 @@ export const methodWrites: { [M in MethodName]: boolean } = {
   "mcp.reveal": false,
   "skills.list": false,
   "skills.setEnabled": true,
+  // The Files page only reads: git runs with --no-optional-locks and no hook, pager or fsmonitor,
+  // and a file is opened read-only. Nothing here may write, so read-only mode serves all four.
+  "files.status": false,
+  "files.tree": false,
+  "files.read": false,
+  "files.diff": false,
 };
 
 export function isDebugWriteResult(v: unknown): v is DebugWriteResult {
@@ -570,6 +604,10 @@ export const resultGuards: { [M in MethodName]: (v: unknown) => v is Methods[M][
   "mcp.reveal": isSettingsRevealResult,
   "skills.list": isSkillsListing,
   "skills.setEnabled": isSkillsChange,
+  "files.status": isFilesStatusResult,
+  "files.tree": isFilesTreeResult,
+  "files.read": isFilesReadResult,
+  "files.diff": isFilesDiffResult,
 };
 
 /** A request that failed: the sidecar answered with an error, or the reply was malformed. */
