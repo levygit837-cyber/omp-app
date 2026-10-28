@@ -135,4 +135,20 @@ describe("files store", () => {
     await settle();
     expect(files.store.getState().pages.s?.dirs.gone?.state).toBe("failed");
   });
+
+  test("a page made again under a closed session's id ignores the old request still in flight", async () => {
+    const { api, statuses } = manualApi();
+    const files = createFilesStore(api);
+    files.refresh("s");
+    files.dispose("s");
+    files.refresh("s");
+    statuses[0]?.resolve(clean("old"));
+    await settle();
+    expect(files.store.getState().pages.s?.status.phase).toBe("loading");
+    statuses[1]?.resolve(clean("new"));
+    await settle();
+    expect(files.store.getState().pages.s?.status).toMatchObject({
+      result: { branch: { name: "new" } },
+    });
+  });
 });

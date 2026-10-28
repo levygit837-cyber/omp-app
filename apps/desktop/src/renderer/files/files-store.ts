@@ -87,10 +87,12 @@ export function createFilesStore(api: FilesApi): FilesStore {
   const generation = new Map<string, number>();
   const dirKey = (sessionId: string, dir: string) => `${sessionId}\0${dir}`;
 
+  // One counter for every key, never reset: a forgotten key that comes back (a closed session's id
+  // reused) cannot hand out a number an old request in flight still holds.
+  let issued = 0;
   const start = (key: string): number => {
-    const next = (generation.get(key) ?? 0) + 1;
-    generation.set(key, next);
-    return next;
+    generation.set(key, ++issued);
+    return issued;
   };
   const latest = (key: string, n: number): boolean => generation.get(key) === n;
   const forget = (sessionId: string) => {
