@@ -1,0 +1,8 @@
+{
+ "mode": "inactive",
+ "project": "MCP & skills\n⌘\nF\nServers scope\nGlobal\nProject · omp-app\nBack to session\nServers\nSkills\n\n~/.omp/agent/mcp.json + .omp/mcp.json\n\nApplies to new sessions. This session keeps its current tools.\n\nfilesystem\nstdio\nOff for new sessions · Project\nAdd server\n\nProject servers are switched off in omp’s settings (mcp.enableProjectConfig), so a new session starts none of them.\n\nServers from other config files (.mcp.json, .claude/mcp.json, .omp/.mcp.json) aren’t shown or edited here.\n\nfilesystem\nOff for new sessions\nEnable\nEdit\nRemove\ntransport\nstdio\ncommand\nnode\nargs\n./servers/fs.js\nfrom\n~/Projects/omp-app/.omp/mcp.json · Project",
+ "addDescribed": {
+  "disabled": false,
+  "describedby": null
+ }
+}

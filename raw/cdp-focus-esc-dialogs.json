@@ -1,0 +1,65 @@
+{
+ "A_dirty": {
+  "screen": true,
+  "form": true,
+  "prompt": true,
+  "focus": "Keep editing"
+ },
+ "A_keep": {
+  "screen": true,
+  "form": true,
+  "prompt": false,
+  "value": "typed-name"
+ },
+ "A_discard": {
+  "screen": true,
+  "form": false,
+  "focus": "Add server"
+ },
+ "B_clean": {
+  "screen": true,
+  "form": false,
+  "focus": "Add server"
+ },
+ "C_cancel": {
+  "form": false,
+  "focus": "Add server"
+ },
+ "D_in": {
+  "dialog": true,
+  "focus": "Keep it"
+ },
+ "D_tab": [
+  "Remove server",
+  "Keep it",
+  "Remove server",
+  "Keep it"
+ ],
+ "D_esc": {
+  "screen": true,
+  "dialog": false,
+  "focus": "Remove"
+ },
+ "D_keep": {
+  "screen": true,
+  "dialog": false,
+  "focus": "Remove"
+ },
+ "D_removed": {
+  "dialog": false,
+  "focus": "linear\nhttp\nThe command wasn’t found. Ch",
+  "context7": false
+ },
+ "E_save": {
+  "form": false,
+  "focus": "playwright\nstdio\nnode @example/playwrigh"
+ },
+ "F_reveal": {
+  "revealedBefore": false,
+  "afterReselect": false
+ },
+ "G_note": "Servers from other config files (.mcp.json, .claude/mcp.json, .omp/.mcp.json) aren’t shown or edited here.",
+ "H_mcpNote": "Applies to new sessions. This session keeps its current tools.",
+ "H_skillsNote": "Applies to new sessions. An open session may pick it up the next time its settings change.",
+ "H_tabBorder": "rgb(241, 228, 218)"
+}

@@ -1,0 +1,10 @@
+{
+ "mode": "default",
+ "revealed": true,
+ "afterReselect": true,
+ "invalid": {
+  "invalid": "true",
+  "describedby": "_r_4_-env-error",
+  "text": "“K” appears twice."
+ }
+}

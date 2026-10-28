@@ -1,0 +1,16 @@
+{
+ "mode": "readonly",
+ "toggle": {
+  "disabled": true,
+  "describedby": "extensions-read-only-note",
+  "note": true
+ },
+ "buttons": [
+  "Disable:extensions-read-only-note",
+  "Edit:extensions-read-only-note",
+  "Remove:extensions-read-only-note"
+ ],
+ "skillToggle": {
+  "describedby": "extensions-read-only-note"
+ }
+}
